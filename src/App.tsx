@@ -25,6 +25,7 @@ import { MusicJukeboxModal } from './components/MusicJukeboxModal';
 import { ComfortCornerModal } from './components/ComfortCornerModal';
 import { SecretLocketModal } from './components/SecretLocketModal';
 import { CelebrationLocketModal } from './components/CelebrationLocketModal';
+import { LevelClearHeroModal } from './components/LevelClearHeroModal';
 import { GlowUpWeekModal } from './components/GlowUpWeekModal';
 import { CozyModeOverlay } from './components/CozyModeOverlay';
 import { CartoonTalkiesModal } from './components/CartoonTalkiesModal';
@@ -55,6 +56,7 @@ export function App() {
   const [showMusicJukebox, setShowMusicJukebox] = useState(false);
   const [showComfortCorner, setShowComfortCorner] = useState(false);
   const [showSecretLocket, setShowSecretLocket] = useState(false);
+  const [showLevelClearHero, setShowLevelClearHero] = useState(false);
   const [showCelebrationLocket, setShowCelebrationLocket] = useState(false);
   const [showGlowUpWeek, setShowGlowUpWeek] = useState(false);
   const [showCozyMode, setShowCozyMode] = useState(false);
@@ -174,8 +176,8 @@ export function App() {
       gameState.unlockRecipe(activeTargetRecipe.id);
       
       setPlayer(gameState.getPlayer());
-      // Trigger Celebration Locket first!
-      setShowCelebrationLocket(true);
+      // Trigger Hero Banner Video level clear celebration!
+      setShowLevelClearHero(true);
     }
   };
 
@@ -280,7 +282,12 @@ export function App() {
         {currentScreen === 'boss' && activeZone && (
           <BossRound
             zone={activeZone}
-            onComplete={() => handleNavigate('map')}
+            onComplete={(passed) => {
+              if (passed) {
+                setShowLevelClearHero(true);
+              }
+              handleNavigate('map');
+            }}
           />
         )}
 
@@ -289,7 +296,10 @@ export function App() {
         )}
 
         {currentScreen === 'daily' && (
-          <DailyChallenge onComplete={() => handleNavigate('home')} />
+          <DailyChallenge onComplete={() => {
+            setShowLevelClearHero(true);
+            handleNavigate('home');
+          }} />
         )}
 
         {currentScreen === 'profile' && (
@@ -373,6 +383,17 @@ export function App() {
         {/* Secret Locket Modal */}
         {showSecretLocket && (
           <SecretLocketModal onClose={() => setShowSecretLocket(false)} />
+        )}
+
+        {/* Level Cleared Hero Banner Video Celebration Modal */}
+        {showLevelClearHero && (
+          <LevelClearHeroModal
+            earnedSandwiches={roundSandwiches || 5}
+            onClose={() => {
+              setShowLevelClearHero(false);
+              setShowRecipeModal(true);
+            }}
+          />
         )}
 
         {/* Milestone / Level Celebration Locket Animation */}
