@@ -26,6 +26,7 @@ import { ComfortCornerModal } from './components/ComfortCornerModal';
 import { SecretLocketModal } from './components/SecretLocketModal';
 import { CelebrationLocketModal } from './components/CelebrationLocketModal';
 import { LevelClearHeroModal } from './components/LevelClearHeroModal';
+import { InstallAppModal } from './components/InstallAppModal';
 import { GlowUpWeekModal } from './components/GlowUpWeekModal';
 import { CozyModeOverlay } from './components/CozyModeOverlay';
 import { CartoonTalkiesModal } from './components/CartoonTalkiesModal';
@@ -62,6 +63,7 @@ export function App() {
   const [showCozyMode, setShowCozyMode] = useState(false);
   const [showCartoonTalkies, setShowCartoonTalkies] = useState(false);
   const [cartoonTalkiesMode, setCartoonTalkiesMode] = useState<'video' | 'magazine'>('video');
+  const [showInstallApp, setShowInstallApp] = useState(false);
 
   const [selectedHindiSongId, setSelectedHindiSongId] = useState<string | undefined>(undefined);
   const [activeTargetRecipe, setActiveTargetRecipe] = useState<Recipe>(RECIPES[0]);
@@ -220,7 +222,11 @@ export function App() {
       
       {/* Show Header Navbar on all screens except cinematic intro */}
       {currentScreen !== 'cinematic' && (
-        <Navbar currentScreen={currentScreen} onNavigate={handleNavigate} />
+        <Navbar 
+          currentScreen={currentScreen} 
+          onNavigate={handleNavigate} 
+          onOpenInstallApp={() => setShowInstallApp(true)}
+        />
       )}
 
       {/* Main Screen Container */}
@@ -242,6 +248,7 @@ export function App() {
               setCartoonTalkiesMode(mode);
               setShowCartoonTalkies(true);
             }}
+            onOpenInstallApp={() => setShowInstallApp(true)}
           />
         )}
 
@@ -383,6 +390,11 @@ export function App() {
         {/* Secret Locket Modal */}
         {showSecretLocket && (
           <SecretLocketModal onClose={() => setShowSecretLocket(false)} />
+        )}
+
+        {/* Install / Download App Modal (Android & iOS) */}
+        {showInstallApp && (
+          <InstallAppModal onClose={() => setShowInstallApp(false)} />
         )}
 
         {/* Level Cleared Hero Banner Video Celebration Modal */}

@@ -2,11 +2,25 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>MARISOL: Factory of Fun | Trivia Adventure</title>
-    <meta name="description" content="A playful, motivational trivia adventure game starring Marisol! Where curiosity becomes a superpower." />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>MARISOL: Factory of Fun | Kritika's Comfort Space</title>
+    <meta name="description" content="A playful, motivational digital comfort and wellness adventure designed specially for Kritika!" />
     
+    <!-- PWA Manifest for Android & Desktop -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#F43F5E" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- iOS Apple Touch Icon & Fullscreen Standalone App Configuration -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Marisol" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
+
     <!-- Google Fonts for Sketch & Hand-drawn Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,5 +29,19 @@
   <body class="bg-paper-50 text-ink antialiased overflow-x-hidden selection:bg-doodleGold/30 selection:text-ink">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Register PWA Service Worker for Offline & Install Capability -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then((reg) => {
+            console.log('[PWA] Service Worker registered successfully:', reg.scope);
+          }).catch((err) => {
+            console.log('[PWA] Service Worker registration failed:', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>
+

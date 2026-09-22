@@ -1,0 +1,33 @@
+{
+  "name": "Marisol: Factory of Fun | Kritika's Comfort Space",
+  "short_name": "Marisol",
+  "description": "Kritika's personal digital comfort, wellness & culinary trivia adventure",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFFDF7",
+  "theme_color": "#F43F5E",
+  "orientation": "portrait-primary",
+  "categories": ["lifestyle", "entertainment", "games"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

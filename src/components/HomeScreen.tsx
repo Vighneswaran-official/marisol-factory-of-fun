@@ -25,6 +25,7 @@ interface HomeScreenProps {
   onOpenGlowUpWeek: () => void;
   onOpenCozyMode: () => void;
   onOpenCartoonTalkies: (mode?: 'video' | 'magazine') => void;
+  onOpenInstallApp?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -36,6 +37,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenGlowUpWeek,
   onOpenCozyMode,
   onOpenCartoonTalkies,
+  onOpenInstallApp,
 }) => {
   const [, setTick] = useState(0);
   const player = gameState.getPlayer();
@@ -388,6 +390,35 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </span>
           </button>
         </div>
+
+        {/* DOWNLOAD ON MOBILE APP BANNER */}
+        {onOpenInstallApp && (
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              onOpenInstallApp();
+            }}
+            className="w-full bg-gradient-to-r from-rose-50 via-pink-50 to-amber-50 border-2.5 border-pink-300 rounded-3xl p-4 shadow-sketch hover:border-pink-500 hover:scale-101 active:scale-98 transition-all flex items-center justify-between text-left group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl border-2 border-ink overflow-hidden bg-rose-200 shadow-xs shrink-0 group-hover:rotate-6 transition-transform">
+                <img src="/icon-192.png" alt="Marisol App" className="w-full h-full object-cover" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-display font-black text-xs sm:text-sm text-ink">DOWNLOAD APP ON MOBILE</span>
+                  <span className="bg-pink-500 text-white font-display text-[9px] font-black px-1.5 py-0.2 rounded-full">
+                    📲 ANDROID & IOS
+                  </span>
+                </div>
+                <p className="font-handwritten text-xs text-pink-700 font-bold">
+                  Install on your iPhone or Android home screen for instant full-screen comfort! 💖
+                </p>
+              </div>
+            </div>
+            <span className="text-xl shrink-0 group-hover:translate-x-1 transition-transform">➔</span>
+          </button>
+        )}
 
       </div>
     </div>

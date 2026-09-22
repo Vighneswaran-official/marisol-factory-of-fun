@@ -7,9 +7,10 @@ import { Flame, Volume2, VolumeX, BookOpen, Lock } from 'lucide-react';
 interface NavbarProps {
   currentScreen: ScreenState;
   onNavigate: (screen: ScreenState) => void;
+  onOpenInstallApp?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpenInstallApp }) => {
   const player = gameState.getPlayer();
   const [audioState, setAudioState] = useState<AudioSettings>(audioEngine.getSettings());
   const [showAudioModal, setShowAudioModal] = useState(false);
@@ -139,6 +140,21 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate }) => 
                 <VolumeX className="w-4 h-4 text-coral-500" />
               )}
             </button>
+
+            {/* Install / Download App Button */}
+            {onOpenInstallApp && (
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onOpenInstallApp();
+                }}
+                className="px-2.5 py-1.5 rounded-xl border-2 border-ink bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 text-white shadow-sketch hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 text-xs font-display font-black"
+                title="Download Marisol App on Android & iOS"
+              >
+                <span>📲</span>
+                <span className="hidden sm:inline">INSTALL</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
