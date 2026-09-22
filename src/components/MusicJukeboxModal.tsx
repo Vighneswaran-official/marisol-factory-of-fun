@@ -24,6 +24,18 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
   const [copiedLink, setCopiedLink] = useState(false);
   const [quickYtInput, setQuickYtInput] = useState('');
 
+  // Live in-website YouTube search state
+  interface LiveYtItem {
+    videoId: string;
+    title: string;
+    channel: string;
+    duration: string;
+    thumbnail: string;
+  }
+  const [liveYtResults, setLiveYtResults] = useState<LiveYtItem[]>([]);
+  const [isSearchingYt, setIsSearchingYt] = useState(false);
+  const [ytSearchNotice, setYtSearchNotice] = useState<string | null>(null);
+
   // Detailed add form states
   const [newTitle, setNewTitle] = useState('');
   const [newMovie, setNewMovie] = useState('');
@@ -91,12 +103,123 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
     return trimmed;
   };
 
-  // Direct YouTube Search Launcher
-  const handleSearchOnYouTube = (customQuery?: string) => {
+  // LIVE IN-WEBSITE YOUTUBE SEARCH
+  const executeInWebsiteYouTubeSearch = async (queryText?: string) => {
+    const q = (queryText !== undefined ? queryText : searchQuery).trim();
+    if (!q) return;
+
+    if (queryText !== undefined) {
+      setSearchQuery(queryText);
+    }
+
+    setIsSearchingYt(true);
+    setYtSearchNotice(`Searching YouTube for "${q}"...`);
     audioEngine.playSfx('click');
-    const q = (customQuery || searchQuery || 'Bollywood feel good songs').trim();
-    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q + ' song')}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
+
+    try {
+      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error('Search failed');
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        setLiveYtResults(data.results);
+        setYtSearchNotice(`Found ${data.results.length} live YouTube videos!`);
+        audioEngine.playSfx('fanfare');
+      } else {
+        setLiveYtResults([]);
+        setYtSearchNotice(`No results found directly on YouTube. Try another search!`);
+      }
+    } catch {
+      // Local fallback
+      const localMatches = allSongs.filter(s =>
+        s.title.toLowerCase().includes(q.toLowerCase()) ||
+        s.movie.toLowerCase().includes(q.toLowerCase()) ||
+        s.singers.toLowerCase().includes(q.toLowerCase())
+      );
+      if (localMatches.length > 0) {
+        setLiveYtResults(localMatches.map(s => ({
+          videoId: s.youtubeId,
+          title: `${s.title} (${s.movie})`,
+          channel: s.singers,
+          duration: 'HD',
+          thumbnail: `https://img.youtube.com/vi/${s.youtubeId}/mqdefault.jpg`
+        })));
+        setYtSearchNotice(`Found ${localMatches.length} matching songs in library!`);
+      } else {
+        setLiveYtResults([]);
+        setYtSearchNotice('Could not reach YouTube search. Try pasting link directly below!');
+      }
+    } finally {
+      setIsSearchingYt(false);
+    }
+  };
+
+  // Play a live YouTube item right inside the website
+  const handlePlayLiveYtItem = (item: LiveYtItem) => {
+    audioEngine.playSfx('click');
+    audioEngine.stopMusic();
+
+    const existing = allSongs.find(s => s.youtubeId === item.videoId);
+    if (existing) {
+      setSelectedSong(existing);
+      setIsPlaying(true);
+      return;
+    }
+
+    const cleanTitle = item.title
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+
+    const newSong: HindiSong = {
+      id: `yt_${item.videoId}`,
+      title: cleanTitle.length > 45 ? cleanTitle.slice(0, 45) + '...' : cleanTitle,
+      movie: item.channel || 'YouTube Song',
+      singers: item.channel || 'YouTube Stream',
+      year: new Date().getFullYear(),
+      emoji: '🔴',
+      accentColor: '#EF4444',
+      youtubeId: item.videoId,
+      vibe: 'YouTube Search Hit',
+      lyricsHighlight: cleanTitle,
+      movieQuote: '"Streaming directly from YouTube search!"',
+      tags: ['YouTube Search', 'Stream']
+    };
+
+    setSelectedSong(newSong);
+    setIsPlaying(true);
+  };
+
+  // Pin a live YouTube item to Kritika's favorites
+  const handlePinLiveYtItem = (e: React.MouseEvent, item: LiveYtItem) => {
+    e.stopPropagation();
+    audioEngine.playSfx('fanfare');
+
+    const cleanTitle = item.title
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+
+    const created = wellnessState.addCustomSong({
+      title: cleanTitle.length > 45 ? cleanTitle.slice(0, 45) + '...' : cleanTitle,
+      movie: item.channel || 'YouTube Pick',
+      singers: item.channel || 'YouTube Creator',
+      year: new Date().getFullYear(),
+      emoji: '🔴',
+      accentColor: '#EF4444',
+      youtubeId: item.videoId,
+      vibe: 'Queen\'s YouTube Pick',
+      lyricsHighlight: `Saved from YouTube search: "${cleanTitle}"`,
+      movieQuote: '"Music on demand, saved by Queen Kritika!"',
+      tags: ['YouTube Pick', 'Favorites']
+    });
+
+    wellnessState.togglePinSong(created.id);
+    setSelectedSong(created);
+    setIsPlaying(true);
   };
 
   // Instant Quick YouTube Link Paste & Play
@@ -108,7 +231,6 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
     if (!ytId) return;
 
     audioEngine.playSfx('fanfare');
-    // Check if song already exists with this ID
     const existing = allSongs.find(s => s.youtubeId === ytId);
     if (existing) {
       setSelectedSong(existing);
@@ -117,7 +239,6 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
       return;
     }
 
-    // Create new custom track
     const created = wellnessState.addCustomSong({
       title: `YouTube Pick #${Math.floor(100 + Math.random() * 900)}`,
       movie: 'YouTube Stream',
@@ -222,7 +343,7 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
                 </span>
               </div>
               <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
-                Stream Bollywood hits, search any track on YouTube & pin your favorites! 💖
+                Search & play any song on YouTube right on this website! 💖
               </p>
             </div>
           </div>
@@ -350,11 +471,11 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
                 <span>•</span>
 
                 <button
-                  onClick={() => handleSearchOnYouTube(`${selectedSong.title} ${selectedSong.movie}`)}
+                  onClick={() => executeInWebsiteYouTubeSearch(`${selectedSong.title} ${selectedSong.movie}`)}
                   className="hover:text-white flex items-center gap-1 text-white/80 transition-colors"
                 >
                   <Search className="w-3 h-3 text-red-400" />
-                  <span>Find similar on YT</span>
+                  <span>Search similar on site</span>
                 </button>
               </div>
 
@@ -381,6 +502,212 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
           </p>
         </div>
 
+        {/* IN-WEBSITE YOUTUBE SEARCH BAR */}
+        <div className="space-y-2">
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              executeInWebsiteYouTubeSearch();
+            }}
+            className="flex items-center gap-2"
+          >
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-light" />
+              <input
+                type="text"
+                placeholder="Search any song, artist, or movie on YouTube..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-2.5 bg-white border-2 border-red-300 rounded-2xl font-display text-xs text-ink placeholder:text-ink-light focus:border-red-500 focus:outline-hidden shadow-2xs"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-light hover:text-ink"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Direct In-Website YouTube Search Button */}
+            <button
+              type="submit"
+              disabled={isSearchingYt}
+              className="px-3.5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 disabled:opacity-50 text-white border-2 border-ink font-display font-black text-xs rounded-2xl flex items-center gap-1.5 shadow-sketch-xs shrink-0 transition-transform active:scale-95"
+              title="Search directly on YouTube inside this website"
+            >
+              {isSearchingYt ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Searching...</span>
+                </>
+              ) : (
+                <>
+                  <YouTubeIcon className="w-4 h-4 text-white" />
+                  <span>Search YouTube</span>
+                </>
+              )}
+            </button>
+
+            {/* Expand Detailed Add Modal */}
+            <button
+              type="button"
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="px-3 py-2.5 bg-pink-100 hover:bg-pink-200 text-pink-800 border-2 border-pink-300 font-display font-black text-xs rounded-2xl flex items-center gap-1 shadow-2xs shrink-0 transition-transform active:scale-95"
+              title="Add Custom Song Details"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Custom</span>
+            </button>
+          </form>
+
+          {/* Search Status Toast / Notice */}
+          {ytSearchNotice && (
+            <div className="flex items-center justify-between bg-red-50/90 border border-red-200 rounded-xl px-3 py-1.5 text-xs font-handwritten text-red-900 font-bold animate-fade-in">
+              <span>{ytSearchNotice}</span>
+              {liveYtResults.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLiveYtResults([]);
+                    setYtSearchNotice(null);
+                  }}
+                  className="text-[11px] text-red-600 hover:text-red-900 underline"
+                >
+                  Clear search
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Quick YouTube Search Chips (Click to Search on Website) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-handwritten font-bold">
+            <span className="text-[11px] text-ink-light uppercase tracking-wider font-display font-bold shrink-0">
+              🔴 Quick Search:
+            </span>
+            {[
+              'Kesariya',
+              'Apna Bana Le',
+              'Channa Mereya',
+              'Heeriye',
+              'Arijit Singh',
+              'Tauba Tauba',
+              'Lofi Hindi',
+            ].map(ytQuery => (
+              <button
+                key={ytQuery}
+                type="button"
+                onClick={() => executeInWebsiteYouTubeSearch(ytQuery)}
+                className="px-2.5 py-0.5 bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 rounded-full shrink-0 flex items-center gap-1 transition-colors active:scale-95"
+              >
+                <YouTubeIcon className="w-2.5 h-2.5 text-red-600" />
+                <span>{ytQuery}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* LIVE IN-WEBSITE YOUTUBE SEARCH RESULTS SHELF */}
+        {liveYtResults.length > 0 && (
+          <div className="space-y-2 bg-gradient-to-br from-red-50/80 via-white to-pink-50/80 border-2.5 border-red-400 rounded-3xl p-3.5 shadow-sketch animate-fade-in">
+            <div className="flex items-center justify-between border-b border-red-200 pb-2">
+              <div className="flex items-center gap-1.5">
+                <YouTubeIcon className="w-4 h-4 text-red-600" />
+                <h4 className="font-display font-black text-xs uppercase tracking-wider text-red-950">
+                  LIVE YOUTUBE SEARCH RESULTS ({liveYtResults.length})
+                </h4>
+              </div>
+              <button
+                onClick={() => {
+                  setLiveYtResults([]);
+                  setYtSearchNotice(null);
+                }}
+                className="text-[11px] font-display font-bold text-red-600 hover:text-red-900"
+              >
+                Close ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+              {liveYtResults.map((item) => {
+                const isCurrent = selectedSong.youtubeId === item.videoId;
+                const isPinned = pinnedIds.includes(item.videoId) || pinnedIds.includes(`yt_${item.videoId}`);
+                return (
+                  <div
+                    key={item.videoId}
+                    onClick={() => handlePlayLiveYtItem(item)}
+                    className={`
+                      p-2.5 rounded-2xl border-2 transition-all text-left flex items-center gap-2.5 relative cursor-pointer group
+                      ${
+                        isCurrent
+                          ? 'border-red-500 bg-red-50/80 shadow-sketch ring-2 ring-red-400'
+                          : 'border-red-200 bg-white hover:border-red-400 hover:shadow-sketch-xs'
+                      }
+                    `}
+                  >
+                    {/* Thumbnail */}
+                    <div className="relative w-18 h-13 rounded-xl overflow-hidden border border-red-300 bg-slate-900 shrink-0 shadow-xs">
+                      <img 
+                        src={item.thumbnail || `https://img.youtube.com/vi/${item.videoId}/mqdefault.jpg`} 
+                        alt={item.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
+                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-xs">
+                          <Play className="w-2.5 h-2.5 fill-white ml-0.5" />
+                        </div>
+                      </div>
+                      {item.duration && (
+                        <span className="absolute bottom-0.5 right-1 bg-black/80 text-white font-mono text-[9px] px-1 rounded-sm">
+                          {item.duration}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Metadata */}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-display font-black text-xs text-ink line-clamp-2 leading-tight">
+                        {item.title}
+                      </div>
+                      <div className="font-handwritten text-[11px] text-red-700 font-bold truncate mt-0.5">
+                        {item.channel}
+                      </div>
+                    </div>
+
+                    {/* Pin and external link */}
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                      <button
+                        onClick={(e) => handlePinLiveYtItem(e, item)}
+                        className={`p-1.5 rounded-lg border transition-all ${
+                          isPinned
+                            ? 'bg-pink-500 text-white border-pink-400'
+                            : 'bg-pink-50 text-pink-600 border-pink-200 hover:bg-pink-100 hover:scale-110'
+                        }`}
+                        title={isPinned ? 'Pinned in Favorites!' : 'Pin to Favorites'}
+                      >
+                        <Pin className="w-3.5 h-3.5 fill-current" />
+                      </button>
+
+                      <a
+                        href={`https://www.youtube.com/watch?v=${item.videoId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-1 text-red-500 hover:text-red-700 hover:scale-125 transition-transform"
+                        title="Watch on YouTube.com"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* QUICK YOUTUBE LINK PASTE & PLAY BAR */}
         <form 
           onSubmit={handleQuickPlayYouTube}
@@ -391,7 +718,7 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
           </div>
           <input
             type="text"
-            placeholder="Paste any YouTube URL or Video ID to play & pin..."
+            placeholder="Or paste any YouTube URL or Video ID to play & pin..."
             value={quickYtInput}
             onChange={(e) => setQuickYtInput(e.target.value)}
             className="flex-1 min-w-0 bg-white border border-red-200 rounded-xl px-2.5 py-1.5 font-display text-xs text-ink placeholder:text-ink-light focus:outline-hidden focus:border-red-500"
@@ -406,96 +733,25 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
           </button>
         </form>
 
-        {/* Search & Direct YouTube Search Row */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-light" />
-              <input
-                type="text"
-                placeholder="Search songs, movies, artists, or vibes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSearchOnYouTube();
-                }}
-                className="w-full pl-9 pr-8 py-2 bg-white border-2 border-pink-200 rounded-2xl font-display text-xs text-ink placeholder:text-ink-light focus:border-pink-500 focus:outline-hidden shadow-2xs"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-light hover:text-ink"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
 
-            {/* Direct Search on YouTube Button */}
+        {/* Quick Mood Filter Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-handwritten font-bold">
+          <span className="text-[11px] text-ink-light uppercase tracking-wider font-display font-bold shrink-0">
+            Mood Filter:
+          </span>
+          {['All', 'Feel Good', 'Self Love', 'Cozy Chai', 'Party', 'Travel'].map(tag => (
             <button
-              onClick={() => handleSearchOnYouTube()}
-              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white border-2 border-ink font-display font-black text-xs rounded-2xl flex items-center gap-1.5 shadow-sketch-xs shrink-0 transition-transform active:scale-95"
-              title="Search this query directly on YouTube"
+              key={tag}
+              onClick={() => setActiveMoodTag(tag)}
+              className={`px-3 py-1 rounded-full border transition-all shrink-0 ${
+                activeMoodTag === tag
+                  ? 'bg-pink-500 text-white border-pink-600 shadow-xs'
+                  : 'bg-white text-ink-light border-pink-200 hover:border-pink-400'
+              }`}
             >
-              <YouTubeIcon className="w-3.5 h-3.5 text-white" />
-              <span className="hidden sm:inline">Search on YouTube</span>
-              <span className="sm:hidden">YouTube</span>
+              {tag}
             </button>
-
-            {/* Expand Detailed Add Modal */}
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="px-3 py-2 bg-pink-100 hover:bg-pink-200 text-pink-800 border-2 border-pink-300 font-display font-black text-xs rounded-2xl flex items-center gap-1 shadow-2xs shrink-0 transition-transform active:scale-95"
-              title="Add Custom Song Details"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Custom</span>
-            </button>
-          </div>
-
-          {/* Quick YouTube Search Chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-handwritten font-bold">
-            <span className="text-[11px] text-ink-light uppercase tracking-wider font-display font-bold shrink-0">
-              🔴 Quick YT Search:
-            </span>
-            {[
-              'Arijit Singh Hits',
-              'Bollywood Romantic',
-              'Lofi Hindi Chill',
-              'Coke Studio Hits',
-              'Shreya Ghoshal',
-              '90s Bollywood',
-            ].map(ytQuery => (
-              <button
-                key={ytQuery}
-                onClick={() => handleSearchOnYouTube(ytQuery)}
-                className="px-2.5 py-0.5 bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 rounded-full shrink-0 flex items-center gap-1 transition-colors"
-              >
-                <YouTubeIcon className="w-2.5 h-2.5 text-red-600" />
-                <span>{ytQuery}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Quick Mood Filter Chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-handwritten font-bold">
-            <span className="text-[11px] text-ink-light uppercase tracking-wider font-display font-bold shrink-0">
-              Mood Filter:
-            </span>
-            {['All', 'Feel Good', 'Self Love', 'Cozy Chai', 'Party', 'Travel'].map(tag => (
-              <button
-                key={tag}
-                onClick={() => setActiveMoodTag(tag)}
-                className={`px-3 py-1 rounded-full border transition-all shrink-0 ${
-                  activeMoodTag === tag
-                    ? 'bg-pink-500 text-white border-pink-600 shadow-xs'
-                    : 'bg-white text-ink-light border-pink-200 hover:border-pink-400'
-                }`}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
+          ))}
         </div>
 
         {/* Detailed Add Song Form (Expandable) */}
@@ -745,11 +1001,11 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
             </div>
           </div>
           <button
-            onClick={() => handleSearchOnYouTube()}
+            onClick={() => executeInWebsiteYouTubeSearch()}
             className="text-[11px] font-display font-black text-red-600 hover:text-red-800 underline shrink-0 flex items-center gap-1"
           >
             <YouTubeIcon className="w-3.5 h-3.5 text-red-600" />
-            <span>Open YouTube</span>
+            <span>Search YouTube</span>
           </button>
         </div>
 

@@ -181,5 +181,76 @@ export const HINDI_SONGS: HindiSong[] = [
     lyricsHighlight: 'Badtameez dil maane na maane na!',
     movieQuote: '"Celebration ka koi reason nahi hota!"',
     tags: ['Party', 'Sassy', 'High Energy']
+  },
+  {
+    id: 'kesariya',
+    title: 'Kesariya',
+    movie: 'Brahmāstra',
+    singers: 'Arijit Singh & Pritam',
+    year: 2022,
+    emoji: '🧡',
+    accentColor: '#F97316',
+    youtubeId: 'BddP6PYo2gs',
+    vibe: 'Golden Sunset Romance & Euphoria',
+    lyricsHighlight: 'Kesariya tera ishq hai piya, rang jaaun jo main haath lagaun!',
+    movieQuote: '"Pyaar mein junoon hota hai."',
+    tags: ['Romantic', 'Feel Good', 'Self Love']
+  },
+  {
+    id: 'apna_bana_le',
+    title: 'Apna Bana Le',
+    movie: 'Bhediya',
+    singers: 'Arijit Singh & Sachin-Jigar',
+    year: 2022,
+    emoji: '✨',
+    accentColor: '#8B5CF6',
+    youtubeId: 'ElZfdU54Cp8',
+    vibe: 'Heartfelt Devotion & Soft Magic',
+    lyricsHighlight: 'Tu mera koi na hoke bhi kuch laage... Apna bana le piya!',
+    movieQuote: '"Duniya se alag ek rishta."',
+    tags: ['Romantic', 'Soulful', 'Cozy Chai']
+  },
+  {
+    id: 'channa_mereya',
+    title: 'Channa Mereya',
+    movie: 'Ae Dil Hai Mushkil',
+    singers: 'Arijit Singh & Pritam',
+    year: 2016,
+    emoji: '🌙',
+    accentColor: '#3B82F6',
+    youtubeId: '284Ov7ysmfA',
+    vibe: 'Deep Heartfelt Soul & Emotion',
+    lyricsHighlight: 'Achha chalta hoon, duaon mein yaad rakhna... Channa mereya mereya!',
+    movieQuote: '"Ek tarfa pyaar ki taqat hi kuch aur hoti hai."',
+    tags: ['Soulful', 'Romantic', 'Cozy Chai']
+  },
+  {
+    id: 'heeriye',
+    title: 'Heeriye',
+    movie: 'Non-Film Hit',
+    singers: 'Jasleen Royal & Arijit Singh',
+    year: 2023,
+    emoji: '💍',
+    accentColor: '#EC4899',
+    youtubeId: 'RLzC55ai0eo',
+    vibe: 'Modern Fairytale Wedding Glow',
+    lyricsHighlight: 'Heeriye heeriye aa... teri hoke mar jaaniye!',
+    movieQuote: '"Love is the sweetest adventure."',
+    tags: ['Romantic', 'Feel Good', 'Acoustic']
+  },
+  {
+    id: 'raataan_lambiyan',
+    title: 'Raataan Lambiyan',
+    movie: 'Shershaah',
+    singers: 'Jubin Nautiyal & Asees Kaur',
+    year: 2021,
+    emoji: '🌌',
+    accentColor: '#06B6D4',
+    youtubeId: 'gvyUuxdRdR4',
+    vibe: 'Soft Night Breezes & Sweet Nostalgia',
+    lyricsHighlight: 'Kaatan kaise raataan o saaware... Jiya nahi jaata sun bawre!',
+    movieQuote: '"Har lamha tere saath rehna hai."',
+    tags: ['Romantic', 'Cozy Chai', 'Soulful']
   }
 ];
+
