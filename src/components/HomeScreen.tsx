@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import type { ScreenState } from '../types/game';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
-import { wellnessState, QUEEN_MOODS } from '../services/wellnessState';
+import { wellnessState, KRITIKA_MOODS, type KritikaMoodId } from '../services/wellnessState';
+import { AI_ANIME_SCENES } from '../data/animeScenes';
 import { Marisol } from './Marisol';
 import { LittleLoveNote } from './LittleLoveNote';
 import { SparkleStreak } from './SparkleStreak';
@@ -12,8 +13,9 @@ import {
   Heart, 
   Lock, 
   Camera, 
-  Map, 
-  Award 
+  Music,
+  Film,
+  Sparkle
 } from 'lucide-react';
 
 interface HomeScreenProps {
@@ -24,6 +26,7 @@ interface HomeScreenProps {
   onOpenSecretLocket: () => void;
   onOpenGlowUpWeek: () => void;
   onOpenCozyMode: () => void;
+  onOpenAnimeStudio: (initialMood?: KritikaMoodId) => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -34,74 +37,101 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenSecretLocket,
   onOpenGlowUpWeek,
   onOpenCozyMode,
+  onOpenAnimeStudio,
 }) => {
   const [, setTick] = useState(0);
   const player = gameState.getPlayer();
   const currentQueenMood = wellnessState.getQueenMood();
-  const activeMoodObj = QUEEN_MOODS.find(m => m.id === currentQueenMood) || QUEEN_MOODS[0];
+  const moodProfile = wellnessState.getMoodProfile();
 
   useEffect(() => {
     const unsub = wellnessState.subscribe(() => setTick(t => t + 1));
     return unsub;
   }, []);
 
-  const handleSelectQueenMood = (moodId: string) => {
+  const handleSelectQueenMood = (moodId: KritikaMoodId) => {
     audioEngine.playSfx('click');
     wellnessState.setQueenMood(moodId);
-    if (moodId === 'hangry' || moodId === 'need_tlc') {
-      // Suggest comfort corner
-      onOpenComfortCorner();
-    }
   };
 
   // Dialogue adapted to queen's selected mood
   const getQueenDialogue = () => {
     switch (currentQueenMood) {
-      case 'cozy_chai':
-        return "Hot cup of ginger chai & zero stress on our agenda today, babe! ☕☁️";
-      case 'need_tlc':
-        return "Sending you the biggest, warmest sisterly hug. You are so loved! 🌸🥺";
-      case 'sassy_bold':
-        return "Main apni favourite hoon! Let's conquer everything with unmatched style! 💅👑";
-      case 'hangry':
-        return "Emergency carbs inbound! Have +5 cucumber sandwiches and let them wait! 🥪😤";
-      case 'radiant':
+      case 'Tired':
+        return "You've worked so hard today, Kritika. Let's wrap in a warm blanket and recharge. 🌙💤";
+      case 'Stressed':
+        return "Deep breath, darling. Drop your shoulders, sip some chai. You are doing amazing! 🌸💆‍♀️";
+      case 'Cozy':
+        return "Hot cup of ginger chai & zero stress on our agenda today, queen! ☕☁️";
+      case 'Excited':
+        return "Tell me everything! What great news are we celebrating today?! 👑✨🎉";
+      case 'Low':
+        return "Sending you the biggest, warmest sisterly hug. You are so cherished, Kritika! 💕🧸";
+      case 'Romantic':
+        return "Main apni favourite hoon! Savor every dreamy moment and sweet daydream! 🎀🌷";
+      case 'Happy':
       default:
         return player.streak >= 3
           ? `You're on a ${player.streak}-question streak! Unstoppable glow, queen! ✨`
-          : `Ready for today's trivia snack & good Bollywood tunes, babe? 💖`;
+          : `Ready for today's comfort snack & good Bollywood tunes, babe? 💖`;
     }
   };
+
+  // Preview scene for the active mood
+  const currentMoodScenes = AI_ANIME_SCENES[currentQueenMood] || AI_ANIME_SCENES['Happy'];
+  const previewScene = currentMoodScenes[0];
 
   return (
     <div className="min-h-screen bg-[#FFFDF7] p-3 sm:p-5 pb-28 text-ink">
       <div className="max-w-xl mx-auto space-y-4">
         
-        {/* TOP BAR: How's My Queen Feeling Today? 👑 & Cozy Mode Button */}
-        <div className="bg-white border-2 border-pink-200/80 rounded-3xl p-3.5 shadow-sketch-sm space-y-2.5">
+        {/* TOP BAR: How is Kritika doing today? 💗 & Cozy Mode Button */}
+        <div 
+          className="border-2 border-pink-200/90 rounded-3xl p-4 shadow-sketch-sm space-y-3 transition-all duration-500"
+          style={{ background: moodProfile.bgAtmosphere }}
+        >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xl">👑</span>
-              <h2 className="font-display font-black text-xs sm:text-sm text-pink-900 tracking-wide">
-                HOW'S MY QUEEN FEELING TODAY?
-              </h2>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl animate-pulse">💗</span>
+              <div>
+                <h2 className="font-display font-black text-sm sm:text-base text-pink-950 tracking-tight flex items-center gap-1.5">
+                  HOW IS KRITIKA DOING TODAY?
+                </h2>
+                <p className="text-[11px] font-handwritten font-bold text-pink-800/80">
+                  Tap your mood to personalize your entire comfort sanctuary ♡
+                </p>
+              </div>
             </div>
 
-            <button
-              onClick={() => {
-                audioEngine.playSfx('powerup');
-                onOpenCozyMode();
-              }}
-              className="inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-100 to-pink-100 hover:from-amber-200 hover:to-pink-200 border border-pink-300 text-pink-900 font-display font-black text-[11px] px-2.5 py-1 rounded-full shadow-2xs hover:scale-105 active:scale-95 transition-all"
-            >
-              <span>Cozy Mode</span>
-              <span>🤍</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('powerup');
+                  onOpenComfortCorner();
+                }}
+                className="inline-flex items-center gap-1 bg-pink-100 hover:bg-pink-200 border border-pink-300 text-pink-900 font-display font-black text-xs px-2.5 py-1.5 rounded-full shadow-2xs hover:scale-105 active:scale-95 transition-all"
+                title="Girl's Comfort Corner & Mood TLC"
+              >
+                <Heart className="w-3 h-3 fill-pink-500 text-pink-500" />
+                <span>TLC</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('powerup');
+                  onOpenCozyMode();
+                }}
+                className="inline-flex items-center gap-1.5 bg-white/90 hover:bg-white border-2 border-pink-300 text-pink-900 font-display font-black text-xs px-3 py-1.5 rounded-full shadow-2xs hover:scale-105 active:scale-95 transition-all"
+              >
+                <span>Cozy Mode</span>
+                <span>🤍</span>
+              </button>
+            </div>
           </div>
 
-          {/* Labeled Mood Selector Chips */}
+          {/* 7 Mood Selector Chips: Happy, Tired, Stressed, Cozy, Excited, Low, Romantic */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-handwritten font-bold">
-            {QUEEN_MOODS.map(mood => {
+            {KRITIKA_MOODS.map(mood => {
               const isSelected = mood.id === currentQueenMood;
               return (
                 <button
@@ -111,8 +141,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     px-3 py-1.5 rounded-2xl border transition-all shrink-0 flex items-center gap-1.5
                     ${
                       isSelected
-                        ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white border-pink-600 shadow-xs scale-102 font-black'
-                        : 'bg-white text-ink-light border-pink-200 hover:border-pink-400'
+                        ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white border-pink-600 shadow-sm scale-105 font-black ring-2 ring-pink-300'
+                        : 'bg-white/80 text-ink-light border-pink-200 hover:bg-white hover:border-pink-400'
                     }
                   `}
                 >
@@ -122,15 +152,71 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               );
             })}
           </div>
+
+          {/* Instant Sisterly Reassurance Banner */}
+          <div className="bg-white/85 backdrop-blur-xs border border-pink-200 p-2.5 rounded-2xl flex items-center gap-2.5 animate-fade-in shadow-2xs">
+            <span className="text-xl">🌸</span>
+            <p className="text-xs font-handwritten font-black text-pink-900 leading-snug">
+              {moodProfile.reassurance}
+            </p>
+          </div>
         </div>
 
-        {/* HERO CARD: Kritika Companion & Chef Score Hub */}
+        {/* HERO CARD 1: AI ANIME HAVEN SPOTLIGHT (Immediate pick-me-up right under mood) */}
+        <div className="bg-gradient-to-br from-purple-900 via-indigo-950 to-pink-950 text-white border-3 border-pink-300 rounded-3xl p-4 sm:p-5 shadow-sketch relative overflow-hidden group">
+          {/* Subtle starry backdrop effect */}
+          <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-pink-500/20 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -left-8 -top-8 w-40 h-40 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1.5 max-w-sm">
+              <div className="inline-flex items-center gap-1.5 bg-pink-500/30 border border-pink-400/40 px-2.5 py-0.5 rounded-full text-[11px] font-bold text-pink-200">
+                <Sparkle className="w-3 h-3 text-pink-300 animate-spin" />
+                <span>AI ANIME PICK-ME-UP FOR {currentQueenMood.toUpperCase()} MOOD</span>
+              </div>
+              
+              <h3 className="font-display font-black text-lg sm:text-xl text-white tracking-tight flex items-center gap-2">
+                <span>{previewScene.title}</span>
+                <span className="text-base">✨</span>
+              </h3>
+
+              <p className="font-handwritten text-xs text-pink-100 font-bold leading-relaxed line-clamp-2">
+                “{previewScene.dialogueText}”
+              </p>
+
+              <div className="text-[11px] text-amber-300 font-bold flex items-center gap-1">
+                <span>💌</span>
+                <span>{previewScene.personalizedEndcard}</span>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-row sm:flex-col gap-2 shrink-0 w-full sm:w-auto">
+              <button
+                onClick={() => onOpenAnimeStudio(currentQueenMood)}
+                className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 hover:brightness-110 text-white font-display font-black text-xs rounded-2xl shadow-md transition flex items-center justify-center gap-2 hover:scale-105 active:scale-95 border border-pink-300"
+              >
+                <Play className="w-3.5 h-3.5 fill-white" />
+                <span>Play Scene ✨</span>
+              </button>
+
+              <button
+                onClick={() => onOpenAnimeStudio()}
+                className="flex-1 sm:flex-none px-3.5 py-2 bg-white/15 hover:bg-white/25 text-pink-100 font-display font-black text-xs rounded-2xl border border-white/20 transition flex items-center justify-center gap-1.5"
+              >
+                <span>Browse Anime Studio 🎀</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* HERO CARD 2: Kritika Companion & Chef Score Hub */}
         <div className="bg-white border-3 border-pink-200/90 rounded-3xl p-5 shadow-sketch text-center space-y-3.5 relative overflow-hidden">
           
           {/* Active Mood Pill */}
           <div className="inline-flex items-center gap-1.5 bg-pink-50 border border-pink-200 px-3 py-0.5 rounded-full font-handwritten text-xs font-bold text-pink-800">
-            <span>{activeMoodObj.emoji}</span>
-            <span>Current Vibe: {activeMoodObj.label}</span>
+            <span>{moodProfile.emoji}</span>
+            <span>Active Vibe: {moodProfile.label}</span>
             <Sparkles className="w-3 h-3 text-pink-400" />
           </div>
 
@@ -181,7 +267,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* SPARKLE STREAK (Consecutive Day Tracker) */}
         <SparkleStreak />
 
-        {/* PRIMARY ACTION 1: COOKING & CINEMA TRIVIA */}
+        {/* PRIMARY ACTION: COOKING & CINEMA TRIVIA */}
         <button
           onClick={() => {
             audioEngine.playSfx('click');
@@ -208,7 +294,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <Play className="w-7 h-7 fill-white shrink-0 ml-2" />
         </button>
 
-        {/* PRIMARY ACTION 2 & 3: BOLLYWOOD HINDI SONGS & GIRL'S COMFORT SOS */}
+        {/* SECTION TILES: Bollywood Lounge & Food-Movie Pairings */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           
           {/* Card: Hindi Bollywood Songs */}
@@ -229,40 +315,40 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1">
-                  <span className="font-display font-black text-sm uppercase">BOLLYWOOD SONGS</span>
+                  <span className="font-display font-black text-sm uppercase">BOLLYWOOD JUKEBOX</span>
                   <span className="text-xs">🎵</span>
                 </div>
                 <div className="font-handwritten text-xs text-purple-100 font-bold truncate">
-                  Search & pin your favorite songs! 📌
+                  Search, pin & play favorite tracks 📌
                 </div>
               </div>
             </div>
-            <Sparkles className="w-5 h-5 text-purple-200 group-hover:rotate-45 transition-transform shrink-0" />
+            <Music className="w-5 h-5 text-purple-200 group-hover:rotate-45 transition-transform shrink-0" />
           </button>
 
-          {/* Card: Girl's Comfort SOS */}
+          {/* Card: Food & Movie Pairings */}
           <button
             onClick={() => {
-              audioEngine.playSfx('powerup');
-              onOpenComfortCorner();
+              audioEngine.playSfx('click');
+              onNavigate('recipes');
             }}
             className="w-full bg-gradient-to-br from-rose-400 via-pink-500 to-rose-600 text-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch hover:shadow-sketch-lg hover:scale-102 transition-all text-left flex items-center justify-between relative overflow-hidden group"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-12 h-12 rounded-2xl border-2 border-white/40 bg-white/20 flex items-center justify-center text-2xl shrink-0 shadow-inner">
-                💖
+                🎬
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1">
-                  <span className="font-display font-black text-sm uppercase">GIRL'S COMFORT SOS</span>
-                  <span className="bg-white/25 text-[9px] px-1.5 py-0.5 rounded-full font-handwritten">TLC</span>
+                  <span className="font-display font-black text-sm uppercase">FOOD & MOVIES</span>
+                  <span className="bg-white/25 text-[9px] px-1.5 py-0.5 rounded-full font-handwritten">PAIRED</span>
                 </div>
                 <div className="font-handwritten text-xs text-rose-100 font-bold truncate">
-                  Angry or hangry? Vent popper & +5 sandwiches!
+                  Highway Chai, Rajma Chawal & cinema!
                 </div>
               </div>
             </div>
-            <Heart className="w-5 h-5 fill-white group-hover:scale-125 transition-transform shrink-0" />
+            <Film className="w-5 h-5 text-white group-hover:scale-125 transition-transform shrink-0" />
           </button>
         </div>
 
@@ -284,7 +370,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               SECRET LOCKET 🔐
             </span>
             <span className="font-handwritten text-[11px] text-pink-700 font-bold">
-              Private Notes Vault
+              Notes & Voice Memos
             </span>
           </button>
 
@@ -305,82 +391,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <span className="font-handwritten text-[11px] text-purple-700 font-bold">
               Polaroid Scrapbook
             </span>
-          </button>
-        </div>
-
-        {/* CULINARY VAULT & 11 MOOD STICKERS */}
-        <div className="grid grid-cols-2 gap-3">
-          
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onNavigate('recipes');
-            }}
-            className="bg-white border-2.5 border-emerald-300 rounded-3xl p-3.5 flex flex-col items-center justify-center text-center gap-1 shadow-sketch-sm hover:border-emerald-500 hover:scale-102 transition-all"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-800 text-xl shadow-2xs">
-              📖
-            </div>
-            <span className="font-display font-black text-xs sm:text-sm text-ink">
-              RECIPE VAULT
-            </span>
-            <span className="font-handwritten text-[11px] text-emerald-700 font-bold">
-              Dishes & Movie Pairings
-            </span>
-          </button>
-
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onNavigate('stickers');
-            }}
-            className="bg-white border-2.5 border-amber-300 rounded-3xl p-3.5 flex flex-col items-center justify-center text-center gap-1 shadow-sketch-sm hover:border-amber-500 hover:scale-102 transition-all"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-800 text-xl shadow-2xs">
-              🎨
-            </div>
-            <span className="font-display font-black text-xs sm:text-sm text-ink">
-              11 MOOD STICKERS
-            </span>
-            <span className="font-handwritten text-[11px] text-amber-700 font-bold">
-              Kritika Poses & Quotes
-            </span>
-          </button>
-        </div>
-
-        {/* BOTTOM NAVIGATION: Map, Stats, Classroom Tribute */}
-        <div className="grid grid-cols-3 gap-2.5 pt-1">
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onNavigate('map');
-            }}
-            className="bg-white border-2 border-pink-200 rounded-2xl p-2.5 flex flex-col items-center text-center space-y-0.5 shadow-2xs hover:border-pink-400 transition-all"
-          >
-            <Map className="w-4 h-4 text-pink-600" />
-            <span className="font-display font-black text-[11px]">THE MAP</span>
-          </button>
-
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onNavigate('profile');
-            }}
-            className="bg-white border-2 border-amber-200 rounded-2xl p-2.5 flex flex-col items-center text-center space-y-0.5 shadow-2xs hover:border-amber-400 transition-all"
-          >
-            <Award className="w-4 h-4 text-amber-600" />
-            <span className="font-display font-black text-[11px]">CHEF STATS</span>
-          </button>
-
-          <button
-            onClick={() => {
-              audioEngine.playSfx('fanfare');
-              onNavigate('secret_classroom');
-            }}
-            className="bg-gradient-to-r from-purple-700 to-indigo-800 text-white border-2 border-ink rounded-2xl p-2.5 flex flex-col items-center text-center space-y-0.5 shadow-2xs hover:opacity-95 transition-all"
-          >
-            <Heart className="w-4 h-4 text-pink-300 fill-pink-300" />
-            <span className="font-display font-black text-[11px]">CLASS TRIBUTE</span>
           </button>
         </div>
 

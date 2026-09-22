@@ -3,6 +3,7 @@ import type { ScreenState, Zone, Question, Recipe } from './types/game';
 import { gameState } from './services/gameState';
 import { adaptiveEngine } from './services/adaptiveEngine';
 import { audioEngine } from './services/synthAudioEngine';
+import { type KritikaMoodId } from './services/wellnessState';
 import { Navbar } from './components/Navbar';
 import { OpeningCinematic } from './components/OpeningCinematic';
 import { HomeScreen } from './components/HomeScreen';
@@ -27,6 +28,8 @@ import { SecretLocketModal } from './components/SecretLocketModal';
 import { CelebrationLocketModal } from './components/CelebrationLocketModal';
 import { GlowUpWeekModal } from './components/GlowUpWeekModal';
 import { CozyModeOverlay } from './components/CozyModeOverlay';
+import { AnimeStudioModal } from './components/AnimeStudioModal';
+import { BottomNavigationDock, type MainNavTab } from './components/BottomNavigationDock';
 import { RECIPES } from './data/recipes';
 import confetti from 'canvas-confetti';
 
@@ -56,15 +59,21 @@ export function App() {
   const [showCelebrationLocket, setShowCelebrationLocket] = useState(false);
   const [showGlowUpWeek, setShowGlowUpWeek] = useState(false);
   const [showCozyMode, setShowCozyMode] = useState(false);
+  const [showAnimeStudio, setShowAnimeStudio] = useState(false);
+  const [animeInitialMood, setAnimeInitialMood] = useState<KritikaMoodId | undefined>(undefined);
+
   const [selectedHindiSongId, setSelectedHindiSongId] = useState<string | undefined>(undefined);
   const [activeTargetRecipe, setActiveTargetRecipe] = useState<Recipe>(RECIPES[0]);
   const [endlessRoundCount, setEndlessRoundCount] = useState(0);
   const [titleUpgraded, setTitleUpgraded] = useState(false);
+  const [activeNavTab, setActiveNavTab] = useState<MainNavTab>('home');
 
   // Screen navigation (no intrusive auto background music)
   const handleNavigate = (screen: ScreenState) => {
     setCurrentScreen(screen);
     setPlayer(gameState.getPlayer());
+    if (screen === 'home') setActiveNavTab('home');
+    if (screen === 'quiz') setActiveNavTab('quiz');
   };
 
   // Launch Mood-first Quiz Flow
@@ -87,6 +96,7 @@ export function App() {
     setPlayer(gameState.getPlayer());
 
     setCurrentScreen('quiz');
+    setActiveNavTab('quiz');
   };
 
   const startZoneQuiz = (zone: Zone, isBoss: boolean) => {
@@ -98,13 +108,13 @@ export function App() {
       return;
     }
 
-    // Select questions
     const selected = adaptiveEngine.selectQuestions(zone.category, 5, playedIds);
     setQuizQuestions(selected);
     setCurrentQIndex(0);
     setRoundSandwiches(0);
     setShowLearningCard(false);
     setCurrentScreen('quiz');
+    setActiveNavTab('quiz');
     audioEngine.startMusic('quiz');
   };
 
@@ -118,6 +128,7 @@ export function App() {
     gameState.clearCollectedIngredients();
     setPlayer(gameState.getPlayer());
     setCurrentScreen('quiz');
+    setActiveNavTab('quiz');
     audioEngine.startMusic('quiz');
   };
 
@@ -126,7 +137,6 @@ export function App() {
     const isCorrect = selectedOption === currentQ.correctAnswer;
     const earnedSandwiches = isCorrect ? 3 : 0;
 
-    // Record with adaptive engine & game state
     adaptiveEngine.recordAnswer(currentQ, isCorrect, timeTakenMs);
     gameState.recordQuestionAnswered(isCorrect);
 
@@ -156,7 +166,6 @@ export function App() {
     if (currentQIndex + 1 < quizQuestions.length) {
       setCurrentQIndex(prev => prev + 1);
     } else {
-      // Course completed! Award completion bonus & reveal recipe
       audioEngine.playSfx('fanfare');
       confetti({ particleCount: 120, spread: 80, origin: { y: 0.55 } });
       
@@ -171,7 +180,6 @@ export function App() {
     }
   };
 
-  // Next Endless Course generator
   const handleStartNextCourse = () => {
     setShowRecipeModal(false);
     setTitleUpgraded(false);
@@ -191,6 +199,21 @@ export function App() {
     setCurrentScreen('quiz');
   };
 
+  const handleBottomTabSelect = (tab: MainNavTab) => {
+    setActiveNavTab(tab);
+    if (tab === 'home') {
+      setCurrentScreen('home');
+    } else if (tab === 'anime') {
+      setShowAnimeStudio(true);
+    } else if (tab === 'lounge') {
+      setShowMusicJukebox(true);
+    } else if (tab === 'quiz') {
+      handleStartCulinaryTrivia();
+    } else if (tab === 'locket') {
+      setShowSecretLocket(true);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#FFFDF7] font-sans text-ink selection:bg-pink-200">
       
@@ -200,7 +223,7 @@ export function App() {
       )}
 
       {/* Main Screen Container */}
-      <main className="animate-fade-in">
+      <main className="animate-fade-in pb-16">
         {currentScreen === 'cinematic' && (
           <OpeningCinematic onComplete={() => handleNavigate('home')} />
         )}
@@ -214,6 +237,10 @@ export function App() {
             onOpenSecretLocket={() => setShowSecretLocket(true)}
             onOpenGlowUpWeek={() => setShowGlowUpWeek(true)}
             onOpenCozyMode={() => setShowCozyMode(true)}
+            onOpenAnimeStudio={(mood) => {
+              setAnimeInitialMood(mood);
+              setShowAnimeStudio(true);
+            }}
           />
         )}
 
@@ -295,6 +322,13 @@ export function App() {
             onCookRecipe={startCookingRecipeDirect}
           />
         )}
+
+        {/* AI Anime Studio & Anime Pick-Me-Up Modal */}
+        <AnimeStudioModal
+          isOpen={showAnimeStudio}
+          onClose={() => setShowAnimeStudio(false)}
+          initialMood={animeInitialMood}
+        />
 
         {/* Pre-Quiz Mood Selector Modal */}
         {showMoodModal && (
@@ -386,6 +420,14 @@ export function App() {
           />
         )}
       </main>
+
+      {/* Floating Bottom Navigation Dock */}
+      {currentScreen !== 'cinematic' && (
+        <BottomNavigationDock
+          activeTab={activeNavTab}
+          onTabSelect={handleBottomTabSelect}
+        />
+      )}
     </div>
   );
 }

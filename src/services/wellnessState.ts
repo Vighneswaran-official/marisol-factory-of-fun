@@ -1,11 +1,15 @@
 import { HINDI_SONGS, type HindiSong } from '../data/hindiSongs';
 
+export type KritikaMoodId = 'Happy' | 'Tired' | 'Stressed' | 'Cozy' | 'Excited' | 'Low' | 'Romantic';
+
 export interface SecretNote {
   id: string;
   text: string;
   date: string;
   emoji: string;
   color: string;
+  audioUrl?: string; // Optional voice memo data URL
+  duration?: string;
 }
 
 export interface LoveNote {
@@ -16,19 +20,103 @@ export interface LoveNote {
   washiColor: 'pink' | 'lavender' | 'gold';
 }
 
+export interface MoodProfile {
+  id: KritikaMoodId;
+  label: string;
+  emoji: string;
+  color: string;
+  bgAtmosphere: string;
+  reassurance: string;
+  recommendedSongId: string;
+  recommendedMovie: string;
+}
+
+export const KRITIKA_MOODS: MoodProfile[] = [
+  {
+    id: 'Happy',
+    label: 'Happy 🌸',
+    emoji: '🌸',
+    color: '#EC4899',
+    bgAtmosphere: 'linear-gradient(135deg, #FFF1F2 0%, #FCE7F3 50%, #FFFBEB 100%)',
+    reassurance: 'Your joyful sparkle is magnetic, Kritika! Soak in every drop of this sunshine! ✨💖',
+    recommendedSongId: 'sooraj_ki_baahon',
+    recommendedMovie: 'Zindagi Na Milegi Dobara'
+  },
+  {
+    id: 'Tired',
+    label: 'Tired 💤',
+    emoji: '💤',
+    color: '#8B5CF6',
+    bgAtmosphere: 'linear-gradient(135deg, #F3E8FF 0%, #EDE9FE 50%, #E0E7FF 100%)',
+    reassurance: 'Blanket mode activated. You’ve worked so hard today, Kritika. Let yourself sink in and rest. 🌙🤍',
+    recommendedSongId: 'iktara',
+    recommendedMovie: 'Wake Up Sid'
+  },
+  {
+    id: 'Stressed',
+    label: 'Stressed 🥺',
+    emoji: '🥺',
+    color: '#3B82F6',
+    bgAtmosphere: 'linear-gradient(135deg, #EFF6FF 0%, #F5F3FF 50%, #FDF2F8 100%)',
+    reassurance: 'Deep breath, darling. Drop your shoulders, unclench your jaw. The chaos can wait—you are doing great! 🌸💆‍♀️',
+    recommendedSongId: 'love_you_zindagi',
+    recommendedMovie: 'Dear Zindagi'
+  },
+  {
+    id: 'Cozy',
+    label: 'Cozy 🤍',
+    emoji: '🤍',
+    color: '#F59E0B',
+    bgAtmosphere: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 50%, #FFF7ED 100%)',
+    reassurance: 'Steaming ginger chai, soft socks, and zero noise. You deserve this peaceful sanctuary, Kritika. ☕☁️',
+    recommendedSongId: 'iktara',
+    recommendedMovie: 'The Lunchbox'
+  },
+  {
+    id: 'Excited',
+    label: 'Excited ✨',
+    emoji: '✨',
+    color: '#F43F5E',
+    bgAtmosphere: 'linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 50%, #FEF08A 100%)',
+    reassurance: 'Full queen celebration energy! Tell me everything—what fabulous milestone are we toasting to?! 👑🎉',
+    recommendedSongId: 'london_thumakda',
+    recommendedMovie: 'Queen'
+  },
+  {
+    id: 'Low',
+    label: 'Low 💕',
+    emoji: '💕',
+    color: '#FB7185',
+    bgAtmosphere: 'linear-gradient(135deg, #FFF0F5 0%, #FCE7F3 50%, #EDE9FE 100%)',
+    reassurance: 'Big sisterly hug incoming. You bring so much light to everyone else, please let yourself receive some love today. 💖🧸',
+    recommendedSongId: 'love_you_zindagi',
+    recommendedMovie: 'Dear Zindagi'
+  },
+  {
+    id: 'Romantic',
+    label: 'Romantic 🎀',
+    emoji: '🎀',
+    color: '#BE185D',
+    bgAtmosphere: 'linear-gradient(135deg, #FFF1F2 0%, #FDF2F8 50%, #FCE7F3 100%)',
+    reassurance: 'Love is in the air, darling! Main apni favourite hoon—savor every romantic daydream today! 🌷✨',
+    recommendedSongId: 'yeh_ishq_hai',
+    recommendedMovie: 'Jab We Met'
+  }
+];
+
 export const LOVE_NOTES: LoveNote[] = [
   {
     id: 1,
-    quote: "You have that rare magic where your presence alone makes the whole room feel warmer. Never dim that light, queen! 💖",
+    quote: "You have that rare magic where your presence alone makes the whole room feel warmer. Never dim that light, Kritika! 💖",
     subtext: "Drink some water, fix your crown, and remember who you are.",
-    from: "With endless love, Your Inner Circle 🌸",
+    from: "With endless love, Your Comfort Hotline 🌸",
     washiColor: 'pink'
   },
   {
     id: 2,
     quote: "90% of female fury is just low blood sugar demanding garlic butter carbs. You're doing amazing, babe! 🥪✨",
-    subtext: "Take a deep breath and treat yourself to your favorite snack.",
-    from: "Your Comfort Hotline 🎀",
+    subtext: "Take a deep breath and treat yourself to your favorite cucumber sandwich.",
+    from: "Your Snack Cheerleader 🎀",
     washiColor: 'gold'
   },
   {
@@ -61,14 +149,6 @@ export const LOVE_NOTES: LoveNote[] = [
   }
 ];
 
-export const QUEEN_MOODS = [
-  { id: 'radiant', label: 'Radiant & Unstoppable', emoji: '💖', color: '#F43F5E', tagline: 'Ready to conquer the world and sparkle!' },
-  { id: 'cozy_chai', label: 'Cozy Chai & Blanket', emoji: '☕', color: '#F97316', tagline: 'Soft vibes, warm ginger chai & mellow tunes.' },
-  { id: 'need_tlc', label: 'Need TLC & Soft Hugs', emoji: '🥺', color: '#A855F7', tagline: 'Gentle affirmations, comfort carbs & sweet care.' },
-  { id: 'sassy_bold', label: 'Sassy & Bold', emoji: '💅', color: '#EC4899', tagline: 'Full Geet energy! Main apni favourite hoon!' },
-  { id: 'hangry', label: 'Hangry & Overwhelmed', emoji: '😤', color: '#EF4444', tagline: 'Emergency cucumber sandwiches & stress popper needed!' }
-];
-
 class WellnessState {
   private listeners: Set<() => void> = new Set();
   private pinnedSongIds: string[] = ['love_you_zindagi', 'ilahi'];
@@ -76,20 +156,20 @@ class WellnessState {
   private secretNotes: SecretNote[] = [
     {
       id: 'note-1',
-      text: 'Remember: You didn\'t come this far to only come this far. You are capable of breathtaking things! 💖',
+      text: 'Remember: You didn\'t come this far to only come this far. You are capable of breathtaking things, Kritika! 💖',
       date: 'Saved Note',
       emoji: '🔐',
       color: '#FFF1F2'
     },
     {
       id: 'note-2',
-      text: 'Chai + a good movie = the ultimate soul medicine. Never skip quiet moments for yourself. ☕✨',
+      text: 'Hot chai + a cozy movie = the ultimate soul medicine. Never skip quiet moments for yourself. ☕✨',
       date: 'Saved Note',
       emoji: '🌸',
       color: '#FAF5FF'
     }
   ];
-  private queenMood: string = 'radiant';
+  private queenMood: KritikaMoodId = 'Happy';
   private loveNoteIndex: number = 0;
   private streakDays: number = 3;
 
@@ -119,8 +199,10 @@ class WellnessState {
       const savedNotes = localStorage.getItem('kritika_secret_notes');
       if (savedNotes) this.secretNotes = JSON.parse(savedNotes);
 
-      const savedMood = localStorage.getItem('kritika_queen_mood');
-      if (savedMood) this.queenMood = savedMood;
+      const savedMood = localStorage.getItem('kritika_queen_mood') as KritikaMoodId;
+      if (savedMood && KRITIKA_MOODS.some(m => m.id === savedMood)) {
+        this.queenMood = savedMood;
+      }
 
       const savedStreak = localStorage.getItem('kritika_sparkle_streak');
       if (savedStreak) this.streakDays = parseInt(savedStreak, 10) || 3;
@@ -174,7 +256,6 @@ class WellnessState {
 
   public getAllSongs(): HindiSong[] {
     const all = [...this.customSongs, ...HINDI_SONGS];
-    // Sort pinned songs to the top
     return all.sort((a, b) => {
       const aPinned = this.pinnedSongIds.includes(a.id) ? 1 : 0;
       const bPinned = this.pinnedSongIds.includes(b.id) ? 1 : 0;
@@ -187,13 +268,15 @@ class WellnessState {
     return [...this.secretNotes];
   }
 
-  public addSecretNote(text: string, emoji: string = '💖'): SecretNote {
+  public addSecretNote(text: string, emoji: string = '💖', audioUrl?: string, duration?: string): SecretNote {
     const note: SecretNote = {
       id: `note_${Date.now()}`,
       text,
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       emoji,
-      color: ['#FFF1F2', '#FAF5FF', '#FEFCE8'][Math.floor(Math.random() * 3)]
+      color: ['#FFF1F2', '#FAF5FF', '#FEFCE8'][Math.floor(Math.random() * 3)],
+      audioUrl,
+      duration
     };
     this.secretNotes = [note, ...this.secretNotes];
     this.save();
@@ -208,11 +291,15 @@ class WellnessState {
   }
 
   // Queen's Mood
-  public getQueenMood(): string {
+  public getQueenMood(): KritikaMoodId {
     return this.queenMood;
   }
 
-  public setQueenMood(moodId: string): void {
+  public getMoodProfile(): MoodProfile {
+    return KRITIKA_MOODS.find(m => m.id === this.queenMood) || KRITIKA_MOODS[0];
+  }
+
+  public setQueenMood(moodId: KritikaMoodId): void {
     this.queenMood = moodId;
     this.save();
     this.notify();
@@ -231,7 +318,6 @@ class WellnessState {
 
   // Sparkle Streak
   public getSparkleStreak(): { streak: number, trail: boolean[] } {
-    // 7-day visual trail
     const trail = [true, true, true, false, false, false, false].map((_, idx) => idx < this.streakDays);
     return { streak: this.streakDays, trail };
   }
