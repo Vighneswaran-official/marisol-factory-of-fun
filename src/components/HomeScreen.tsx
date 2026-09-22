@@ -3,7 +3,6 @@ import type { ScreenState } from '../types/game';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
 import { wellnessState, KRITIKA_MOODS, type KritikaMoodId } from '../services/wellnessState';
-import { AI_ANIME_SCENES } from '../data/animeScenes';
 import { Marisol } from './Marisol';
 import { LittleLoveNote } from './LittleLoveNote';
 import { SparkleStreak } from './SparkleStreak';
@@ -14,8 +13,7 @@ import {
   Lock, 
   Camera, 
   Music,
-  Film,
-  Sparkle
+  Film
 } from 'lucide-react';
 
 interface HomeScreenProps {
@@ -26,7 +24,6 @@ interface HomeScreenProps {
   onOpenSecretLocket: () => void;
   onOpenGlowUpWeek: () => void;
   onOpenCozyMode: () => void;
-  onOpenAnimeStudio: (initialMood?: KritikaMoodId) => void;
   onOpenCartoonTalkies: (mode?: 'video' | 'magazine') => void;
 }
 
@@ -38,7 +35,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenSecretLocket,
   onOpenGlowUpWeek,
   onOpenCozyMode,
-  onOpenAnimeStudio,
   onOpenCartoonTalkies,
 }) => {
   const [, setTick] = useState(0);
@@ -78,10 +74,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           : `Ready for today's comfort snack & good Bollywood tunes, babe? 💖`;
     }
   };
-
-  // Preview scene for the active mood
-  const currentMoodScenes = AI_ANIME_SCENES[currentQueenMood] || AI_ANIME_SCENES['Happy'];
-  const previewScene = currentMoodScenes[0];
 
   return (
     <div className="min-h-screen bg-[#FFFDF7] p-3 sm:p-5 pb-28 text-ink">
@@ -164,56 +156,48 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
-        {/* HERO CARD 1: AI ANIME HAVEN SPOTLIGHT (Immediate pick-me-up right under mood) */}
-        <div className="bg-gradient-to-br from-purple-900 via-indigo-950 to-pink-950 text-white border-3 border-pink-300 rounded-3xl p-4 sm:p-5 shadow-sketch relative overflow-hidden group">
-          {/* Subtle starry backdrop effect */}
-          <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-pink-500/20 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute -left-8 -top-8 w-40 h-40 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none" />
-
-          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1.5 max-w-sm">
-              <div className="inline-flex items-center gap-1.5 bg-pink-500/30 border border-pink-400/40 px-2.5 py-0.5 rounded-full text-[11px] font-bold text-pink-200">
-                <Sparkle className="w-3 h-3 text-pink-300 animate-spin" />
-                <span>AI ANIME PICK-ME-UP FOR {currentQueenMood.toUpperCase()} MOOD</span>
+        {/* CARTOON TALKIES VIDEO & COMIC MAGAZINE SHOWCASE */}
+        <div className="bg-gradient-to-r from-rose-500 via-pink-600 to-purple-700 text-white border-3 border-ink rounded-3xl p-4 sm:p-5 shadow-sketch relative overflow-hidden group">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-14 h-14 rounded-2xl bg-white/20 border-2 border-white/40 flex items-center justify-center text-3xl shadow-inner shrink-0 animate-bounce">
+                🎬
               </div>
-              
-              <h3 className="font-display font-black text-lg sm:text-xl text-white tracking-tight flex items-center gap-2">
-                <span>{previewScene.title}</span>
-                <span className="text-base">✨</span>
-              </h3>
-
-              <p className="font-handwritten text-xs text-pink-100 font-bold leading-relaxed line-clamp-2">
-                “{previewScene.dialogueText}”
-              </p>
-
-              <div className="text-[11px] text-amber-300 font-bold flex items-center gap-1">
-                <span>💌</span>
-                <span>{previewScene.personalizedEndcard}</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-display font-black text-sm sm:text-base uppercase tracking-tight">
+                    KRITIKA'S CARTOON TALKIES
+                  </span>
+                  <span className="bg-amber-400 text-ink text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                    SPEAKING VIDEO STUDIO
+                  </span>
+                </div>
+                <p className="font-handwritten text-xs text-pink-100 font-bold mt-0.5">
+                  Watch cartoon speak aloud with lip-sync in Bollywood, Chef, Anime & Sci-Fi! 🍿
+                </p>
               </div>
             </div>
 
-            {/* Action buttons */}
             <div className="flex flex-row sm:flex-col gap-2 shrink-0 w-full sm:w-auto">
               <button
-                onClick={() => onOpenAnimeStudio(currentQueenMood)}
-                className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 hover:brightness-110 text-white font-display font-black text-xs rounded-2xl shadow-md transition flex items-center justify-center gap-2 hover:scale-105 active:scale-95 border border-pink-300"
+                onClick={() => {
+                  audioEngine.playSfx('fanfare');
+                  onOpenCartoonTalkies('video');
+                }}
+                className="flex-1 sm:flex-none px-4 py-2.5 bg-white text-pink-900 font-display font-black text-xs rounded-2xl shadow-md hover:bg-pink-100 hover:scale-105 active:scale-95 transition flex items-center justify-center gap-1.5"
               >
-                <Play className="w-3.5 h-3.5 fill-white" />
-                <span>Play Scene ✨</span>
+                <Play className="w-3.5 h-3.5 fill-pink-900" />
+                <span>Watch Video 🎥</span>
               </button>
 
               <button
-                onClick={() => onOpenAnimeStudio()}
-                className="flex-1 sm:flex-none px-3.5 py-2 bg-white/15 hover:bg-white/25 text-pink-100 font-display font-black text-xs rounded-2xl border border-white/20 transition flex items-center justify-center gap-1.5"
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onOpenCartoonTalkies('magazine');
+                }}
+                className="flex-1 sm:flex-none px-4 py-2 bg-pink-950/40 border border-white/30 text-white font-display font-black text-xs rounded-2xl shadow-sm hover:bg-pink-950/60 transition flex items-center justify-center gap-1.5"
               >
-                <span>Browse Anime Studio 🎀</span>
-              </button>
-
-              <button
-                onClick={() => onOpenCartoonTalkies('video')}
-                className="flex-1 sm:flex-none px-3.5 py-2 bg-gradient-to-r from-amber-400 to-orange-400 hover:brightness-110 text-stone-900 font-display font-black text-xs rounded-2xl shadow-sm transition flex items-center justify-center gap-1.5"
-              >
-                <span>🎬 Cartoon Video & Comics 📖</span>
+                <span>Read Magazine 📖</span>
               </button>
             </div>
           </div>
@@ -275,53 +259,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
         {/* SPARKLE STREAK (Consecutive Day Tracker) */}
         <SparkleStreak />
-
-        {/* CARTOON TALKIES VIDEO SHOWCASE CARD (Speaking Cartoon Video Studio!) */}
-        <div className="bg-gradient-to-r from-rose-500 via-pink-600 to-purple-700 text-white border-3 border-ink rounded-3xl p-4 sm:p-5 shadow-sketch relative overflow-hidden group">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-14 h-14 rounded-2xl bg-white/20 border-2 border-white/40 flex items-center justify-center text-3xl shadow-inner shrink-0 animate-bounce">
-                🎬
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-display font-black text-sm sm:text-base uppercase tracking-tight">
-                    KRITIKA'S CARTOON TALKIES
-                  </span>
-                  <span className="bg-amber-400 text-ink text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
-                    SPEAKING VIDEO STUDIO
-                  </span>
-                </div>
-                <p className="font-handwritten text-xs text-pink-100 font-bold mt-0.5 truncate">
-                  Watch cartoon speak aloud with lip-sync in Bollywood, Chef, Anime & Sci-Fi! 🍿
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-              <button
-                onClick={() => {
-                  audioEngine.playSfx('fanfare');
-                  onOpenCartoonTalkies('video');
-                }}
-                className="px-3.5 py-2 bg-white text-pink-900 font-display font-black text-xs rounded-2xl shadow-md hover:bg-pink-100 hover:scale-105 active:scale-95 transition flex items-center justify-center gap-1.5"
-              >
-                <Play className="w-3.5 h-3.5 fill-pink-900" />
-                <span>Watch Video 🎥</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  audioEngine.playSfx('click');
-                  onOpenCartoonTalkies('magazine');
-                }}
-                className="px-3.5 py-2 bg-pink-950/40 border border-white/30 text-white font-display font-black text-xs rounded-2xl shadow-sm hover:bg-pink-950/60 transition flex items-center justify-center gap-1.5"
-              >
-                <span>Read Magazine 📖</span>
-              </button>
-            </div>
-          </div>
-        </div>
 
         {/* PRIMARY ACTION: COOKING & CINEMA TRIVIA */}
         <button

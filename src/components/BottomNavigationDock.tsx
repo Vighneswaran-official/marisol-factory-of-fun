@@ -12,7 +12,7 @@ interface BottomNavigationDockProps {
 export const BottomNavigationDock: React.FC<BottomNavigationDockProps> = ({ activeTab, onTabSelect }) => {
   const tabs: Array<{ id: MainNavTab; label: string; icon: React.ReactNode; emoji: string }> = [
     { id: 'home', label: 'Home', icon: <Home className="w-4 h-4" />, emoji: '🏠' },
-    { id: 'anime', label: 'AI Anime', icon: <Sparkles className="w-4 h-4" />, emoji: '🎀' },
+    { id: 'anime', label: 'Cartoon', icon: <Sparkles className="w-4 h-4" />, emoji: '🎬' },
     { id: 'lounge', label: 'Lounge', icon: <Music className="w-4 h-4" />, emoji: '🎵' },
     { id: 'quiz', label: 'Quiz', icon: <Play className="w-4 h-4 fill-current" />, emoji: '🍳' },
     { id: 'locket', label: 'Locket', icon: <Lock className="w-4 h-4" />, emoji: '🔐' },

@@ -3,7 +3,6 @@ import type { ScreenState, Zone, Question, Recipe } from './types/game';
 import { gameState } from './services/gameState';
 import { adaptiveEngine } from './services/adaptiveEngine';
 import { audioEngine } from './services/synthAudioEngine';
-import { type KritikaMoodId } from './services/wellnessState';
 import { Navbar } from './components/Navbar';
 import { OpeningCinematic } from './components/OpeningCinematic';
 import { HomeScreen } from './components/HomeScreen';
@@ -28,7 +27,6 @@ import { SecretLocketModal } from './components/SecretLocketModal';
 import { CelebrationLocketModal } from './components/CelebrationLocketModal';
 import { GlowUpWeekModal } from './components/GlowUpWeekModal';
 import { CozyModeOverlay } from './components/CozyModeOverlay';
-import { AnimeStudioModal } from './components/AnimeStudioModal';
 import { CartoonTalkiesModal } from './components/CartoonTalkiesModal';
 import { BottomNavigationDock, type MainNavTab } from './components/BottomNavigationDock';
 import { RECIPES } from './data/recipes';
@@ -60,8 +58,6 @@ export function App() {
   const [showCelebrationLocket, setShowCelebrationLocket] = useState(false);
   const [showGlowUpWeek, setShowGlowUpWeek] = useState(false);
   const [showCozyMode, setShowCozyMode] = useState(false);
-  const [showAnimeStudio, setShowAnimeStudio] = useState(false);
-  const [animeInitialMood, setAnimeInitialMood] = useState<KritikaMoodId | undefined>(undefined);
   const [showCartoonTalkies, setShowCartoonTalkies] = useState(false);
   const [cartoonTalkiesMode, setCartoonTalkiesMode] = useState<'video' | 'magazine'>('video');
 
@@ -207,7 +203,7 @@ export function App() {
     if (tab === 'home') {
       setCurrentScreen('home');
     } else if (tab === 'anime') {
-      setShowAnimeStudio(true);
+      setShowCartoonTalkies(true);
     } else if (tab === 'lounge') {
       setShowMusicJukebox(true);
     } else if (tab === 'quiz') {
@@ -240,10 +236,6 @@ export function App() {
             onOpenSecretLocket={() => setShowSecretLocket(true)}
             onOpenGlowUpWeek={() => setShowGlowUpWeek(true)}
             onOpenCozyMode={() => setShowCozyMode(true)}
-            onOpenAnimeStudio={(mood) => {
-              setAnimeInitialMood(mood);
-              setShowAnimeStudio(true);
-            }}
             onOpenCartoonTalkies={(mode = 'video') => {
               setCartoonTalkiesMode(mode);
               setShowCartoonTalkies(true);
@@ -329,17 +321,6 @@ export function App() {
             onCookRecipe={startCookingRecipeDirect}
           />
         )}
-
-        {/* AI Anime Studio & Anime Pick-Me-Up Modal */}
-        <AnimeStudioModal
-          isOpen={showAnimeStudio}
-          onClose={() => setShowAnimeStudio(false)}
-          initialMood={animeInitialMood}
-          onOpenCartoonTalkies={(mode) => {
-            setCartoonTalkiesMode(mode || 'video');
-            setShowCartoonTalkies(true);
-          }}
-        />
 
         {/* Cartoon Talkies Speaking Video Studio & Magazine Modal */}
         <CartoonTalkiesModal
