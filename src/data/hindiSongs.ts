@@ -36,10 +36,10 @@ export const HINDI_SONGS: HindiSong[] = [
     year: 2013,
     emoji: '✈️',
     accentColor: '#3B82F6',
-    youtubeId: 'j568uIAinuk',
+    youtubeId: '6wNFJuDcxV4',
     vibe: 'Wanderlust, Freedom & Big Dreams',
     lyricsHighlight: 'Shaamein malang si, raatein surmayi... Ilahi mera jee aaye aaye!',
-    movieQuote: '"Main udna chahta hoon, daudna chahta hoon, girna bhi chahta hoon... bas rukna nahi chahta!" — Bunny',
+    movieQuote: '"Main udna chahta hoon, daudna chahta hoon... bas rukna nahi chahta!" — Bunny',
     tags: ['Adventures', 'Travel', 'High Energy']
   },
   {
@@ -50,11 +50,11 @@ export const HINDI_SONGS: HindiSong[] = [
     year: 2007,
     emoji: '🏔️',
     accentColor: '#EF4444',
-    youtubeId: 'b_sCZbYyuO4',
+    youtubeId: '8w9ezkQFUYo',
     vibe: 'Iconic Geet Energy & Wild Joy',
     lyricsHighlight: 'Haan hai koi toh wajah jo jeena aa gaya! Yeh ishq hai baithe bithaye jannat dikhaye...',
     movieQuote: '"Main apni favourite hoon!" — Geet',
-    tags: ['Sassy', 'Bollywood Classic', 'Dancing']
+    tags: ['Sassy', 'Bollywood Classic', 'Party']
   },
   {
     id: 'iktara',
@@ -64,7 +64,7 @@ export const HINDI_SONGS: HindiSong[] = [
     year: 2009,
     emoji: '☕',
     accentColor: '#F97316',
-    youtubeId: 'KTvTgrt0p5s',
+    youtubeId: 'fSS_R91Nimw',
     vibe: 'Soulful Monsoon Chai & Gentle Warmth',
     lyricsHighlight: 'Goonja sa hai koi iktara iktara, dheeme bole koi iktara...',
     movieQuote: '"Chai aur baarish se behtar kuch nahi hota." — Aisha',
@@ -82,7 +82,7 @@ export const HINDI_SONGS: HindiSong[] = [
     vibe: 'Ultimate Girl Power & Sassy Celebration',
     lyricsHighlight: 'Latthe di chaadar utte saleti rang maahiya... London thumakda!',
     movieQuote: '"Mera haal na Gupta uncle jaisa ho gaya hai... par main enjoy kar rahi hoon!" — Rani',
-    tags: ['Girl Power', 'Party', 'Stress Buster']
+    tags: ['Party', 'Feel Good', 'Stress Buster']
   },
   {
     id: 'sooraj_ki_baahon_mein',
@@ -92,10 +92,94 @@ export const HINDI_SONGS: HindiSong[] = [
     year: 2011,
     emoji: '☀️',
     accentColor: '#EAB308',
-    youtubeId: 'b3vVX3Q6hG4',
+    youtubeId: 'L_XJ_s5IsQc',
     vibe: 'Road Trips, Friendship & Euphoric Sunshine',
     lyricsHighlight: 'Aayi aayi aayi zindagani, dhoop mein jaise chhaon suhani!',
     movieQuote: '"Insaan ko dibbe mein sirf tab hona chahiye jab woh mar chuka ho." — Laila',
-    tags: ['Road Trip', 'Uplifting', 'Euphoria']
+    tags: ['Travel', 'Feel Good', 'Uplifting']
+  },
+  {
+    id: 'tum_se_hi',
+    title: 'Tum Se Hi',
+    movie: 'Jab We Met',
+    singers: 'Mohit Chauhan',
+    year: 2007,
+    emoji: '🌧️',
+    accentColor: '#06B6D4',
+    youtubeId: 'mt9xg0mmt28',
+    vibe: 'Gentle Raindrops & Romantic Nostalgia',
+    lyricsHighlight: 'Aadha sa waada kabhi, aadhe se zyada kabhi... jee mein hai kya kaho!',
+    movieQuote: '"Jab koi pyaar mein hota hai, toh koi sahi galat nahi hota." — Geet',
+    tags: ['Romantic', 'Cozy Chai', 'Soulful']
+  },
+  {
+    id: 'kabira',
+    title: 'Kabira',
+    movie: 'Yeh Jawaani Hai Deewani',
+    singers: 'Tochi Raina & Rekha Bhardwaj',
+    year: 2013,
+    emoji: '🪕',
+    accentColor: '#D97706',
+    youtubeId: 'jHNNMj5bNQw',
+    vibe: 'Melodic Reflection & Deep Comfort',
+    lyricsHighlight: 'Banno re banno meri chali sasural ko... Tu dhoondhe katora!',
+    movieQuote: '"Kahin pahuchne ke liye kahin se nikalna zaroori hota hai." — Bunny',
+    tags: ['Acoustic', 'Soulful', 'Feel Good']
+  },
+  {
+    id: 'subhanallah',
+    title: 'Subhanallah',
+    movie: 'Yeh Jawaani Hai Deewani',
+    singers: 'Sreeram Chandra & Shilpa Rao',
+    year: 2013,
+    emoji: '❄️',
+    accentColor: '#6366F1',
+    youtubeId: '2mWaqank5mo',
+    vibe: 'Snowy Manali Morning & Tender Sweetness',
+    lyricsHighlight: 'Subhanallah... jo ho raha hai pehli dafa hai!',
+    movieQuote: '"Main pehle jaisi nahi rahi." — Naina',
+    tags: ['Romantic', 'Travel', 'Self Love']
+  },
+  {
+    id: 'khaabon_ke_parindey',
+    title: 'Khaabon Ke Parindey',
+    movie: 'Zindagi Na Milegi Dobara',
+    singers: 'Mohit Chauhan & Alyssa Mendonsa',
+    year: 2011,
+    emoji: '🕊️',
+    accentColor: '#10B981',
+    youtubeId: 'R0XjxTH3rLo',
+    vibe: 'Open Spanish Highways & Flying Dreams',
+    lyricsHighlight: 'Ude, khule aasman mein khwaabon ke parindey...',
+    movieQuote: '"Seize the day my friend, pehle is din ko poori tarah jiyo!" — Laila',
+    tags: ['Travel', 'Acoustic', 'Joy']
+  },
+  {
+    id: 'gallan_goodiyaan',
+    title: 'Gallan Goodiyaan',
+    movie: 'Dil Dhadakne Do',
+    singers: 'Yashita Sharma, Manish Kumar Tipu, Shankar Mahadevan',
+    year: 2015,
+    emoji: '💃',
+    accentColor: '#EC4899',
+    youtubeId: 'jCEdTq3j-0U',
+    vibe: 'High-Spirited Celebration Dance',
+    lyricsHighlight: 'Dil dhadakne do... Yeh baatein hain badi purani!',
+    movieQuote: '"Life mein sabse zaroori kya hai? Khushi!"',
+    tags: ['Party', 'High Energy', 'Feel Good']
+  },
+  {
+    id: 'badtameez_dil',
+    title: 'Badtameez Dil',
+    movie: 'Yeh Jawaani Hai Deewani',
+    singers: 'Benny Dayal & Shefali Alvares',
+    year: 2013,
+    emoji: '🕺',
+    accentColor: '#F43F5E',
+    youtubeId: 'II2EO3Nw4t0',
+    vibe: 'Wild Unapologetic Joy & Bubbly Fun',
+    lyricsHighlight: 'Badtameez dil maane na maane na!',
+    movieQuote: '"Celebration ka koi reason nahi hota!"',
+    tags: ['Party', 'Sassy', 'High Energy']
   }
 ];

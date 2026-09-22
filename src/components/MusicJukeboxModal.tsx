@@ -2,20 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { audioEngine } from '../services/synthAudioEngine';
 import { wellnessState } from '../services/wellnessState';
 import type { HindiSong } from '../data/hindiSongs';
-import { X, Sparkles, ExternalLink, SkipForward, SkipBack, Music2, Heart, Search, Pin, Plus } from 'lucide-react';
+import { X, Sparkles, ExternalLink, SkipForward, SkipBack, Heart, Search, Pin, Plus, Copy, Check, Play } from 'lucide-react';
 
 interface MusicJukeboxModalProps {
   onClose: () => void;
   initialSongId?: string;
 }
 
+// Crisp official YouTube SVG icon
+const YouTubeIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg className={`fill-current ${className}`} viewBox="0 0 24 24">
+    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+  </svg>
+);
+
 export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, initialSongId }) => {
   const [, setTick] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeMoodTag, setActiveMoodTag] = useState<string>('All');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [quickYtInput, setQuickYtInput] = useState('');
 
-  // New song form states
+  // Detailed add form states
   const [newTitle, setNewTitle] = useState('');
   const [newMovie, setNewMovie] = useState('');
   const [newSingers, setNewSingers] = useState('');
@@ -64,16 +73,69 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
     setIsPlaying(true);
   };
 
-  // Helper to extract YouTube Video ID from full URL or raw ID
+  // Helper to extract YouTube Video ID from full URL, shorts, or raw ID
   const extractVideoId = (input: string): string => {
     const trimmed = input.trim();
+    if (trimmed.includes('shorts/')) {
+      return trimmed.split('shorts/')[1]?.split('?')[0]?.split('&')[0] || trimmed;
+    }
     if (trimmed.includes('v=')) {
       return trimmed.split('v=')[1]?.split('&')[0] || trimmed;
     }
     if (trimmed.includes('youtu.be/')) {
-      return trimmed.split('youtu.be/')[1]?.split('?')[0] || trimmed;
+      return trimmed.split('youtu.be/')[1]?.split('?')[0]?.split('&')[0] || trimmed;
+    }
+    if (trimmed.includes('embed/')) {
+      return trimmed.split('embed/')[1]?.split('?')[0]?.split('&')[0] || trimmed;
     }
     return trimmed;
+  };
+
+  // Direct YouTube Search Launcher
+  const handleSearchOnYouTube = (customQuery?: string) => {
+    audioEngine.playSfx('click');
+    const q = (customQuery || searchQuery || 'Bollywood feel good songs').trim();
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q + ' song')}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  // Instant Quick YouTube Link Paste & Play
+  const handleQuickPlayYouTube = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickYtInput.trim()) return;
+
+    const ytId = extractVideoId(quickYtInput);
+    if (!ytId) return;
+
+    audioEngine.playSfx('fanfare');
+    // Check if song already exists with this ID
+    const existing = allSongs.find(s => s.youtubeId === ytId);
+    if (existing) {
+      setSelectedSong(existing);
+      setIsPlaying(true);
+      setQuickYtInput('');
+      return;
+    }
+
+    // Create new custom track
+    const created = wellnessState.addCustomSong({
+      title: `YouTube Pick #${Math.floor(100 + Math.random() * 900)}`,
+      movie: 'YouTube Stream',
+      singers: 'Queen\'s Choice',
+      year: new Date().getFullYear(),
+      emoji: '🔴',
+      accentColor: '#EF4444',
+      youtubeId: ytId,
+      vibe: 'Direct YouTube Stream ♡',
+      lyricsHighlight: 'Playing directly from YouTube stream!',
+      movieQuote: '"Music makes every moment magical!"',
+      tags: ['YouTube Pick', 'Favorites']
+    });
+
+    wellnessState.togglePinSong(created.id);
+    setSelectedSong(created);
+    setIsPlaying(true);
+    setQuickYtInput('');
   };
 
   const handleAddSong = (e: React.FormEvent) => {
@@ -97,7 +159,6 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
       tags: ['Queen Pick', 'Favorites']
     });
 
-    // Automatically pin the new song and select it!
     wellnessState.togglePinSong(created.id);
     setSelectedSong(created);
     setIsPlaying(true);
@@ -106,6 +167,15 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
     setNewMovie('');
     setNewSingers('');
     setNewYoutubeUrl('');
+  };
+
+  const handleCopyLink = () => {
+    const ytUrl = `https://www.youtube.com/watch?v=${selectedSong.youtubeId}`;
+    navigator.clipboard.writeText(ytUrl).then(() => {
+      audioEngine.playSfx('pop');
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    });
   };
 
   // Filter songs based on search & mood tags
@@ -135,23 +205,24 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
         className="bg-[#FFFDF7] border-3 border-ink rounded-3xl max-w-xl w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-sketch-2xl space-y-4 relative"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Header with YouTube Connectivity Badge */}
         <div className="flex items-center justify-between border-b-2 border-pink-200 pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-11 h-11 rounded-2xl border-2 border-ink bg-gradient-to-tr from-pink-500 to-rose-400 text-white flex items-center justify-center font-bold text-xl shadow-sketch">
-              <Music2 className="w-6 h-6 animate-pulse" />
+            <div className="w-11 h-11 rounded-2xl border-2 border-ink bg-gradient-to-tr from-red-600 via-rose-500 to-pink-500 text-white flex items-center justify-center font-bold text-xl shadow-sketch">
+              <YouTubeIcon className="w-6 h-6 text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <h2 className="font-display font-black text-xl sm:text-2xl text-ink leading-tight">
-                  KRITIKA'S HINDI LOUNGE 🎵
+                  KRITIKA'S YOUTUBE LOUNGE
                 </h2>
-                <span className="bg-pink-100 text-pink-700 font-handwritten text-[11px] font-black px-2 py-0.5 rounded-full border border-pink-300">
-                  QUEEN HITS
+                <span className="bg-red-500 text-white font-display text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                  YOUTUBE LIVE
                 </span>
               </div>
               <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
-                Search, listen & pin your favorite songs to your personal playlist! 💖
+                Stream Bollywood hits, search any track on YouTube & pin your favorites! 💖
               </p>
             </div>
           </div>
@@ -163,91 +234,138 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
           </button>
         </div>
 
-        {/* Embedded Video/Audio Player */}
+        {/* Embedded YouTube Player */}
         <div className="bg-black border-2.5 border-ink rounded-3xl overflow-hidden shadow-sketch relative">
           {isPlaying ? (
-            <div className="relative aspect-video w-full">
+            <div className="relative aspect-video w-full bg-black">
               <iframe
-                src={`https://www.youtube-nocookie.com/embed/${selectedSong.youtubeId}?autoplay=1&rel=0&modestbranding=1`}
-                title={selectedSong.title}
+                key={selectedSong.youtubeId}
+                src={`https://www.youtube-nocookie.com/embed/${selectedSong.youtubeId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`}
+                title={`${selectedSong.title} - ${selectedSong.movie}`}
                 className="w-full h-full border-0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
               />
             </div>
           ) : (
-            <div className="aspect-video w-full flex flex-col items-center justify-center bg-gradient-to-br from-pink-950 to-slate-900 text-white p-4 text-center">
+            <div 
+              onClick={() => setIsPlaying(true)}
+              className="aspect-video w-full flex flex-col items-center justify-center bg-gradient-to-br from-red-950 via-slate-900 to-pink-950 text-white p-4 text-center cursor-pointer group"
+            >
+              <div className="w-14 h-14 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-white shadow-sketch group-hover:scale-110 transition-transform mb-2">
+                <Play className="w-6 h-6 fill-white ml-0.5" />
+              </div>
               <p className="font-display font-black text-lg">{selectedSong.title}</p>
-              <p className="font-handwritten text-sm text-pink-200">Tap below to play</p>
+              <p className="font-handwritten text-sm text-pink-200">Tap to play on YouTube player</p>
             </div>
           )}
 
-          {/* Player Info Bar */}
-          <div className="p-3.5 bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white border-t-2 border-ink flex items-center justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="text-base">{selectedSong.emoji}</span>
-                <span className="font-display font-black text-sm sm:text-base text-white truncate">
-                  {selectedSong.title}
-                </span>
-                <span className="bg-white/20 text-white font-handwritten text-[10px] px-2 py-0.5 rounded-full shrink-0">
-                  {selectedSong.movie}
-                </span>
-                {pinnedIds.includes(selectedSong.id) && (
-                  <span className="bg-pink-500 text-white font-handwritten text-[9px] px-1.5 py-0.5 rounded-full font-bold">
-                    📌 PINNED
+          {/* Player Info & YouTube Action Bar */}
+          <div className="p-3.5 bg-gradient-to-r from-slate-950 via-zinc-900 to-slate-950 text-white border-t-2 border-ink space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-base">{selectedSong.emoji}</span>
+                  <span className="font-display font-black text-sm sm:text-base text-white truncate">
+                    {selectedSong.title}
                   </span>
-                )}
+                  <span className="bg-red-500/30 text-red-300 border border-red-500/40 font-handwritten text-[10px] px-2 py-0.5 rounded-full shrink-0">
+                    {selectedSong.movie}
+                  </span>
+                  {pinnedIds.includes(selectedSong.id) && (
+                    <span className="bg-pink-500 text-white font-handwritten text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+                      📌 PINNED
+                    </span>
+                  )}
+                </div>
+                <p className="font-handwritten text-xs text-rose-200 truncate mt-0.5">
+                  🎤 {selectedSong.singers}
+                </p>
               </div>
-              <p className="font-handwritten text-xs text-pink-200 truncate mt-0.5">
-                🎤 {selectedSong.singers}
-              </p>
+
+              {/* Transport & YouTube Buttons */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={(e) => handleTogglePin(e, selectedSong.id)}
+                  className={`w-8 h-8 rounded-xl border flex items-center justify-center transition-all ${
+                    pinnedIds.includes(selectedSong.id)
+                      ? 'bg-pink-500 text-white border-pink-400 shadow-xs'
+                      : 'bg-white/10 text-white/70 border-white/20 hover:text-white'
+                  }`}
+                  title={pinnedIds.includes(selectedSong.id) ? 'Unpin from Favorites' : 'Pin to Favorites'}
+                >
+                  <Pin className="w-4 h-4 fill-current" />
+                </button>
+
+                <button
+                  onClick={handlePrev}
+                  className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-transform active:scale-95"
+                  title="Previous Song"
+                >
+                  <SkipBack className="w-4 h-4 fill-white" />
+                </button>
+
+                <button
+                  onClick={handleNext}
+                  className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-transform active:scale-95"
+                  title="Next Song"
+                >
+                  <SkipForward className="w-4 h-4 fill-white" />
+                </button>
+
+                <a
+                  href={`https://www.youtube.com/watch?v=${selectedSong.youtubeId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 h-8 rounded-xl bg-red-600 hover:bg-red-700 border border-red-400/50 flex items-center gap-1.5 text-white text-xs font-display font-black transition-all hover:scale-102 active:scale-95 shadow-xs"
+                  title="Open directly on YouTube"
+                >
+                  <YouTubeIcon className="w-4 h-4 text-white" />
+                  <span className="hidden sm:inline">YouTube</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
             </div>
 
-            {/* Transport & Pin Controls */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={(e) => handleTogglePin(e, selectedSong.id)}
-                className={`w-8 h-8 rounded-xl border flex items-center justify-center transition-all ${
-                  pinnedIds.includes(selectedSong.id)
-                    ? 'bg-pink-500 text-white border-pink-400 shadow-xs'
-                    : 'bg-white/10 text-white/70 border-white/20 hover:text-white'
-                }`}
-                title={pinnedIds.includes(selectedSong.id) ? 'Unpin from Favorites' : 'Pin to Favorites'}
-              >
-                <Pin className="w-4 h-4 fill-current" />
-              </button>
+            {/* Quick YouTube Utilities row */}
+            <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[11px] font-handwritten text-white/70">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCopyLink}
+                  className="hover:text-white flex items-center gap-1 text-white/80 transition-colors"
+                >
+                  {copiedLink ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span className="text-emerald-400 font-bold">YouTube link copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      <span>Copy YouTube Link</span>
+                    </>
+                  )}
+                </button>
 
-              <button
-                onClick={handlePrev}
-                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-transform active:scale-95"
-                title="Previous Song"
-              >
-                <SkipBack className="w-4 h-4 fill-white" />
-              </button>
+                <span>•</span>
 
-              <button
-                onClick={handleNext}
-                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-transform active:scale-95"
-                title="Next Song"
-              >
-                <SkipForward className="w-4 h-4 fill-white" />
-              </button>
+                <button
+                  onClick={() => handleSearchOnYouTube(`${selectedSong.title} ${selectedSong.movie}`)}
+                  className="hover:text-white flex items-center gap-1 text-white/80 transition-colors"
+                >
+                  <Search className="w-3 h-3 text-red-400" />
+                  <span>Find similar on YT</span>
+                </button>
+              </div>
 
-              <a
-                href={`https://www.youtube.com/watch?v=${selectedSong.youtubeId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-8 h-8 rounded-xl bg-red-600 hover:bg-red-700 border border-white/20 flex items-center justify-center text-white transition-transform active:scale-95"
-                title="Open in YouTube"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </a>
+              <span className="text-[10px] text-zinc-400 hidden sm:inline">
+                ID: {selectedSong.youtubeId}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Lyrics Highlight & Quote */}
+        {/* Highlight Quote */}
         <div className="bg-pink-50/80 border-2 border-pink-200 rounded-2xl p-3 text-left space-y-0.5 shadow-2xs">
           <div className="flex items-center justify-between text-pink-900 font-display font-black text-xs">
             <span className="flex items-center gap-1">
@@ -263,17 +381,45 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
           </p>
         </div>
 
-        {/* Search & Add Bar */}
+        {/* QUICK YOUTUBE LINK PASTE & PLAY BAR */}
+        <form 
+          onSubmit={handleQuickPlayYouTube}
+          className="bg-red-50/90 border-2 border-red-200 rounded-2xl p-2.5 flex items-center gap-2 shadow-2xs"
+        >
+          <div className="w-7 h-7 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+            <YouTubeIcon className="w-4 h-4 text-white" />
+          </div>
+          <input
+            type="text"
+            placeholder="Paste any YouTube URL or Video ID to play & pin..."
+            value={quickYtInput}
+            onChange={(e) => setQuickYtInput(e.target.value)}
+            className="flex-1 min-w-0 bg-white border border-red-200 rounded-xl px-2.5 py-1.5 font-display text-xs text-ink placeholder:text-ink-light focus:outline-hidden focus:border-red-500"
+          />
+          <button
+            type="submit"
+            disabled={!quickYtInput.trim()}
+            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-display font-black text-xs rounded-xl shadow-xs shrink-0 flex items-center gap-1 transition-all active:scale-95"
+          >
+            <Play className="w-3 h-3 fill-white" />
+            <span>Play</span>
+          </button>
+        </form>
+
+        {/* Search & Direct YouTube Search Row */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-light" />
               <input
                 type="text"
-                placeholder="Search songs, movies, or vibes..."
+                placeholder="Search songs, movies, artists, or vibes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-white border-2 border-pink-200 rounded-2xl font-display text-xs text-ink placeholder:text-ink-light focus:border-pink-500 focus:outline-hidden shadow-2xs"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSearchOnYouTube();
+                }}
+                className="w-full pl-9 pr-8 py-2 bg-white border-2 border-pink-200 rounded-2xl font-display text-xs text-ink placeholder:text-ink-light focus:border-pink-500 focus:outline-hidden shadow-2xs"
               />
               {searchQuery && (
                 <button
@@ -285,17 +431,57 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
               )}
             </div>
 
+            {/* Direct Search on YouTube Button */}
+            <button
+              onClick={() => handleSearchOnYouTube()}
+              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white border-2 border-ink font-display font-black text-xs rounded-2xl flex items-center gap-1.5 shadow-sketch-xs shrink-0 transition-transform active:scale-95"
+              title="Search this query directly on YouTube"
+            >
+              <YouTubeIcon className="w-3.5 h-3.5 text-white" />
+              <span className="hidden sm:inline">Search on YouTube</span>
+              <span className="sm:hidden">YouTube</span>
+            </button>
+
+            {/* Expand Detailed Add Modal */}
             <button
               onClick={() => setShowAddForm(!showAddForm)}
-              className="px-3 py-2 bg-pink-100 hover:bg-pink-200 text-pink-800 border-2 border-pink-300 font-display font-black text-xs rounded-2xl flex items-center gap-1.5 shadow-2xs shrink-0 transition-transform active:scale-95"
+              className="px-3 py-2 bg-pink-100 hover:bg-pink-200 text-pink-800 border-2 border-pink-300 font-display font-black text-xs rounded-2xl flex items-center gap-1 shadow-2xs shrink-0 transition-transform active:scale-95"
+              title="Add Custom Song Details"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Add Song</span>
+              <span className="hidden sm:inline">Custom</span>
             </button>
+          </div>
+
+          {/* Quick YouTube Search Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-handwritten font-bold">
+            <span className="text-[11px] text-ink-light uppercase tracking-wider font-display font-bold shrink-0">
+              🔴 Quick YT Search:
+            </span>
+            {[
+              'Arijit Singh Hits',
+              'Bollywood Romantic',
+              'Lofi Hindi Chill',
+              'Coke Studio Hits',
+              'Shreya Ghoshal',
+              '90s Bollywood',
+            ].map(ytQuery => (
+              <button
+                key={ytQuery}
+                onClick={() => handleSearchOnYouTube(ytQuery)}
+                className="px-2.5 py-0.5 bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 rounded-full shrink-0 flex items-center gap-1 transition-colors"
+              >
+                <YouTubeIcon className="w-2.5 h-2.5 text-red-600" />
+                <span>{ytQuery}</span>
+              </button>
+            ))}
           </div>
 
           {/* Quick Mood Filter Chips */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-handwritten font-bold">
+            <span className="text-[11px] text-ink-light uppercase tracking-wider font-display font-bold shrink-0">
+              Mood Filter:
+            </span>
             {['All', 'Feel Good', 'Self Love', 'Cozy Chai', 'Party', 'Travel'].map(tag => (
               <button
                 key={tag}
@@ -312,7 +498,7 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
           </div>
         </div>
 
-        {/* Add Custom Song Form (Expandable) */}
+        {/* Detailed Add Song Form (Expandable) */}
         {showAddForm && (
           <form 
             onSubmit={handleAddSong}
@@ -321,7 +507,7 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
             <div className="flex items-center justify-between">
               <span className="font-display font-black text-xs text-pink-900 flex items-center gap-1">
                 <Sparkles className="w-3.5 h-3.5 text-pink-500" />
-                <span>ADD QUEEN KRITIKA'S FAVORITE SONG</span>
+                <span>ADD CUSTOM YOUTUBE TRACK WITH DETAILS</span>
               </span>
               <button 
                 type="button" 
@@ -343,7 +529,7 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
               />
               <input
                 type="text"
-                placeholder="Movie / Artist (e.g. Jab We Met)"
+                placeholder="Movie / Album (e.g. Jab We Met)"
                 value={newMovie}
                 onChange={e => setNewMovie(e.target.value)}
                 className="w-full px-3 py-1.5 bg-white border border-pink-200 rounded-xl font-display text-xs text-ink placeholder:text-ink-light"
@@ -361,7 +547,7 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
               <input
                 type="text"
                 required
-                placeholder="YouTube Link or ID (e.g. https://youtu.be/...)"
+                placeholder="YouTube Link or Video ID (e.g. https://youtu.be/...)"
                 value={newYoutubeUrl}
                 onChange={e => setNewYoutubeUrl(e.target.value)}
                 className="w-full px-3 py-1.5 bg-white border border-pink-200 rounded-xl font-display text-xs text-ink placeholder:text-ink-light"
@@ -370,14 +556,15 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
 
             <button
               type="submit"
-              className="w-full py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-display font-black text-xs uppercase rounded-xl border border-ink shadow-xs hover:scale-101 active:scale-98 transition-all"
+              className="w-full py-2 bg-gradient-to-r from-red-600 to-pink-500 text-white font-display font-black text-xs uppercase rounded-xl border border-ink shadow-xs hover:scale-101 active:scale-98 transition-all flex items-center justify-center gap-1.5"
             >
-              PIN & ADD TO MY PLAYLIST 💖
+              <YouTubeIcon className="w-4 h-4 text-white" />
+              <span>PIN & ADD TO MY PLAYLIST 💖</span>
             </button>
           </form>
         )}
 
-        {/* PINNED FAVORITES SHELF */}
+        {/* PINNED FAVORITES SHELF WITH REAL YOUTUBE THUMBNAILS */}
         {pinnedSongsList.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -397,7 +584,7 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
                     key={song.id}
                     onClick={() => handleSelectSong(song)}
                     className={`
-                      p-3 rounded-2xl border-2 transition-all text-left flex items-center gap-3 relative cursor-pointer
+                      p-2.5 rounded-2xl border-2 transition-all text-left flex items-center gap-2.5 relative cursor-pointer group
                       ${
                         isCurrent
                           ? 'border-pink-500 bg-pink-50/70 shadow-sketch ring-2 ring-pink-400'
@@ -405,11 +592,22 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
                       }
                     `}
                   >
-                    <div 
-                      className="w-10 h-10 rounded-xl border border-pink-300 flex items-center justify-center text-lg shadow-inner shrink-0"
-                      style={{ backgroundColor: `${song.accentColor}25` }}
-                    >
-                      <span>{song.emoji}</span>
+                    {/* Real YouTube Video Thumbnail */}
+                    <div className="relative w-16 h-12 rounded-xl overflow-hidden border border-pink-300 bg-slate-900 shrink-0 shadow-xs">
+                      <img 
+                        src={`https://img.youtube.com/vi/${song.youtubeId}/mqdefault.jpg`} 
+                        alt={song.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        onError={(e) => {
+                          // Fallback if image fails
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-xs">
+                          <Play className="w-2.5 h-2.5 fill-white ml-0.5" />
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex-1 min-w-0">
@@ -419,15 +617,31 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
                       <div className="font-handwritten text-[11px] text-ink-light font-bold truncate">
                         {song.movie}
                       </div>
+                      <div className="text-[10px] font-handwritten text-pink-700 truncate">
+                        {song.singers}
+                      </div>
                     </div>
 
-                    <button
-                      onClick={(e) => handleTogglePin(e, song.id)}
-                      className="p-1 text-pink-500 hover:scale-125 transition-transform shrink-0"
-                      title="Unpin"
-                    >
-                      <Pin className="w-4 h-4 fill-pink-500" />
-                    </button>
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                      <button
+                        onClick={(e) => handleTogglePin(e, song.id)}
+                        className="p-1 text-pink-500 hover:scale-125 transition-transform"
+                        title="Unpin"
+                      >
+                        <Pin className="w-4 h-4 fill-pink-500" />
+                      </button>
+
+                      <a
+                        href={`https://www.youtube.com/watch?v=${song.youtubeId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-1 text-red-500 hover:text-red-700 hover:scale-125 transition-transform"
+                        title="Watch on YouTube.com"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
                   </div>
                 );
               })}
@@ -435,11 +649,11 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
           </div>
         )}
 
-        {/* ALL OTHER SONGS */}
+        {/* ALL BOLLYWOOD SONGS WITH REAL YOUTUBE THUMBNAILS */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="font-display font-black text-xs uppercase tracking-wider text-ink flex items-center gap-1.5">
-              <span>ALL BOLLYWOOD SONGS</span>
+              <span>ALL BOLLYWOOD SONGS ({filteredSongs.length})</span>
               <Sparkles className="w-3.5 h-3.5 text-pink-500" />
             </h4>
             <span className="font-handwritten text-xs font-bold text-ink-light">
@@ -455,7 +669,7 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
                   key={song.id}
                   onClick={() => handleSelectSong(song)}
                   className={`
-                    p-3 rounded-2xl border-2 transition-all text-left flex items-center gap-3 relative cursor-pointer
+                    p-2.5 rounded-2xl border-2 transition-all text-left flex items-center gap-2.5 relative cursor-pointer group
                     ${
                       isCurrent
                         ? 'border-pink-500 bg-pink-50/70 shadow-sketch ring-2 ring-pink-400'
@@ -463,11 +677,21 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
                     }
                   `}
                 >
-                  <div 
-                    className="w-10 h-10 rounded-xl border border-pink-200 flex items-center justify-center text-lg shadow-inner shrink-0"
-                    style={{ backgroundColor: `${song.accentColor}25` }}
-                  >
-                    <span>{song.emoji}</span>
+                  {/* Real YouTube Video Thumbnail */}
+                  <div className="relative w-16 h-12 rounded-xl overflow-hidden border border-pink-200 bg-slate-900 shrink-0 shadow-xs">
+                    <img 
+                      src={`https://img.youtube.com/vi/${song.youtubeId}/mqdefault.jpg`} 
+                      alt={song.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                      <div className="w-5 h-5 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-xs">
+                        <Play className="w-2.5 h-2.5 fill-white ml-0.5" />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -477,34 +701,60 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
                     <div className="font-handwritten text-[11px] text-ink-light font-bold truncate">
                       {song.movie}
                     </div>
+                    <div className="text-[10px] font-handwritten text-pink-700 truncate">
+                      {song.singers}
+                    </div>
                   </div>
 
-                  <button
-                    onClick={(e) => handleTogglePin(e, song.id)}
-                    className="p-1 text-ink-light hover:text-pink-500 hover:scale-125 transition-transform shrink-0"
-                    title="Pin to Favorites"
-                  >
-                    <Pin className="w-4 h-4" />
-                  </button>
+                  <div className="flex flex-col items-center gap-1 shrink-0">
+                    <button
+                      onClick={(e) => handleTogglePin(e, song.id)}
+                      className="p-1 text-ink-light hover:text-pink-500 hover:scale-125 transition-transform"
+                      title="Pin to Favorites"
+                    >
+                      <Pin className="w-4 h-4" />
+                    </button>
+
+                    <a
+                      href={`https://www.youtube.com/watch?v=${song.youtubeId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-1 text-red-500/70 hover:text-red-700 hover:scale-125 transition-transform"
+                      title="Watch on YouTube.com"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="bg-gradient-to-r from-pink-50 to-purple-50 border-1.5 border-pink-200 rounded-2xl p-3 flex items-center gap-3">
-          <img 
-            src="/marisol/avatars/11_music_mood.png" 
-            alt="Kritika with headphones" 
-            className="w-10 h-10 rounded-full border-2 border-ink bg-white shrink-0"
-          />
-          <div className="font-handwritten text-xs text-pink-900 font-bold leading-relaxed">
-            "Your playlist should be as iconic, comforting, and magical as you are!" ♡
+        {/* Footer with YouTube & Personal Comfort Note */}
+        <div className="bg-gradient-to-r from-red-50 via-pink-50 to-purple-50 border-1.5 border-pink-200 rounded-2xl p-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <img 
+              src="/marisol/avatars/11_music_mood.png" 
+              alt="Kritika with headphones" 
+              className="w-10 h-10 rounded-full border-2 border-ink bg-white shrink-0"
+            />
+            <div className="font-handwritten text-xs text-pink-900 font-bold leading-relaxed truncate">
+              "Every song here is connected to YouTube for seamless listening!" ♡
+            </div>
           </div>
+          <button
+            onClick={() => handleSearchOnYouTube()}
+            className="text-[11px] font-display font-black text-red-600 hover:text-red-800 underline shrink-0 flex items-center gap-1"
+          >
+            <YouTubeIcon className="w-3.5 h-3.5 text-red-600" />
+            <span>Open YouTube</span>
+          </button>
         </div>
 
       </div>
     </div>
   );
 };
+

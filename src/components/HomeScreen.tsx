@@ -290,33 +290,35 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* SECTION TILES: Bollywood Lounge & Food-Movie Pairings */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           
-          {/* Card: Hindi Bollywood Songs */}
+          {/* Card: Hindi Bollywood Songs (YouTube Connected) */}
           <button
             onClick={() => {
               audioEngine.playSfx('click');
               onOpenMusic();
             }}
-            className="w-full bg-gradient-to-br from-purple-500 via-indigo-600 to-purple-700 text-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch hover:shadow-sketch-lg hover:scale-102 transition-all text-left flex items-center justify-between relative overflow-hidden group"
+            className="w-full bg-gradient-to-br from-red-600 via-rose-600 to-purple-700 text-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch hover:shadow-sketch-lg hover:scale-102 transition-all text-left flex items-center justify-between relative overflow-hidden group"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-2xl border-2 border-white/40 overflow-hidden bg-purple-200 shrink-0 shadow-inner">
+              <div className="w-12 h-12 rounded-2xl border-2 border-white/40 overflow-hidden bg-rose-200 shrink-0 shadow-inner">
                 <img 
                   src="/marisol/avatars/11_music_mood.png" 
-                  alt="Kritika Headphones"
+                  alt="Kritika Headphones" 
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform" 
                 />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="font-display font-black text-sm uppercase">BOLLYWOOD JUKEBOX</span>
-                  <span className="text-xs">🎵</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-display font-black text-sm uppercase">YOUTUBE JUKEBOX</span>
+                  <span className="bg-red-500 text-white font-display text-[9px] font-black px-1.5 py-0.2 rounded-full border border-white/40">
+                    🔴 YT CONNECTED
+                  </span>
                 </div>
-                <div className="font-handwritten text-xs text-purple-100 font-bold truncate">
-                  Search, pin & play favorite tracks 📌
+                <div className="font-handwritten text-xs text-rose-100 font-bold truncate">
+                  Stream Bollywood hits, search & pin songs! 🎵
                 </div>
               </div>
             </div>
-            <Music className="w-5 h-5 text-purple-200 group-hover:rotate-45 transition-transform shrink-0" />
+            <Music className="w-5 h-5 text-rose-200 group-hover:rotate-45 transition-transform shrink-0" />
           </button>
 
           {/* Card: Food & Movie Pairings */}
