@@ -1,44 +1,45 @@
-import React, { useEffect, useState } from 'react';
-import { audioEngine, MUSIC_TRACKS, type MusicTrack } from '../services/synthAudioEngine';
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, X, Sparkles, Music2, Disc } from 'lucide-react';
+import React, { useState } from 'react';
+import { audioEngine } from '../services/synthAudioEngine';
+import { HINDI_SONGS, type HindiSong } from '../data/hindiSongs';
+import { X, Sparkles, ExternalLink, SkipForward, SkipBack, Music2, Heart } from 'lucide-react';
 
 interface MusicJukeboxModalProps {
   onClose: () => void;
+  initialSongId?: string;
 }
 
-export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose }) => {
-  const [, setTick] = useState(0);
+export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, initialSongId }) => {
+  const [selectedSong, setSelectedSong] = useState<HindiSong>(() => {
+    return HINDI_SONGS.find(s => s.id === initialSongId) || HINDI_SONGS[0];
+  });
+  const [isPlaying, setIsPlaying] = useState(true);
 
-  useEffect(() => {
-    // Subscribe to audioEngine updates
-    const unsubscribe = audioEngine.subscribe(() => {
-      setTick(t => t + 1);
-    });
-    return unsubscribe;
+  // When opening a Hindi song, ensure any background synth audio is stopped
+  React.useEffect(() => {
+    audioEngine.stopMusic();
   }, []);
 
-  const isPlaying = audioEngine.getIsPlaying();
-  const currentTrack = audioEngine.getCurrentTrack();
-  const settings = audioEngine.getSettings();
-
-  const handleTrackSelect = (track: MusicTrack) => {
+  const handleSelectSong = (song: HindiSong) => {
     audioEngine.playSfx('click');
-    audioEngine.playTrack(track.id);
-  };
-
-  const togglePlay = () => {
-    audioEngine.playSfx('click');
-    audioEngine.togglePlayPause();
+    audioEngine.stopMusic();
+    setSelectedSong(song);
+    setIsPlaying(true);
   };
 
   const handleNext = () => {
     audioEngine.playSfx('click');
-    audioEngine.nextTrack();
+    const idx = HINDI_SONGS.findIndex(s => s.id === selectedSong.id);
+    const nextSong = HINDI_SONGS[(idx + 1) % HINDI_SONGS.length];
+    setSelectedSong(nextSong);
+    setIsPlaying(true);
   };
 
   const handlePrev = () => {
     audioEngine.playSfx('click');
-    audioEngine.prevTrack();
+    const idx = HINDI_SONGS.findIndex(s => s.id === selectedSong.id);
+    const prevSong = HINDI_SONGS[(idx - 1 + HINDI_SONGS.length) % HINDI_SONGS.length];
+    setSelectedSong(prevSong);
+    setIsPlaying(true);
   };
 
   return (
@@ -47,7 +48,7 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose })
       onClick={onClose}
     >
       <div 
-        className="bg-[#FAF7F0] border-3 border-ink rounded-3xl max-w-xl w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-sketch-2xl space-y-5 relative"
+        className="bg-[#FAF7F0] border-3 border-ink rounded-3xl max-w-xl w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-sketch-2xl space-y-4 relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -59,14 +60,14 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose })
             <div>
               <div className="flex items-center gap-1.5">
                 <h2 className="font-display font-black text-xl sm:text-2xl text-ink leading-tight">
-                  KRITIKA'S MOOD JUKEBOX 🎧
+                  KRITIKA'S HINDI JUKEBOX 🎵
                 </h2>
                 <span className="bg-purple-100 text-purple-800 font-handwritten text-[11px] font-black px-2 py-0.5 rounded-full border border-purple-400">
-                  LOUNGE
+                  BOLLYWOOD
                 </span>
               </div>
               <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
-                "Good Music Brighter Mood ♡" — Hand-crafted synthesized vibes
+                Feel-good Hindi songs for energy, chai moments & boss-girl vibes!
               </p>
             </div>
           </div>
@@ -78,161 +79,119 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose })
           </button>
         </div>
 
-        {/* Vinyl Player Showcase */}
-        <div className="bg-gradient-to-br from-purple-900 via-indigo-950 to-slate-900 text-white border-2.5 border-ink rounded-3xl p-5 shadow-sketch relative overflow-hidden">
+        {/* Embedded YouTube Music / Video Player */}
+        <div className="bg-black border-2.5 border-ink rounded-3xl overflow-hidden shadow-sketch relative">
           
-          {/* Background Ambient Glow */}
-          <div 
-            className="absolute -top-10 -right-10 w-44 h-44 rounded-full blur-3xl opacity-30 pointer-events-none"
-            style={{ backgroundColor: currentTrack.color }}
-          />
-
-          <div className="flex flex-col sm:flex-row items-center gap-5 relative z-10">
-            
-            {/* Spinning Vinyl Record */}
-            <div className="relative shrink-0 flex items-center justify-center">
-              <div 
-                className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-slate-700 bg-black flex items-center justify-center shadow-2xl relative ${isPlaying ? 'animate-spin' : ''}`}
-                style={{ animationDuration: '6s' }}
-              >
-                {/* Grooves */}
-                <div className="absolute inset-2 rounded-full border border-slate-800" />
-                <div className="absolute inset-4 rounded-full border border-slate-800/80" />
-                <div className="absolute inset-6 rounded-full border border-slate-800/60" />
-
-                {/* Center Label featuring Kritika Sticker 11 */}
-                <div className="w-14 h-14 rounded-full border-2 border-white overflow-hidden bg-purple-200 shadow-inner">
-                  <img 
-                    src="/marisol/avatars/11_music_mood.png" 
-                    alt="Kritika Music Vibe"
-                    className="w-full h-full object-cover" 
-                  />
-                </div>
-              </div>
-
-              {/* Tonearm / Needle Indicator */}
-              <Disc className="absolute -bottom-1 -right-1 w-6 h-6 text-purple-300 drop-shadow" />
+          {isPlaying ? (
+            <div className="relative aspect-video w-full">
+              <iframe
+                src={`https://www.youtube-nocookie.com/embed/${selectedSong.youtubeId}?autoplay=1&rel=0&modestbranding=1`}
+                title={selectedSong.title}
+                className="w-full h-full border-0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
             </div>
-
-            {/* Currently Playing Info & Visualizer */}
-            <div className="flex-1 text-center sm:text-left space-y-2 min-w-0 w-full">
-              <div className="inline-flex items-center gap-1.5 bg-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-handwritten font-bold tracking-wider uppercase">
-                <span>{currentTrack.emoji}</span>
-                <span>{currentTrack.genre}</span>
+          ) : (
+            <div className="aspect-video w-full flex flex-col items-center justify-center bg-gradient-to-br from-purple-950 to-slate-900 text-white p-4 text-center">
+              <div className="w-16 h-16 rounded-full border-2 border-white/40 overflow-hidden bg-white mb-2">
+                <img 
+                  src="/marisol/avatars/11_music_mood.png" 
+                  alt="Kritika headphones" 
+                  className="w-full h-full object-cover" 
+                />
               </div>
+              <p className="font-display font-black text-lg">{selectedSong.title}</p>
+              <p className="font-handwritten text-sm text-purple-200">Tap below to play</p>
+            </div>
+          )}
 
-              <h3 className="font-display font-black text-xl sm:text-2xl truncate text-white">
-                {currentTrack.title}
-              </h3>
-
-              <p className="font-handwritten text-xs text-purple-200 line-clamp-2">
-                "{currentTrack.tagline}"
-              </p>
-
-              {/* Dancing Equalizer Bars */}
-              <div className="flex items-end gap-1.5 h-6 justify-center sm:justify-start pt-1">
-                {[40, 85, 60, 100, 75, 90, 50, 80].map((h, i) => (
-                  <div
-                    key={i}
-                    className="w-1.5 rounded-full transition-all duration-150"
-                    style={{
-                      backgroundColor: currentTrack.color,
-                      height: isPlaying ? `${Math.max(15, (h * (0.4 + (i % 3) * 0.3)))}%` : '20%',
-                      animation: isPlaying ? `bounce 0.${5 + (i % 4)}s infinite alternate ease-in-out` : 'none'
-                    }}
-                  />
-                ))}
-                <span className="font-handwritten text-[10px] text-purple-300 ml-2 font-bold">
-                  {isPlaying ? 'NOW PLAYING' : 'PAUSED'}
+          {/* Player Banner Bar */}
+          <div className="p-3.5 bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900 text-white border-t-2 border-ink flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-base">{selectedSong.emoji}</span>
+                <span className="font-display font-black text-sm sm:text-base text-white truncate">
+                  {selectedSong.title}
+                </span>
+                <span className="bg-white/20 text-white font-handwritten text-[10px] px-2 py-0.5 rounded-full shrink-0">
+                  {selectedSong.movie}
                 </span>
               </div>
+              <p className="font-handwritten text-xs text-purple-200 truncate mt-0.5">
+                🎤 {selectedSong.singers}
+              </p>
             </div>
-          </div>
 
-          {/* Master Transport Controls */}
-          <div className="mt-5 pt-4 border-t border-white/15 flex items-center justify-between gap-3">
-            
-            {/* Playback Controls */}
-            <div className="flex items-center gap-2">
+            {/* Transport & External Buttons */}
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 onClick={handlePrev}
-                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-transform active:scale-95"
-                title="Previous Track"
+                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-transform active:scale-95"
+                title="Previous Hindi Song"
               >
                 <SkipBack className="w-4 h-4 fill-white" />
               </button>
 
               <button
-                onClick={togglePlay}
-                className="px-5 py-2 rounded-2xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-display font-black text-sm flex items-center gap-2 border-2 border-white/40 shadow-lg active:scale-95 transition-all"
-              >
-                {isPlaying ? (
-                  <>
-                    <Pause className="w-4 h-4 fill-white" />
-                    <span>PAUSE</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 fill-white" />
-                    <span>PLAY</span>
-                  </>
-                )}
-              </button>
-
-              <button
                 onClick={handleNext}
-                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-transform active:scale-95"
-                title="Next Track"
+                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-transform active:scale-95"
+                title="Next Hindi Song"
               >
                 <SkipForward className="w-4 h-4 fill-white" />
               </button>
-            </div>
 
-            {/* Volume Control */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  audioEngine.updateSettings({ musicOn: !settings.musicOn });
-                }}
-                className="text-white/80 hover:text-white"
+              <a
+                href={`https://www.youtube.com/watch?v=${selectedSong.youtubeId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-8 h-8 rounded-xl bg-red-600 hover:bg-red-700 border border-white/20 flex items-center justify-center text-white transition-transform active:scale-95"
+                title="Open in YouTube"
               >
-                {settings.musicOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-red-400" />}
-              </button>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={settings.musicOn ? settings.musicVolume : 0}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value);
-                  audioEngine.updateSettings({ musicVolume: val, musicOn: val > 0 });
-                }}
-                className="w-16 sm:w-20 accent-pink-500 cursor-pointer"
-              />
+                <ExternalLink className="w-4 h-4" />
+              </a>
             </div>
           </div>
         </div>
 
-        {/* 6 Curated Mood Tracks Playlist */}
+        {/* Song Lyrics & Movie Quote Ribbon */}
+        <div className="bg-purple-50 border-2 border-purple-300 rounded-2xl p-3.5 space-y-1 text-left shadow-sketch-xs">
+          <div className="flex items-center justify-between text-purple-900 font-display font-black text-xs">
+            <span className="flex items-center gap-1">
+              <Heart className="w-3.5 h-3.5 fill-pink-500 text-pink-500" />
+              <span>LYRICS HIGHLIGHT</span>
+            </span>
+            <span className="font-handwritten text-[11px] text-purple-700 font-bold">
+              {selectedSong.vibe}
+            </span>
+          </div>
+          <p className="font-handwritten text-xs sm:text-sm text-ink font-bold italic">
+            "{selectedSong.lyricsHighlight}"
+          </p>
+          <p className="font-sans text-[11px] text-purple-700 font-semibold pt-0.5">
+            🎬 {selectedSong.movieQuote}
+          </p>
+        </div>
+
+        {/* Playlist of 6 Hindi Songs */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="font-display font-black text-xs uppercase tracking-wider text-ink flex items-center gap-1.5">
-              <span>SELECT MOOD TRACK</span>
+              <span>SELECT A HINDI SONG</span>
               <Sparkles className="w-3.5 h-3.5 text-purple-600" />
             </h4>
             <span className="font-handwritten text-xs font-bold text-ink-light">
-              6 Hand-Tuned Melodies
+              6 Curated Bollywood Hits
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {MUSIC_TRACKS.map((track) => {
-              const isCurrent = track.id === currentTrack.id;
+            {HINDI_SONGS.map((song) => {
+              const isCurrent = song.id === selectedSong.id;
               return (
                 <button
-                  key={track.id}
-                  onClick={() => handleTrackSelect(track)}
+                  key={song.id}
+                  onClick={() => handleSelectSong(song)}
                   className={`
                     p-3 rounded-2xl border-2 transition-all text-left flex items-center gap-3 relative
                     ${
@@ -242,33 +201,27 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose })
                     }
                   `}
                 >
-                  {/* Track Icon / Emoji */}
+                  {/* Song Icon / Emoji */}
                   <div 
                     className="w-10 h-10 rounded-xl border-1.5 border-ink flex items-center justify-center text-lg shadow-inner shrink-0"
-                    style={{ backgroundColor: `${track.color}25` }}
+                    style={{ backgroundColor: `${song.accentColor}25` }}
                   >
-                    <span>{track.emoji}</span>
+                    <span>{song.emoji}</span>
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="font-display font-black text-xs text-ink truncate">
-                      {track.title}
+                      {song.title}
                     </div>
                     <div className="font-handwritten text-[11px] text-ink-light font-bold truncate">
-                      {track.vibe}
+                      {song.movie} ({song.year})
                     </div>
                   </div>
 
                   {isCurrent && (
                     <div className="shrink-0 flex items-center gap-1 bg-purple-600 text-white font-handwritten text-[9px] font-bold px-2 py-0.5 rounded-full border border-ink">
-                      {isPlaying ? (
-                        <>
-                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                          <span>PLAYING</span>
-                        </>
-                      ) : (
-                        <span>SELECTED</span>
-                      )}
+                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                      <span>PLAYING</span>
                     </div>
                   )}
                 </button>
@@ -277,17 +230,18 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose })
           </div>
         </div>
 
-        {/* Kritika Sticker Quote Footer */}
-        <div className="bg-purple-50/80 border-1.5 border-purple-300 rounded-2xl p-3 flex items-center gap-3">
+        {/* Footer Quote */}
+        <div className="bg-gradient-to-r from-amber-50 to-pink-50 border-1.5 border-ink/30 rounded-2xl p-3 flex items-center gap-3">
           <img 
             src="/marisol/avatars/11_music_mood.png" 
             alt="Kritika with headphones" 
             className="w-10 h-10 rounded-full border-2 border-ink bg-white shrink-0"
           />
-          <div className="font-handwritten text-xs text-purple-900 font-bold leading-relaxed">
-            "When words fail, music speaks. When trivia gets intense, turn up the beats!" ♡
+          <div className="font-handwritten text-xs text-ink font-bold leading-relaxed">
+            "Bollywood music + delicious food = pure happiness! Sing along, queen!" ♡
           </div>
         </div>
+
       </div>
     </div>
   );

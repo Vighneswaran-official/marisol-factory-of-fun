@@ -6,6 +6,7 @@ import { Heart, Sparkles, X, Utensils, Music, ShieldAlert, Award, Smile } from '
 interface ComfortCornerModalProps {
   onClose: () => void;
   onOpenMusic: () => void;
+  onOpenHindiSong?: (songId: string) => void;
 }
 
 const STRESS_BUBBLES = [
@@ -60,7 +61,7 @@ const GIRL_AFFIRMATIONS = [
   "90% of female fury is just low blood sugar demanding garlic butter carbs. Eat something delicious!"
 ];
 
-export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose, onOpenMusic }) => {
+export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose, onOpenMusic, onOpenHindiSong }) => {
   const [poppedBubbles, setPoppedBubbles] = useState<Record<string, boolean>>({});
   const [claimedSandwiches, setClaimedSandwiches] = useState(false);
   const [activeTab, setActiveTab] = useState<'rage' | 'cravings' | 'vent' | 'affirmations'>('rage');
@@ -78,11 +79,6 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
     audioEngine.playSfx('fanfare');
     gameState.addCucumberSandwiches(5);
     setClaimedSandwiches(true);
-  };
-
-  const handleSwitchMusic = (trackId: string) => {
-    audioEngine.playSfx('click');
-    audioEngine.playTrack(trackId);
   };
 
   const totalPopped = Object.values(poppedBubbles).filter(Boolean).length;
@@ -342,23 +338,49 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
                 onClick={onOpenMusic}
                 className="font-handwritten text-xs font-bold text-purple-700 underline"
               >
-                Open Full Jukebox →
+                Open Full Hindi Jukebox →
               </button>
             </div>
 
             <div className="space-y-2">
               <button
-                onClick={() => handleSwitchMusic('rage_buster')}
+                onClick={() => {
+                  if (onOpenHindiSong) onOpenHindiSong('love_you_zindagi');
+                  else onOpenMusic();
+                }}
+                className="w-full p-3 bg-pink-50 hover:bg-pink-100 border-2 border-ink rounded-2xl text-left flex items-center justify-between shadow-sketch-xs transition-all hover:scale-101"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🌸</span>
+                  <div>
+                    <div className="font-display font-black text-xs text-ink">
+                      LOVE YOU ZINDAGI (Dear Zindagi)
+                    </div>
+                    <div className="font-handwritten text-xs text-ink-light font-bold">
+                      "Jo dil se lage use keh do Hi!" — Ultimate self-love reset
+                    </div>
+                  </div>
+                </div>
+                <span className="bg-pink-600 text-white font-display font-black text-[10px] px-2.5 py-1 rounded-xl border border-ink">
+                  PLAY
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (onOpenHindiSong) onOpenHindiSong('yeh_ishq_hai');
+                  else onOpenMusic();
+                }}
                 className="w-full p-3 bg-red-50 hover:bg-red-100 border-2 border-ink rounded-2xl text-left flex items-center justify-between shadow-sketch-xs transition-all hover:scale-101"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">💥</span>
+                  <span className="text-2xl">🏔️</span>
                   <div>
                     <div className="font-display font-black text-xs text-ink">
-                      HANGRY RAGE POPPER & VENT BEAT
+                      YEH ISHQ HAI (Jab We Met)
                     </div>
                     <div className="font-handwritten text-xs text-ink-light font-bold">
-                      Punchy energizer to shake off fury with maximum swagger
+                      "Main apni favourite hoon!" — Dance away all drama & stress
                     </div>
                   </div>
                 </div>
@@ -368,41 +390,47 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
               </button>
 
               <button
-                onClick={() => handleSwitchMusic('cozy_chai')}
+                onClick={() => {
+                  if (onOpenHindiSong) onOpenHindiSong('london_thumakda');
+                  else onOpenMusic();
+                }}
+                className="w-full p-3 bg-purple-50 hover:bg-purple-100 border-2 border-ink rounded-2xl text-left flex items-center justify-between shadow-sketch-xs transition-all hover:scale-101"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">👑</span>
+                  <div>
+                    <div className="font-display font-black text-xs text-ink">
+                      LONDON THUMAKDA (Queen)
+                    </div>
+                    <div className="font-handwritten text-xs text-ink-light font-bold">
+                      Celebrate queen energy with maximum swagger & rhythm
+                    </div>
+                  </div>
+                </div>
+                <span className="bg-purple-600 text-white font-display font-black text-[10px] px-2.5 py-1 rounded-xl border border-ink">
+                  PLAY
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (onOpenHindiSong) onOpenHindiSong('iktara');
+                  else onOpenMusic();
+                }}
                 className="w-full p-3 bg-amber-50 hover:bg-amber-100 border-2 border-ink rounded-2xl text-left flex items-center justify-between shadow-sketch-xs transition-all hover:scale-101"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">☕</span>
                   <div>
                     <div className="font-display font-black text-xs text-ink">
-                      TAPRI CHAI & RAINY DAY LO-FI
+                      IKTARA (Wake Up Sid)
                     </div>
                     <div className="font-handwritten text-xs text-ink-light font-bold">
-                      Mellow, warm chords like wrapped in a soft cashmere blanket
+                      Soulful rainy chai acoustic warmth to calm your soul
                     </div>
                   </div>
                 </div>
                 <span className="bg-amber-600 text-white font-display font-black text-[10px] px-2.5 py-1 rounded-xl border border-ink">
-                  PLAY
-                </span>
-              </button>
-
-              <button
-                onClick={() => handleSwitchMusic('girl_power')}
-                className="w-full p-3 bg-pink-50 hover:bg-pink-100 border-2 border-ink rounded-2xl text-left flex items-center justify-between shadow-sketch-xs transition-all hover:scale-101"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">👑</span>
-                  <div>
-                    <div className="font-display font-black text-xs text-ink">
-                      GIRL POWER ANTHEM ♡
-                    </div>
-                    <div className="font-handwritten text-xs text-ink-light font-bold">
-                      Upbeat disco-synth groove to walk back in like you own the place
-                    </div>
-                  </div>
-                </div>
-                <span className="bg-pink-600 text-white font-display font-black text-[10px] px-2.5 py-1 rounded-xl border border-ink">
                   PLAY
                 </span>
               </button>

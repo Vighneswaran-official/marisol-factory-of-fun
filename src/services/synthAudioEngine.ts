@@ -102,7 +102,7 @@ class SynthAudioEngine {
   private listeners: Set<() => void> = new Set();
   
   private settings: AudioSettings = {
-    musicOn: true,
+    musicOn: false,
     sfxOn: true,
     musicVolume: 0.5,
     sfxVolume: 0.7,

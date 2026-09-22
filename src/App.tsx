@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { ScreenState, Zone, Question, Recipe } from './types/game';
 import { gameState } from './services/gameState';
 import { adaptiveEngine } from './services/adaptiveEngine';
@@ -48,30 +48,15 @@ export function App() {
   const [showRecipeModal, setShowRecipeModal] = useState(false);
   const [showMusicJukebox, setShowMusicJukebox] = useState(false);
   const [showComfortCorner, setShowComfortCorner] = useState(false);
+  const [selectedHindiSongId, setSelectedHindiSongId] = useState<string | undefined>(undefined);
   const [activeTargetRecipe, setActiveTargetRecipe] = useState<Recipe>(RECIPES[0]);
   const [endlessRoundCount, setEndlessRoundCount] = useState(0);
   const [titleUpgraded, setTitleUpgraded] = useState(false);
 
-  // Start background 80s music on user interaction
-  useEffect(() => {
-    const handleFirstInteraction = () => {
-      audioEngine.startMusic('menu');
-      window.removeEventListener('click', handleFirstInteraction);
-      window.removeEventListener('keydown', handleFirstInteraction);
-    };
-    window.addEventListener('click', handleFirstInteraction);
-    window.addEventListener('keydown', handleFirstInteraction);
-    return () => {
-      window.removeEventListener('click', handleFirstInteraction);
-      window.removeEventListener('keydown', handleFirstInteraction);
-    };
-  }, []);
-
+  // Screen navigation (no intrusive auto background music)
   const handleNavigate = (screen: ScreenState) => {
     setCurrentScreen(screen);
     setPlayer(gameState.getPlayer());
-    if (screen === 'map') audioEngine.startMusic('map');
-    else if (screen === 'home') audioEngine.startMusic('menu');
   };
 
   // Launch Mood-first Quiz Flow
@@ -94,7 +79,6 @@ export function App() {
     setPlayer(gameState.getPlayer());
 
     setCurrentScreen('quiz');
-    audioEngine.startMusic('quiz');
   };
 
   const startZoneQuiz = (zone: Zone, isBoss: boolean) => {
@@ -314,7 +298,11 @@ export function App() {
         {/* Music Jukebox / Lounge Modal */}
         {showMusicJukebox && (
           <MusicJukeboxModal
-            onClose={() => setShowMusicJukebox(false)}
+            initialSongId={selectedHindiSongId}
+            onClose={() => {
+              setShowMusicJukebox(false);
+              setSelectedHindiSongId(undefined);
+            }}
           />
         )}
 
@@ -327,6 +315,12 @@ export function App() {
             }}
             onOpenMusic={() => {
               setShowComfortCorner(false);
+              setSelectedHindiSongId(undefined);
+              setShowMusicJukebox(true);
+            }}
+            onOpenHindiSong={(songId) => {
+              setShowComfortCorner(false);
+              setSelectedHindiSongId(songId);
               setShowMusicJukebox(true);
             }}
           />

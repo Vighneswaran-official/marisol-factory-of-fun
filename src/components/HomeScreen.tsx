@@ -3,7 +3,7 @@ import type { ScreenState } from '../types/game';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
 import { Marisol } from './Marisol';
-import { Play, Award, Map, Sparkles, Music2, Heart, Volume2, VolumeX, Flame } from 'lucide-react';
+import { Play, Award, Map, Sparkles, Music2, Heart, Flame } from 'lucide-react';
 
 interface HomeScreenProps {
   onNavigate: (screen: ScreenState) => void;
@@ -26,9 +26,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     return unsub;
   }, []);
 
-  const isPlayingMusic = audioEngine.getIsPlaying();
-  const currentTrack = audioEngine.getCurrentTrack();
-
   return (
     <div className="min-h-screen bg-paper-50 p-4 sm:p-6 pb-28 text-ink">
       <div className="max-w-xl mx-auto space-y-5">
@@ -40,44 +37,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             className="flex items-center gap-2 min-w-0 text-left hover:opacity-80 transition-opacity"
           >
             <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
-              <Music2 className={`w-4 h-4 ${isPlayingMusic ? 'animate-bounce' : ''}`} />
+              <Music2 className="w-4 h-4 animate-bounce" />
             </div>
             <div className="min-w-0">
               <span className="text-[10px] uppercase tracking-wider font-handwritten font-bold text-purple-700 block">
-                MOOD JUKEBOX
+                HINDI BOLLYWOOD JUKEBOX 🎵
               </span>
               <span className="font-display font-black text-xs text-ink truncate block">
-                {currentTrack.emoji} {currentTrack.title}
+                🌸 Love You Zindagi, Ilahi, Yeh Ishq Hai & more
               </span>
             </div>
           </button>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Dancing mini equalizer */}
-            <div className="flex items-end gap-1 h-4 px-1.5">
-              {[30, 80, 50, 95, 60].map((h, i) => (
-                <div
-                  key={i}
-                  className="w-1 bg-purple-600 rounded-full transition-all"
-                  style={{
-                    height: isPlayingMusic ? `${h}%` : '25%',
-                    animation: isPlayingMusic ? `bounce 0.${4 + i}s infinite alternate` : 'none'
-                  }}
-                />
-              ))}
-            </div>
-
-            <button
-              onClick={() => {
-                audioEngine.playSfx('click');
-                audioEngine.togglePlayPause();
-              }}
-              className="w-8 h-8 rounded-xl border border-ink bg-purple-100 hover:bg-purple-200 flex items-center justify-center font-bold text-purple-800 transition-colors shadow-xs"
-              title={isPlayingMusic ? 'Pause Music' : 'Play Music'}
-            >
-              {isPlayingMusic ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-            </button>
-          </div>
+          <button
+            onClick={onOpenMusic}
+            className="px-3 py-1 rounded-xl bg-purple-100 hover:bg-purple-200 border border-ink text-purple-900 font-display font-black text-xs shrink-0 shadow-xs"
+          >
+            OPEN SONGS
+          </button>
         </div>
 
         {/* HERO CARD: Kritika Companion & Chef Score Hub */}
@@ -206,11 +183,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1">
-                  <span className="font-display font-black text-sm uppercase">MOOD JUKEBOX</span>
-                  <span className="text-xs">🎧</span>
+                  <span className="font-display font-black text-sm uppercase">BOLLYWOOD HITS</span>
+                  <span className="text-xs">🎵</span>
                 </div>
                 <div className="font-handwritten text-xs text-purple-100 font-bold truncate">
-                  6 synthesized mood tracks & lo-fi beats
+                  Love You Zindagi, Yeh Ishq Hai & more!
                 </div>
               </div>
             </div>
