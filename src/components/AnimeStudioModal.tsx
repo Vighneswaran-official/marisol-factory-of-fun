@@ -12,9 +12,10 @@ interface AnimeStudioModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMood?: KritikaMoodId;
+  onOpenCartoonTalkies?: (mode?: 'video' | 'magazine') => void;
 }
 
-export const AnimeStudioModal: React.FC<AnimeStudioModalProps> = ({ isOpen, onClose, initialMood }) => {
+export const AnimeStudioModal: React.FC<AnimeStudioModalProps> = ({ isOpen, onClose, initialMood, onOpenCartoonTalkies }) => {
   const [activeTab, setActiveTab] = useState<'ai_studio' | 'pick_me_up'>('ai_studio');
   const [selectedMood, setSelectedMood] = useState<KritikaMoodId>(initialMood || wellnessState.getQueenMood());
   const [currentScene, setCurrentScene] = useState<AnimeScene>(() => {
@@ -311,6 +312,31 @@ export const AnimeStudioModal: React.FC<AnimeStudioModalProps> = ({ isOpen, onCl
             <span>🌸 Anime Pick-Me-Up</span>
             <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-semibold">Library</span>
           </button>
+
+          {onOpenCartoonTalkies && (
+            <div className="ml-auto flex items-center gap-1.5 pb-1">
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenCartoonTalkies('video');
+                }}
+                className="px-2.5 py-1 text-xs font-bold bg-pink-100 hover:bg-pink-200 text-pink-800 rounded-xl transition flex items-center gap-1"
+                title="Watch Speaking Cartoon Video"
+              >
+                <span>🎬 Cartoon Video</span>
+              </button>
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenCartoonTalkies('magazine');
+                }}
+                className="px-2.5 py-1 text-xs font-bold bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-xl transition flex items-center gap-1"
+                title="Read Cartoon Magazine & Comics"
+              >
+                <span>📖 Comic Magazine</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Main Content Area */}

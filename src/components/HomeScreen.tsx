@@ -27,6 +27,7 @@ interface HomeScreenProps {
   onOpenGlowUpWeek: () => void;
   onOpenCozyMode: () => void;
   onOpenAnimeStudio: (initialMood?: KritikaMoodId) => void;
+  onOpenCartoonTalkies: (mode?: 'video' | 'magazine') => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -38,6 +39,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenGlowUpWeek,
   onOpenCozyMode,
   onOpenAnimeStudio,
+  onOpenCartoonTalkies,
 }) => {
   const [, setTick] = useState(0);
   const player = gameState.getPlayer();
@@ -206,6 +208,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               >
                 <span>Browse Anime Studio 🎀</span>
               </button>
+
+              <button
+                onClick={() => onOpenCartoonTalkies('video')}
+                className="flex-1 sm:flex-none px-3.5 py-2 bg-gradient-to-r from-amber-400 to-orange-400 hover:brightness-110 text-stone-900 font-display font-black text-xs rounded-2xl shadow-sm transition flex items-center justify-center gap-1.5"
+              >
+                <span>🎬 Cartoon Video & Comics 📖</span>
+              </button>
             </div>
           </div>
         </div>
@@ -266,6 +275,53 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
         {/* SPARKLE STREAK (Consecutive Day Tracker) */}
         <SparkleStreak />
+
+        {/* CARTOON TALKIES VIDEO SHOWCASE CARD (Speaking Cartoon Video Studio!) */}
+        <div className="bg-gradient-to-r from-rose-500 via-pink-600 to-purple-700 text-white border-3 border-ink rounded-3xl p-4 sm:p-5 shadow-sketch relative overflow-hidden group">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-14 h-14 rounded-2xl bg-white/20 border-2 border-white/40 flex items-center justify-center text-3xl shadow-inner shrink-0 animate-bounce">
+                🎬
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-display font-black text-sm sm:text-base uppercase tracking-tight">
+                    KRITIKA'S CARTOON TALKIES
+                  </span>
+                  <span className="bg-amber-400 text-ink text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                    SPEAKING VIDEO STUDIO
+                  </span>
+                </div>
+                <p className="font-handwritten text-xs text-pink-100 font-bold mt-0.5 truncate">
+                  Watch cartoon speak aloud with lip-sync in Bollywood, Chef, Anime & Sci-Fi! 🍿
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('fanfare');
+                  onOpenCartoonTalkies('video');
+                }}
+                className="px-3.5 py-2 bg-white text-pink-900 font-display font-black text-xs rounded-2xl shadow-md hover:bg-pink-100 hover:scale-105 active:scale-95 transition flex items-center justify-center gap-1.5"
+              >
+                <Play className="w-3.5 h-3.5 fill-pink-900" />
+                <span>Watch Video 🎥</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onOpenCartoonTalkies('magazine');
+                }}
+                className="px-3.5 py-2 bg-pink-950/40 border border-white/30 text-white font-display font-black text-xs rounded-2xl shadow-sm hover:bg-pink-950/60 transition flex items-center justify-center gap-1.5"
+              >
+                <span>Read Magazine 📖</span>
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* PRIMARY ACTION: COOKING & CINEMA TRIVIA */}
         <button

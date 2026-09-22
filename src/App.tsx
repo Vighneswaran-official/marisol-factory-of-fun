@@ -29,6 +29,7 @@ import { CelebrationLocketModal } from './components/CelebrationLocketModal';
 import { GlowUpWeekModal } from './components/GlowUpWeekModal';
 import { CozyModeOverlay } from './components/CozyModeOverlay';
 import { AnimeStudioModal } from './components/AnimeStudioModal';
+import { CartoonTalkiesModal } from './components/CartoonTalkiesModal';
 import { BottomNavigationDock, type MainNavTab } from './components/BottomNavigationDock';
 import { RECIPES } from './data/recipes';
 import confetti from 'canvas-confetti';
@@ -61,6 +62,8 @@ export function App() {
   const [showCozyMode, setShowCozyMode] = useState(false);
   const [showAnimeStudio, setShowAnimeStudio] = useState(false);
   const [animeInitialMood, setAnimeInitialMood] = useState<KritikaMoodId | undefined>(undefined);
+  const [showCartoonTalkies, setShowCartoonTalkies] = useState(false);
+  const [cartoonTalkiesMode, setCartoonTalkiesMode] = useState<'video' | 'magazine'>('video');
 
   const [selectedHindiSongId, setSelectedHindiSongId] = useState<string | undefined>(undefined);
   const [activeTargetRecipe, setActiveTargetRecipe] = useState<Recipe>(RECIPES[0]);
@@ -241,6 +244,10 @@ export function App() {
               setAnimeInitialMood(mood);
               setShowAnimeStudio(true);
             }}
+            onOpenCartoonTalkies={(mode = 'video') => {
+              setCartoonTalkiesMode(mode);
+              setShowCartoonTalkies(true);
+            }}
           />
         )}
 
@@ -328,6 +335,17 @@ export function App() {
           isOpen={showAnimeStudio}
           onClose={() => setShowAnimeStudio(false)}
           initialMood={animeInitialMood}
+          onOpenCartoonTalkies={(mode) => {
+            setCartoonTalkiesMode(mode || 'video');
+            setShowCartoonTalkies(true);
+          }}
+        />
+
+        {/* Cartoon Talkies Speaking Video Studio & Magazine Modal */}
+        <CartoonTalkiesModal
+          isOpen={showCartoonTalkies}
+          initialMode={cartoonTalkiesMode}
+          onClose={() => setShowCartoonTalkies(false)}
         />
 
         {/* Pre-Quiz Mood Selector Modal */}
