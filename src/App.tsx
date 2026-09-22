@@ -23,6 +23,10 @@ import { RecipeModal } from './components/RecipeModal';
 import { RecipeVault } from './components/RecipeVault';
 import { MusicJukeboxModal } from './components/MusicJukeboxModal';
 import { ComfortCornerModal } from './components/ComfortCornerModal';
+import { SecretLocketModal } from './components/SecretLocketModal';
+import { CelebrationLocketModal } from './components/CelebrationLocketModal';
+import { GlowUpWeekModal } from './components/GlowUpWeekModal';
+import { CozyModeOverlay } from './components/CozyModeOverlay';
 import { RECIPES } from './data/recipes';
 import confetti from 'canvas-confetti';
 
@@ -48,6 +52,10 @@ export function App() {
   const [showRecipeModal, setShowRecipeModal] = useState(false);
   const [showMusicJukebox, setShowMusicJukebox] = useState(false);
   const [showComfortCorner, setShowComfortCorner] = useState(false);
+  const [showSecretLocket, setShowSecretLocket] = useState(false);
+  const [showCelebrationLocket, setShowCelebrationLocket] = useState(false);
+  const [showGlowUpWeek, setShowGlowUpWeek] = useState(false);
+  const [showCozyMode, setShowCozyMode] = useState(false);
   const [selectedHindiSongId, setSelectedHindiSongId] = useState<string | undefined>(undefined);
   const [activeTargetRecipe, setActiveTargetRecipe] = useState<Recipe>(RECIPES[0]);
   const [endlessRoundCount, setEndlessRoundCount] = useState(0);
@@ -158,7 +166,8 @@ export function App() {
       gameState.unlockRecipe(activeTargetRecipe.id);
       
       setPlayer(gameState.getPlayer());
-      setShowRecipeModal(true);
+      // Trigger Celebration Locket first!
+      setShowCelebrationLocket(true);
     }
   };
 
@@ -180,11 +189,10 @@ export function App() {
     setPlayer(gameState.getPlayer());
 
     setCurrentScreen('quiz');
-    audioEngine.startMusic('quiz');
   };
 
   return (
-    <div className="min-h-screen bg-paper-50 font-sans text-ink selection:bg-doodleGold/30">
+    <div className="min-h-screen bg-[#FFFDF7] font-sans text-ink selection:bg-pink-200">
       
       {/* Show Header Navbar on all screens except cinematic intro */}
       {currentScreen !== 'cinematic' && (
@@ -203,6 +211,9 @@ export function App() {
             onQuickPlay={handleStartCulinaryTrivia}
             onOpenMusic={() => setShowMusicJukebox(true)}
             onOpenComfortCorner={() => setShowComfortCorner(true)}
+            onOpenSecretLocket={() => setShowSecretLocket(true)}
+            onOpenGlowUpWeek={() => setShowGlowUpWeek(true)}
+            onOpenCozyMode={() => setShowCozyMode(true)}
           />
         )}
 
@@ -323,6 +334,34 @@ export function App() {
               setSelectedHindiSongId(songId);
               setShowMusicJukebox(true);
             }}
+          />
+        )}
+
+        {/* Secret Locket Modal */}
+        {showSecretLocket && (
+          <SecretLocketModal onClose={() => setShowSecretLocket(false)} />
+        )}
+
+        {/* Milestone / Level Celebration Locket Animation */}
+        {showCelebrationLocket && (
+          <CelebrationLocketModal
+            onClose={() => {
+              setShowCelebrationLocket(false);
+              setShowRecipeModal(true);
+            }}
+          />
+        )}
+
+        {/* Glow-Up Week Polaroid Scrapbook Modal */}
+        {showGlowUpWeek && (
+          <GlowUpWeekModal onClose={() => setShowGlowUpWeek(false)} />
+        )}
+
+        {/* Cozy Mode Blanket Wrap Overlay */}
+        {showCozyMode && (
+          <CozyModeOverlay
+            onClose={() => setShowCozyMode(false)}
+            onOpenMusic={() => setShowMusicJukebox(true)}
           />
         )}
 

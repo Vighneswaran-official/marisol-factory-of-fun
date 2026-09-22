@@ -3,6 +3,7 @@ import type { Question } from '../types/game';
 import { Marisol } from './Marisol';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
+import confetti from 'canvas-confetti';
 import { HelpCircle, Clock, Zap } from 'lucide-react';
 
 interface QuestionCardProps {
@@ -53,22 +54,44 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     }
   };
 
+  const [answerStatus, setAnswerStatus] = useState<'idle' | 'correct' | 'wrong'>('idle');
+  const [flyingParticles, setFlyingParticles] = useState<{ id: number; text: string; left: number; delay: number }[]>([]);
+
   const handleSelectOption = (option: string) => {
     if (selected !== null || disabledOptions.includes(option)) return;
     setSelected(option);
-
     const timeTaken = Date.now() - startTime;
     const isCorrect = option === question.correctAnswer;
 
     if (isCorrect) {
+      setAnswerStatus('correct');
       audioEngine.playSfx('correct');
+      
+      // Spawn flying cucumber sandwich particles
+      const items = ['🥪', '🥒', '🥪', '✨', '🥪', '💖', '🥪', '🥒'];
+      const particles = items.map((text, idx) => ({
+        id: Date.now() + idx,
+        text,
+        left: 15 + Math.random() * 70,
+        delay: idx * 0.08
+      }));
+      setFlyingParticles(particles);
+
+      // Trigger confetti
+      confetti({
+        particleCount: 35,
+        spread: 70,
+        origin: { y: 0.65 },
+        colors: ['#10B981', '#F43F5E', '#FBBF24', '#A855F7']
+      });
     } else {
+      setAnswerStatus('wrong');
       audioEngine.playSfx('wrong');
     }
 
     setTimeout(() => {
       onAnswer(option, timeTaken);
-    }, 400);
+    }, 750);
   };
 
   // Power-up: 50/50 Hint (removes one incorrect option)
@@ -100,8 +123,29 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   };
 
   return (
-    <div className="max-w-xl w-full mx-auto bg-white border-3 border-ink rounded-3xl p-5 sm:p-6 shadow-sketch-xl space-y-5">
+    <div className={`max-w-xl w-full mx-auto border-3 rounded-3xl p-5 sm:p-6 shadow-sketch-xl space-y-5 relative overflow-hidden transition-all duration-300 ${
+      answerStatus === 'wrong'
+        ? 'bg-rose-100/95 border-rose-500 shadow-rose-200 animate-shake-wrong ring-4 ring-rose-400/40'
+        : answerStatus === 'correct'
+        ? 'bg-emerald-50/95 border-emerald-500 shadow-emerald-200 ring-4 ring-emerald-400/40'
+        : 'bg-white border-ink'
+    }`}>
       
+      {/* Flying Cucumber Sandwiches & Sparkle Emojis on Correct Answer */}
+      {flyingParticles.map(p => (
+        <div
+          key={p.id}
+          className="absolute z-30 pointer-events-none text-2xl sm:text-3xl animate-flying-sandwich select-none"
+          style={{
+            left: `${p.left}%`,
+            bottom: '25%',
+            animationDelay: `${p.delay}s`
+          }}
+        >
+          {p.text}
+        </div>
+      ))}
+
       {/* Top Header: Progress & Timer */}
       <div className="flex items-center justify-between font-sans">
         <div className="bg-paper-100 border-2 border-ink px-3 py-1 rounded-xl text-xs font-bold text-ink">
@@ -137,10 +181,34 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
       {/* Marisol / Kritika Character Header */}
       <div className="flex justify-center">
         <Marisol
-          pose={showHint ? 'overthinking' : gameState.getActiveSticker()}
-          expression={question.difficulty === 'hard' ? 'thinking' : 'curious'}
+          pose={
+            answerStatus === 'wrong'
+              ? 'overthinking'
+              : answerStatus === 'correct'
+              ? 'happier_days'
+              : showHint
+              ? 'overthinking'
+              : gameState.getActiveSticker()
+          }
+          expression={
+            answerStatus === 'wrong'
+              ? 'thinking'
+              : answerStatus === 'correct'
+              ? 'excited'
+              : question.difficulty === 'hard'
+              ? 'thinking'
+              : 'curious'
+          }
           size="medium"
-          dialogue={showHint ? `Hint: Think about ${question.tags[0] || 'the core clue'}!` : undefined}
+          dialogue={
+            answerStatus === 'wrong'
+              ? "Oopsie, almost babe! You've got this 💖"
+              : answerStatus === 'correct'
+              ? "YAS QUEEN! +3 Cucumber Sandwiches! 🥪✨"
+              : showHint
+              ? `Hint: Think about ${question.tags[0] || 'the core clue'}!`
+              : undefined
+          }
           bubblePosition="top"
         />
       </div>

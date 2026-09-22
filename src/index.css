@@ -2,15 +2,14 @@
 
 @layer base {
   body {
-    background-color: #FAF7F0;
-    /* Subtle paper texture overlay */
+    background-color: #FFFDF7;
+    /* Soft dreamy pastel texture */
     background-image: 
-      radial-gradient(#2C2825 0.75px, transparent 0.75px),
-      radial-gradient(#3D2C40 0.5px, #FAF7F0 0.5px);
-    background-size: 30px 30px, 15px 15px;
-    background-position: 0 0, 7.5px 7.5px;
-    background-blend-mode: multiply;
-    color: #2C2825;
+      radial-gradient(#FBCFE8 0.75px, transparent 0.75px),
+      radial-gradient(#E9D5FF 0.5px, #FFFDF7 0.5px);
+    background-size: 26px 26px, 13px 13px;
+    background-position: 0 0, 6.5px 6.5px;
+    color: #372E3A;
     min-height: 100vh;
     font-family: 'Inter', sans-serif;
   }
@@ -25,18 +24,40 @@
   font-family: 'Outfit', sans-serif;
 }
 
-/* Hand-drawn sketch border style */
+/* Soft girly pastel cards */
+.pastel-card-pink {
+  background: linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%);
+  border: 2.5px solid #F43F5E;
+  box-shadow: 4px 4px 0px 0px rgba(244, 63, 94, 0.35);
+  border-radius: 24px;
+}
+
+.pastel-card-lavender {
+  background: linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%);
+  border: 2.5px solid #A855F7;
+  box-shadow: 4px 4px 0px 0px rgba(168, 85, 247, 0.35);
+  border-radius: 24px;
+}
+
+.pastel-card-gold {
+  background: linear-gradient(135deg, #FEFCE8 0%, #FEF08A 100%);
+  border: 2.5px solid #F59E0B;
+  box-shadow: 4px 4px 0px 0px rgba(245, 158, 11, 0.35);
+  border-radius: 24px;
+}
+
+/* Hand-drawn sketch border style with softer ink */
 .sketch-border {
-  border: 2.5px solid #2C2825;
-  box-shadow: 3px 3px 0px 0px #2C2825;
+  border: 2.5px solid #372E3A;
+  box-shadow: 3px 3px 0px 0px #372E3A;
   border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
 }
 
 .sketch-card {
   background-color: #FFFFFF;
-  border: 2.5px solid #2C2825;
-  box-shadow: 4px 4px 0px 0px #2C2825;
-  border-radius: 16px;
+  border: 2.5px solid #372E3A;
+  box-shadow: 4px 4px 0px 0px #372E3A;
+  border-radius: 20px;
 }
 
 .sketch-card-hover {
@@ -44,65 +65,82 @@
 }
 .sketch-card-hover:hover {
   transform: translateY(-3px) rotate(-0.5deg);
-  box-shadow: 6px 6px 0px 0px #2C2825;
+  box-shadow: 6px 6px 0px 0px #372E3A;
 }
 .sketch-card-hover:active {
   transform: translateY(1px);
-  box-shadow: 2px 2px 0px 0px #2C2825;
+  box-shadow: 2px 2px 0px 0px #372E3A;
 }
 
 .sketch-btn {
   background-color: #FFF;
-  color: #2C2825;
+  color: #372E3A;
   font-weight: 700;
-  border: 2.5px solid #2C2825;
-  box-shadow: 3px 3px 0px 0px #2C2825;
-  border-radius: 14px;
+  border: 2.5px solid #372E3A;
+  box-shadow: 3px 3px 0px 0px #372E3A;
+  border-radius: 16px;
   transition: all 0.15s ease-out;
   user-select: none;
 }
 .sketch-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 5px 5px 0px 0px #2C2825;
+  box-shadow: 5px 5px 0px 0px #372E3A;
 }
 .sketch-btn:active {
   transform: translateY(2px);
-  box-shadow: 1px 1px 0px 0px #2C2825;
+  box-shadow: 1px 1px 0px 0px #372E3A;
 }
 
-/* Primary Coral CTA Button */
+/* Primary Girly Coral / Pink CTA Button */
 .sketch-btn-primary {
-  background-color: #FF6B6B;
+  background: linear-gradient(135deg, #FB7185 0%, #F43F5E 100%);
   color: #FFFFFF;
-  border: 2.5px solid #2C2825;
-  box-shadow: 3px 3px 0px 0px #2C2825;
-  border-radius: 14px;
+  border: 2.5px solid #372E3A;
+  box-shadow: 3px 3px 0px 0px #372E3A;
+  border-radius: 16px;
   font-weight: 800;
 }
 .sketch-btn-primary:hover {
-  background-color: #FA5252;
+  background: linear-gradient(135deg, #F43F5E 0%, #E11D48 100%);
   transform: translateY(-2px);
-  box-shadow: 5px 5px 0px 0px #2C2825;
+  box-shadow: 5px 5px 0px 0px #372E3A;
 }
 
 /* Yellow Gold CTA Button */
 .sketch-btn-gold {
   background-color: #F59E0B;
-  color: #2C2825;
-  border: 2.5px solid #2C2825;
-  box-shadow: 3px 3px 0px 0px #2C2825;
-  border-radius: 14px;
+  color: #372E3A;
+  border: 2.5px solid #372E3A;
+  box-shadow: 3px 3px 0px 0px #372E3A;
+  border-radius: 16px;
   font-weight: 800;
 }
 .sketch-btn-gold:hover {
   background-color: #D97706;
   transform: translateY(-2px);
-  box-shadow: 5px 5px 0px 0px #2C2825;
+  box-shadow: 5px 5px 0px 0px #372E3A;
+}
+
+/* Washi tape graphic styling */
+.washi-tape {
+  background: rgba(254, 205, 211, 0.85);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transform: rotate(-1.5deg);
+  border-left: 2px dashed rgba(244, 63, 94, 0.3);
+  border-right: 2px dashed rgba(244, 63, 94, 0.3);
+}
+
+.washi-tape-lavender {
+  background: rgba(233, 213, 255, 0.85);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transform: rotate(1.2deg);
+  border-left: 2px dashed rgba(168, 85, 247, 0.3);
+  border-right: 2px dashed rgba(168, 85, 247, 0.3);
 }
 
 /* Custom notebook line effect */
 .notebook-lines {
-  background-image: linear-gradient(transparent 95%, rgba(61, 44, 64, 0.1) 95%);
+  background-image: linear-gradient(transparent 95%, rgba(61, 44, 64, 0.08) 95%);
   background-size: 100% 28px;
 }
 
@@ -113,4 +151,43 @@
 }
 .animate-float {
   animation: floatGentle 4s ease-in-out infinite;
+}
+
+/* Wrong answer gentle shake animation */
+@keyframes shakeGentle {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px) rotate(-1deg); }
+  40%, 80% { transform: translateX(6px) rotate(1deg); }
+}
+.animate-shake-wrong {
+  animation: shakeGentle 0.45s ease-in-out;
+}
+
+/* Cozy Mode Blanket Wrap Animation */
+@keyframes blanketWrap {
+  0% { transform: scale(0.92) translateY(30px); opacity: 0; filter: blur(4px); }
+  100% { transform: scale(1) translateY(0); opacity: 1; filter: blur(0); }
+}
+.animate-blanket-wrap {
+  animation: blanketWrap 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Floating flying cucumber sandwiches animation */
+@keyframes flyUpward {
+  0% { transform: translateY(20px) scale(0.6) rotate(0deg); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translateY(-120px) scale(1.3) rotate(25deg); opacity: 0; }
+}
+.animate-flying-sandwich {
+  animation: flyUpward 1.4s ease-out forwards;
+}
+
+/* Heart pop pulse */
+@keyframes heartPop {
+  0% { transform: scale(0.7); }
+  50% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+.animate-heart-pop {
+  animation: heartPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
