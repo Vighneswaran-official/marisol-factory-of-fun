@@ -248,52 +248,13 @@ class AuthService {
   }
 
   public getSavedAccounts(): StudentProfile[] {
-    const list = [...this.classmates];
-    if (this.currentUser && !list.some(a => a.id === this.currentUser?.id)) {
-      list.unshift(this.currentUser);
-    }
-    // Ensure default core profiles exist
-    if (!list.some(a => a.name.toLowerCase().includes('kritika'))) {
-      list.unshift({
-        id: 'user_kritika_main',
-        name: 'Kritika Verma 👑',
-        email: 'kritika.verma@gmail.com',
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
-        batch: 'MLP41PT',
-        currentMood: 'Radiant Sunshine 🌸',
-        currentMoodEmoji: '🌸',
-        statusNote: 'Queen of Factory of Fun ♡',
-        lastUpdated: 'Just now',
-        isGoogleVerified: true,
-        loginMethod: 'google'
-      });
-    }
-    if (!list.some(a => a.name.toLowerCase().includes('vighneswaran'))) {
-      list.push({
-        id: 'user_vighneswaran_main',
-        name: 'Vighneswaran',
-        email: 'vighneswaran@gmail.com',
-        avatarUrl: '/marisol/avatars/01_brighter_ideas.png',
-        batch: 'MLP41PT',
-        currentMood: 'Chai Enthusiast ☕',
-        currentMoodEmoji: '☕',
-        statusNote: 'Batch 41 Admin',
-        lastUpdated: 'Just now',
-        isGoogleVerified: true,
-        loginMethod: 'google'
-      });
-    }
-    return list;
+    // Single-user privacy: Return only current user or empty
+    return this.currentUser ? [this.currentUser] : [];
   }
 
   public switchAccount(userId: string): StudentProfile | null {
-    const accounts = this.getSavedAccounts();
-    const target = accounts.find(a => a.id === userId);
-    if (target) {
-      this.currentUser = target;
-      this.saveUserToStorage();
-      this.notify();
-      return target;
+    if (this.currentUser?.id === userId) {
+      return this.currentUser;
     }
     return null;
   }

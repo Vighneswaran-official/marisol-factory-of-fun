@@ -256,22 +256,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           </div>
 
-          {/* BENTO CARD 2: PINTEREST 1–9 VISUAL MOOD SCALE (Span 7 on Desktop / Full on Mobile) */}
+          {/* BENTO CARD 2: REAL MOOD BOARD (1–9) (Span 7 on Desktop / Full on Mobile) */}
           <div className="md:col-span-7 bg-white border border-stone-200 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🌸</span>
                 <div>
                   <h3 className="font-display font-black text-xs sm:text-sm text-stone-900 uppercase tracking-wide">
-                    Visual Mood Scale (1–9):
+                    Real Mood Board (1–9):
                   </h3>
                   <p className="text-[10px] text-stone-500 font-medium">
-                    Pick your vibe to personalize your day
+                    Pick your genuine emotion to adapt your space
                   </p>
                 </div>
               </div>
               <span className="text-[10px] font-handwritten font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 shrink-0">
-                Pinterest Scale ✨
+                Mood Board ✨
               </span>
             </div>
 

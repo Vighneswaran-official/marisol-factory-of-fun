@@ -16,7 +16,7 @@ export interface MacaroniDish {
 }
 
 export const MOOD_MACARONIS: Record<string, MacaroniDish> = {
-  // Scale 1: Radiant Sunshine 🌸
+  // Scale 1: Happy 🌸
   happy: {
     id: 'truffle_gold',
     name: 'Golden Truffle 4-Cheese Macaroni',
@@ -25,7 +25,7 @@ export const MOOD_MACARONIS: Record<string, MacaroniDish> = {
     tagline: 'Decadent, bubbly, and dripping with celebratory sunshine!',
     description: 'Elbow macaroni tossed in a velvety blend of sharp cheddar, gruyère, parmesan, and a kiss of white truffle butter topped with golden herb panko crust.',
     moodMatch: 'happy',
-    moodLabel: 'Radiant Sunshine 🌸',
+    moodLabel: 'Happy 🌸',
     cookTime: '15 mins',
     comfortLevel: 'Pure Luxury 👑',
     secretIngredients: [
@@ -40,18 +40,40 @@ export const MOOD_MACARONIS: Record<string, MacaroniDish> = {
     accentColor: '#EC4899'
   },
 
-  // Scale 2: Chai Enthusiast ☕
+  // Scale 2: Excited ⚡
+  excited: {
+    id: 'desi_masala',
+    name: 'Desi Spiced Butter Masala Macaroni',
+    emoji: '⚡',
+    scaleNumber: 2,
+    tagline: 'Electric spices and rich butter for high-energy celebrations!',
+    description: 'Tender macaroni sautéed with sizzling cumin, sweet red onions, juicy desi tomatoes, sweet green peas, magical Pav Bhaji butter masala, and coriander rain.',
+    moodMatch: 'excited',
+    moodLabel: 'Excited ⚡',
+    cookTime: '18 mins',
+    comfortLevel: 'High Voltage 🎉',
+    secretIngredients: [
+      'Semolina Elbow Macaroni 🌾',
+      'Amul Butter Spiced Masala 🧈',
+      'Vine-Ripened Roma Tomatoes 🍅',
+      'Sweet Green Peas & Capsicum 🫑',
+      'Freshly Torn Mint & Coriander 🌿'
+    ],
+    pairingMovie: 'Jab We Met (2007)',
+    pairingQuote: '"Main apni favourite hoon!"',
+    accentColor: '#F59E0B'
+  },
   cozy: {
     id: 'desi_masala',
-    name: 'Desi Tapri Spiced Masala Macaroni',
-    emoji: '🌶️',
+    name: 'Desi Spiced Butter Masala Macaroni',
+    emoji: '⚡',
     scaleNumber: 2,
-    tagline: 'The nostalgic Indian school-lunchbox classic with buttery spices!',
+    tagline: 'Electric spices and rich butter for high-energy celebrations!',
     description: 'Tender macaroni sautéed with sizzling cumin, sweet red onions, juicy desi tomatoes, sweet green peas, magical Pav Bhaji butter masala, and coriander rain.',
-    moodMatch: 'cozy',
-    moodLabel: 'Chai Enthusiast ☕',
+    moodMatch: 'excited',
+    moodLabel: 'Excited ⚡',
     cookTime: '18 mins',
-    comfortLevel: 'Maximum Warmth 🤍',
+    comfortLevel: 'High Voltage 🎉',
     secretIngredients: [
       'Semolina Elbow Macaroni 🌾',
       'Amul Butter Spiced Masala 🧈',
@@ -64,31 +86,31 @@ export const MOOD_MACARONIS: Record<string, MacaroniDish> = {
     accentColor: '#F59E0B'
   },
 
-  // Scale 3: Sleepy Panda 💤
-  tired: {
-    id: 'midnight_melt',
-    name: 'Midnight 3-Cheese Creamy Mac Melt',
-    emoji: '🌙',
+  // Scale 3: Calm ☕
+  calm: {
+    id: 'creamy_garlic_herb',
+    name: 'Soothing Creamy Herb Macaroni',
+    emoji: '☕',
     scaleNumber: 3,
-    tagline: 'Ultra-silky, soothing, and zero-effort comfort for tired queens.',
-    description: 'Slow-simmered macaroni swimming in a rich, buttery garlic cream and melted mozzarella blanket that melts all the day\'s fatigue away.',
-    moodMatch: 'tired',
-    moodLabel: 'Sleepy Panda 💤',
-    cookTime: '12 mins',
-    comfortLevel: 'Sleep-Inducing Hug 🧸',
+    tagline: 'Gentle, aromatic, and peaceful comfort for relaxed moments.',
+    description: 'Tender macaroni tossed in gentle herbs, light cream, parmesan shavings, and aromatic garlic butter for a soothing, tranquil vibe.',
+    moodMatch: 'calm',
+    moodLabel: 'Calm ☕',
+    cookTime: '14 mins',
+    comfortLevel: 'Peaceful Bliss ☁️',
     secretIngredients: [
-      'Quick-Boil Small Macaroni 🥣',
-      'Heavy Cream & Garlic Butter 🥛',
-      'Gooey Melty Mozzarella 🧀',
-      'Cracked Black Pepper 🖤',
-      'Smoked Sea Salt 🧂'
+      'Artisanal Shell Pasta 🐚',
+      'Fresh Rosemary & Thyme 🌿',
+      'Whipped Ricotta Cloud ☁️',
+      'Garlic Infused Butter 🧈',
+      'Parmigiano Reggiano 🧀'
     ],
     pairingMovie: 'Wake Up Sid (2009)',
-    pairingQuote: '"Kuch toh naya hai har din mein... sleep tight, queen."',
-    accentColor: '#8B5CF6'
+    pairingQuote: '"Kuch toh naya hai har din mein... enjoy the peace."',
+    accentColor: '#10B981'
   },
 
-  // Scale 4: Brain Overload 🥺
+  // Scale 4: Stressed 🥺
   stressed: {
     id: 'garlic_butter_rescue',
     name: 'Garlic Butter Herb Macaroni Rescue',
@@ -97,7 +119,7 @@ export const MOOD_MACARONIS: Record<string, MacaroniDish> = {
     tagline: 'Aromatic, buttery bliss that instantly un-clenches your shoulders.',
     description: 'Toasted golden garlic tossed with gentle parsley butter, soft macaroni spirals, creamy ricotta dollops, and lemon zest for instant headspace clarity.',
     moodMatch: 'stressed',
-    moodLabel: 'Brain Overload 🥺',
+    moodLabel: 'Stressed 🥺',
     cookTime: '15 mins',
     comfortLevel: 'Stress Buster 🌸',
     secretIngredients: [
@@ -112,40 +134,56 @@ export const MOOD_MACARONIS: Record<string, MacaroniDish> = {
     accentColor: '#3B82F6'
   },
 
-  // Scale 5: Foodie Monster 🍕
-  foodie: {
-    id: 'pizza_mac_supreme',
-    name: 'Pizza-Baked Cheesy Macaroni Supreme',
-    emoji: '🍕',
+  // Scale 5: Tired 💤
+  tired: {
+    id: 'midnight_melt',
+    name: 'Midnight 3-Cheese Creamy Mac Melt',
+    emoji: '🌙',
     scaleNumber: 5,
-    tagline: 'Pizza meets pasta in the ultimate cheat-day extravaganza!',
-    description: 'Macaroni baked under a bubbling blanket of pizza marinara, double mozzarella, spicy pickled jalapeños, sweet basil, and golden crispy cheese edges.',
-    moodMatch: 'foodie',
-    moodLabel: 'Foodie Monster 🍕',
-    cookTime: '20 mins',
-    comfortLevel: 'Pure Foodie Ecstasy 😋',
+    tagline: 'Ultra-silky, soothing, and zero-effort comfort for tired souls.',
+    description: 'Slow-simmered macaroni swimming in a rich, buttery garlic cream and melted mozzarella blanket that melts all the day\'s fatigue away.',
+    moodMatch: 'tired',
+    moodLabel: 'Tired 💤',
+    cookTime: '12 mins',
+    comfortLevel: 'Sleep-Inducing Hug 🧸',
     secretIngredients: [
-      'Rigati Ridged Macaroni 🍝',
-      'San Marzano Pizza Sauce 🍅',
-      'Double Stringy Mozzarella 🧀',
-      'Pickled Jalapeño Rings 🌶️',
-      'Oregano & Chilli Flakes 🌿'
+      'Quick-Boil Small Macaroni 🥣',
+      'Heavy Cream & Garlic Butter 🥛',
+      'Gooey Melty Mozzarella 🧀',
+      'Cracked Black Pepper 🖤',
+      'Smoked Sea Salt 🧂'
     ],
-    pairingMovie: 'Ratatouille (2007) & Queen (2014)',
-    pairingQuote: '"Good food is like music you can taste, color you can smell!"',
-    accentColor: '#EF4444'
+    pairingMovie: 'Queen (2014)',
+    pairingQuote: '"Take a good rest, tomorrow is your stage!"',
+    accentColor: '#8B5CF6'
+  },
+  foodie: {
+    id: 'midnight_melt',
+    name: 'Midnight 3-Cheese Creamy Mac Melt',
+    emoji: '🌙',
+    scaleNumber: 5,
+    tagline: 'Ultra-silky, soothing, and zero-effort comfort.',
+    description: 'Slow-simmered macaroni swimming in a rich, buttery garlic cream and melted mozzarella.',
+    moodMatch: 'tired',
+    moodLabel: 'Tired 💤',
+    cookTime: '12 mins',
+    comfortLevel: 'Sleep-Inducing Hug 🧸',
+    secretIngredients: ['Quick-Boil Small Macaroni 🥣', 'Gooey Melty Mozzarella 🧀'],
+    pairingMovie: 'Queen (2014)',
+    pairingQuote: '"Take a good rest!"',
+    accentColor: '#8B5CF6'
   },
 
-  // Scale 6: Corporate Queen 💼
-  corporate: {
+  // Scale 6: Motivated 💼
+  motivated: {
     id: 'power_protein_mac',
     name: 'Power Truffle Macaroni w/ Crispy Corn',
-    emoji: '⚡',
+    emoji: '💼',
     scaleNumber: 6,
-    tagline: 'Fueling big corporate dreams with sleek, high-energy flavor!',
-    description: 'Nutritious whole wheat macaroni with sweet buttered corn crunch, smoked gouda, baby spinach ribbons, and toasted pumpkin seeds to conquer any boardroom.',
-    moodMatch: 'corporate',
-    moodLabel: 'Corporate Queen 💼',
+    tagline: 'Fueling big ambitions with sleek, high-energy flavor!',
+    description: 'Nutritious whole wheat macaroni with sweet buttered corn crunch, smoked gouda, baby spinach ribbons, and toasted pumpkin seeds.',
+    moodMatch: 'motivated',
+    moodLabel: 'Motivated 💼',
     cookTime: '16 mins',
     comfortLevel: 'Boss Energy ⚡',
     secretIngredients: [
@@ -156,20 +194,36 @@ export const MOOD_MACARONIS: Record<string, MacaroniDish> = {
       'Toasted Pumpkin Seeds 🌻'
     ],
     pairingMovie: 'The Devil Wears Prada & Dil Dhadakne Do',
-    pairingQuote: '"Everybody wants to be us! Keep slaying your meetings!"',
+    pairingQuote: '"Everybody wants to be us! Keep slaying your goals!"',
+    accentColor: '#0EA5E9'
+  },
+  corporate: {
+    id: 'power_protein_mac',
+    name: 'Power Truffle Macaroni w/ Crispy Corn',
+    emoji: '💼',
+    scaleNumber: 6,
+    tagline: 'Fueling big ambitions with sleek, high-energy flavor!',
+    description: 'Nutritious whole wheat macaroni with sweet buttered corn crunch, smoked gouda, baby spinach ribbons, and toasted pumpkin seeds.',
+    moodMatch: 'motivated',
+    moodLabel: 'Motivated 💼',
+    cookTime: '16 mins',
+    comfortLevel: 'Boss Energy ⚡',
+    secretIngredients: ['Whole Wheat Macaroni 🌾', 'Smoked Dutch Gouda 🧀'],
+    pairingMovie: 'The Devil Wears Prada',
+    pairingQuote: '"Keep slaying!"',
     accentColor: '#0EA5E9'
   },
 
-  // Scale 7: Silly Chaos 🤪
-  silly: {
+  // Scale 7: Playful 🤪
+  playful: {
     id: 'rainbow_confetti_mac',
     name: 'Rainbow Cheesy Confetti Macaroni',
     emoji: '🌈',
     scaleNumber: 7,
     tagline: 'Playful, vibrant, crunchy & totally un-serious goodness!',
-    description: 'Gooey cheddar macaroni sprinkled with crushed cheesy nachos, colorful bell pepper confetti, and tangy sour cream drizzle. Silly is definitely a vibe!',
-    moodMatch: 'silly',
-    moodLabel: 'Silly Chaos 🤪',
+    description: 'Gooey cheddar macaroni sprinkled with crushed cheesy nachos, colorful bell pepper confetti, and tangy sour cream drizzle.',
+    moodMatch: 'playful',
+    moodLabel: 'Playful 🤪',
     cookTime: '14 mins',
     comfortLevel: 'Laugh Out Loud Joy 🎉',
     secretIngredients: [
@@ -181,19 +235,35 @@ export const MOOD_MACARONIS: Record<string, MacaroniDish> = {
     ],
     pairingMovie: 'Andaz Apna Apna (1994) & Welcome (2007)',
     pairingQuote: '"Do dost ek pyale mein chai piyenge... isse dosti badhti hai!"',
-    accentColor: '#10B981'
+    accentColor: '#EC4899'
+  },
+  silly: {
+    id: 'rainbow_confetti_mac',
+    name: 'Rainbow Cheesy Confetti Macaroni',
+    emoji: '🌈',
+    scaleNumber: 7,
+    tagline: 'Playful, vibrant, crunchy & totally un-serious goodness!',
+    description: 'Gooey cheddar macaroni sprinkled with crushed cheesy nachos, colorful bell pepper confetti, and tangy sour cream drizzle.',
+    moodMatch: 'playful',
+    moodLabel: 'Playful 🤪',
+    cookTime: '14 mins',
+    comfortLevel: 'Laugh Out Loud Joy 🎉',
+    secretIngredients: ['Tricolor Spiral Macaroni 🌀', 'Tangy Cheddar Cheese Sauce 🧀'],
+    pairingMovie: 'Andaz Apna Apna (1994)',
+    pairingQuote: '"Do dost ek pyale mein chai piyenge!"',
+    accentColor: '#EC4899'
   },
 
-  // Scale 8: Wholesome Soft 🐶
-  soft: {
+  // Scale 8: Grateful 🐶
+  grateful: {
     id: 'sweet_corn_cheddar',
     name: 'Velvety White Cheddar & Sweet Corn Mac',
     emoji: '🌽',
     scaleNumber: 8,
     tagline: 'Warm, fluffy & tender comfort just like cuddling a golden pup.',
-    description: 'Tender curved macaroni enveloped in a velvety mild white cheddar sauce with sweet bursting corn and a gentle nutmeg aroma for soothing, quiet moments.',
-    moodMatch: 'soft',
-    moodLabel: 'Wholesome Soft 🐶',
+    description: 'Tender curved macaroni enveloped in a velvety mild white cheddar sauce with sweet bursting corn and a gentle nutmeg aroma.',
+    moodMatch: 'grateful',
+    moodLabel: 'Grateful 🐶',
     cookTime: '15 mins',
     comfortLevel: 'Gentle Warm Hug 🧸',
     secretIngredients: [
@@ -207,17 +277,33 @@ export const MOOD_MACARONIS: Record<string, MacaroniDish> = {
     pairingQuote: '"If we are kind and polite, the world will be right."',
     accentColor: '#FBBF24'
   },
+  soft: {
+    id: 'sweet_corn_cheddar',
+    name: 'Velvety White Cheddar & Sweet Corn Mac',
+    emoji: '🌽',
+    scaleNumber: 8,
+    tagline: 'Warm, fluffy & tender comfort.',
+    description: 'Tender curved macaroni enveloped in a velvety mild white cheddar sauce.',
+    moodMatch: 'grateful',
+    moodLabel: 'Grateful 🐶',
+    cookTime: '15 mins',
+    comfortLevel: 'Gentle Warm Hug 🧸',
+    secretIngredients: ['Small Shell Macaroni 🐚', 'Mild Vermont White Cheddar 🧀'],
+    pairingMovie: 'Paddington (2014)',
+    pairingQuote: '"If we are kind and polite, the world will be right."',
+    accentColor: '#FBBF24'
+  },
 
-  // Scale 9: Main Character 👑
-  queen: {
+  // Scale 9: Confident 👑
+  confident: {
     id: 'royal_saffron_gouda',
     name: 'Royal Saffron Smoked Gouda Macaroni',
     emoji: '👑',
     scaleNumber: 9,
     tagline: 'Fit for royalty — lavish saffron cream with caramelized shallots.',
-    description: 'Artisanal macaroni bathed in a luxurious saffron-infused smoked gouda and cream reduction, topped with caramelized shallots and golden edible herbs.',
-    moodMatch: 'queen',
-    moodLabel: 'Main Character 👑',
+    description: 'Artisanal macaroni bathed in a luxurious saffron-infused smoked gouda and cream reduction, topped with caramelized shallots and golden herbs.',
+    moodMatch: 'confident',
+    moodLabel: 'Confident 👑',
     cookTime: '18 mins',
     comfortLevel: 'Absolute Royalty 👑',
     secretIngredients: [
@@ -229,6 +315,22 @@ export const MOOD_MACARONIS: Record<string, MacaroniDish> = {
     ],
     pairingMovie: 'Bajirao Mastani & Yeh Jawaani Hai Deewani',
     pairingQuote: '"Main udna chahta hoon, daudna chahta hoon, girna bhi chahta hoon... bas rukna nahi chahta!"',
+    accentColor: '#D946EF'
+  },
+  queen: {
+    id: 'royal_saffron_gouda',
+    name: 'Royal Saffron Smoked Gouda Macaroni',
+    emoji: '👑',
+    scaleNumber: 9,
+    tagline: 'Fit for royalty — lavish saffron cream with caramelized shallots.',
+    description: 'Artisanal macaroni bathed in a luxurious saffron-infused smoked gouda and cream reduction, topped with caramelized shallots.',
+    moodMatch: 'confident',
+    moodLabel: 'Confident 👑',
+    cookTime: '18 mins',
+    comfortLevel: 'Absolute Royalty 👑',
+    secretIngredients: ['Bronze-Cut Maccheroni 🍝', 'Kashmiri Saffron Strands 🌸'],
+    pairingMovie: 'Yeh Jawaani Hai Deewani',
+    pairingQuote: '"Main apni favourite hoon!"',
     accentColor: '#D946EF'
   }
 };
