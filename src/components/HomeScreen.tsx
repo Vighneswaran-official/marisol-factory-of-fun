@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { ScreenState } from '../types/game';
 import { audioEngine } from '../services/synthAudioEngine';
 import { authService } from '../services/authService';
@@ -36,6 +36,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onSelectMood
 }) => {
   const [, setTick] = useState(0);
+
+  useEffect(() => {
+    return authService.subscribe(() => {
+      setTick(t => t + 1);
+    });
+  }, []);
+
   const currentUser = authService.getCurrentUser();
   const isAuthenticated = authService.isAuthenticated();
 

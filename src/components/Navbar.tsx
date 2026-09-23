@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { ScreenState, AudioSettings } from '../types/game';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
@@ -15,6 +15,14 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpenGoogleSignIn }) => {
+  const [, setAuthTick] = useState(0);
+
+  useEffect(() => {
+    return authService.subscribe(() => {
+      setAuthTick(t => t + 1);
+    });
+  }, []);
+
   const player = gameState.getPlayer();
   const currentUser = authService.getCurrentUser();
   const isAuthenticated = authService.isAuthenticated();

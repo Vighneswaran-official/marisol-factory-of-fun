@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { ScreenState, Question } from './types/game';
 import { gameState } from './services/gameState';
 import { audioEngine } from './services/synthAudioEngine';
+import { authService } from './services/authService';
 import { Navbar } from './components/Navbar';
 import { HomeScreen } from './components/HomeScreen';
 import { QuestionCard } from './components/QuestionCard';
@@ -23,9 +24,16 @@ import { nonRepeatingQuizEngine } from './data/foodMovieQuestions1000';
 import { ArrowLeft, RefreshCw, Trophy, Clock, Film, Play, Pause, Volume2, VolumeX, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import heroBannerVideoSrc from './assets/Hero Banner video.mp4';
-import { useRef } from 'react';
 
 export function App() {
+  const [, setAuthTick] = useState(0);
+
+  useEffect(() => {
+    return authService.subscribe(() => {
+      setAuthTick(t => t + 1);
+    });
+  }, []);
+
   const [player, setPlayer] = useState(gameState.getPlayer());
   const [currentScreen, setCurrentScreen] = useState<ScreenState>('home');
   const [activeNavTab, setActiveNavTab] = useState<MainNavTab>('home');
