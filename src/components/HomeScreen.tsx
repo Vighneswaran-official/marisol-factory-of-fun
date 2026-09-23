@@ -256,30 +256,41 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </span>
             </div>
 
-            {/* 3x3 Grid of 9 Mood Archetypes */}
-            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+            {/* 3x3 Grid of 9 Dynamic Mood Picture Stickers */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
               {KRITIKA_STICKER_MOODS.map(mood => {
                 const isSelected = mood.id === activeMoodId;
                 return (
                   <button
                     key={mood.id}
                     onClick={() => handleMoodClick(mood)}
-                    className={`relative p-2 sm:p-2.5 rounded-2xl border transition-all flex flex-col items-center justify-center text-center cursor-pointer ${
+                    className={`relative p-2 sm:p-2.5 rounded-2xl border transition-all flex flex-col items-center justify-center text-center cursor-pointer group ${
                       isSelected
                         ? 'bg-rose-50/90 text-stone-900 border-rose-400 ring-2 ring-rose-200 shadow-xs scale-102 font-bold'
                         : 'bg-[#FAF9F7] hover:bg-pink-50/60 border-stone-200 text-stone-700 shadow-2xs hover:border-pink-200'
                     }`}
                   >
-                    <span className={`absolute top-1 left-1.5 text-[8px] font-display font-black px-1.5 py-0.2 rounded-full ${
-                      isSelected ? 'bg-rose-500 text-white' : 'bg-stone-200 text-stone-600'
+                    <span className={`absolute top-1.5 left-1.5 text-[8px] font-display font-black px-1.5 py-0.2 rounded-full z-10 ${
+                      isSelected ? 'bg-rose-500 text-white shadow-2xs' : 'bg-stone-200 text-stone-600'
                     }`}>
                       #{mood.scaleNumber}
                     </span>
 
-                    <span className="text-2xl mt-1.5 mb-0.5">{mood.emoji}</span>
-                    <span className="font-display font-black text-[10px] sm:text-xs leading-tight line-clamp-1">
-                      {mood.label}
-                    </span>
+                    {/* Dynamic Picture Sticker Image */}
+                    <div className="relative w-12 h-12 sm:w-14 sm:h-14 my-1 rounded-xl overflow-hidden bg-white/80 border border-stone-200/60 shadow-2xs group-hover:scale-105 transition-transform flex items-center justify-center">
+                      <img 
+                        src={mood.imageSrc} 
+                        alt={`${mood.label} sticker`} 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs">{mood.emoji}</span>
+                      <span className="font-display font-black text-[11px] sm:text-xs leading-tight line-clamp-1">
+                        {mood.label}
+                      </span>
+                    </div>
                   </button>
                 );
               })}
@@ -316,22 +327,30 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           {/* BENTO CARD 3: CURRENT MOOD COMFORT & DIALOGUE (Span 5 on Desktop / Full on Mobile) */}
           <div className="md:col-span-5 bg-gradient-to-br from-pink-50/95 via-rose-50/80 to-amber-50/90 border border-pink-200 rounded-3xl p-4 sm:p-5 shadow-xs flex flex-col justify-between space-y-3">
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-2xl bg-white border border-pink-200 flex items-center justify-center text-2xl shadow-xs shrink-0">
-                    {currentMoodSetting.emoji}
+                <div className="flex items-center gap-2.5">
+                  {/* Active Mood Large Dynamic Sticker Picture */}
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white border-2 border-pink-300 overflow-hidden shadow-sm shrink-0">
+                    <img 
+                      src={currentMoodSetting.imageSrc} 
+                      alt={currentMoodSetting.label}
+                      className="w-full h-full object-cover scale-102" 
+                    />
                   </div>
                   <div>
                     <span className="text-[9px] font-display font-black uppercase text-rose-700 tracking-wider">
                       SCALE #{currentMoodSetting.scaleNumber} COMFORT
                     </span>
                     <h4 className="font-display font-black text-base text-stone-900 leading-tight">
-                      {currentMoodSetting.label}
+                      {currentMoodSetting.emoji} {currentMoodSetting.label}
                     </h4>
+                    <span className="text-[10px] text-stone-500 font-medium font-sans">
+                      {currentMoodSetting.vibe}
+                    </span>
                   </div>
                 </div>
-                <span className="bg-white/90 border border-pink-200 px-2 py-0.5 rounded-full text-[11px] font-handwritten font-bold text-rose-900 shadow-2xs">
+                <span className="bg-white/90 border border-pink-200 px-2 py-0.5 rounded-full text-[10px] font-handwritten font-bold text-rose-900 shadow-2xs">
                   "{currentMoodSetting.stickerQuote}"
                 </span>
               </div>
