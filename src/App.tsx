@@ -20,8 +20,10 @@ import {
   type MoodProfileSetting 
 } from './services/moodQuizService';
 import { nonRepeatingQuizEngine } from './data/foodMovieQuestions1000';
-import { ArrowLeft, RefreshCw, Trophy, Clock, Film } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trophy, Clock, Film, Play, Pause, Volume2, VolumeX, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import heroBannerVideoSrc from './assets/Hero Banner video.mp4';
+import { useRef } from 'react';
 
 export function App() {
   const [player, setPlayer] = useState(gameState.getPlayer());
@@ -41,6 +43,11 @@ export function App() {
   const [showLearningCard, setShowLearningCard] = useState(false);
   const [lastAnswer, setLastAnswer] = useState<{ option: string; isCorrect: boolean } | null>(null);
   const [quizFinished, setQuizFinished] = useState(false);
+
+  // Quiz Celebration Video State
+  const quizVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [quizVideoPlaying, setQuizVideoPlaying] = useState(true);
+  const [quizVideoMuted, setQuizVideoMuted] = useState(false);
 
   // Active Mood Details
   const currentMoodSetting: MoodProfileSetting = 
@@ -192,7 +199,7 @@ export function App() {
             {/* Zero-Repeat Progress Pill */}
             <div className="bg-stone-100 border border-stone-200 rounded-xl p-2 px-3 flex items-center justify-between text-xs text-stone-600">
               <span className="font-medium">
-                🎯 1000+ Questions Library ({quizStats.remainingCount} Unplayed Remaining)
+                🎯 Food & Movie Trivia ({quizStats.remainingCount} Unplayed Remaining)
               </span>
               <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
                 Zero Repeats
@@ -222,21 +229,89 @@ export function App() {
                 </div>
               )
             ) : (
-              /* Quiz Completed Celebration with Mood Macaroni Award! */
-              <div className="bg-white border border-stone-200 rounded-3xl p-5 sm:p-7 text-center space-y-4 shadow-sm animate-scale-up">
-                <div className="w-16 h-16 mx-auto bg-amber-100 border border-amber-300 rounded-2xl flex items-center justify-center text-3xl shadow-xs">
-                  <Trophy className="w-8 h-8 text-amber-600" />
+              /* Quiz Completed Celebration with Video and Mood Macaroni Award! */
+              <div className="bg-white border border-stone-200 rounded-3xl p-4 sm:p-6 text-center space-y-4 shadow-sm animate-scale-up">
+                
+                {/* 1. Level Completion Video Banner */}
+                <div className="relative rounded-2xl overflow-hidden border-2 border-rose-300 shadow-md bg-stone-900 group">
+                  <video
+                    ref={quizVideoRef}
+                    src={heroBannerVideoSrc}
+                    autoPlay
+                    loop
+                    playsInline
+                    muted={quizVideoMuted}
+                    className="w-full h-48 sm:h-64 object-cover object-center scale-102"
+                  />
+
+                  {/* Gradient Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent pointer-events-none" />
+
+                  {/* Top Celebratory Badge */}
+                  <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-rose-600/90 text-white px-2.5 py-1 rounded-full text-[10px] font-display font-black tracking-wider uppercase backdrop-blur-xs shadow-xs">
+                    <Sparkles className="w-3 h-3 text-amber-300 fill-amber-300 animate-spin-slow" />
+                    <span>LEVEL CLEARED • CELEBRATION</span>
+                  </div>
+
+                  {/* Video Play/Pause and Mute Controls */}
+                  <div className="absolute bottom-3 right-3 flex items-center gap-1.5 z-10">
+                    <button
+                      onClick={() => {
+                        audioEngine.playSfx('click');
+                        if (quizVideoRef.current) {
+                          if (quizVideoPlaying) {
+                            quizVideoRef.current.pause();
+                          } else {
+                            quizVideoRef.current.play();
+                          }
+                          setQuizVideoPlaying(!quizVideoPlaying);
+                        }
+                      }}
+                      className="p-1.5 sm:p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-xs border border-white/20 transition-all cursor-pointer shadow-xs"
+                      title={quizVideoPlaying ? "Pause Video" : "Play Video"}
+                    >
+                      {quizVideoPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        audioEngine.playSfx('click');
+                        if (quizVideoRef.current) {
+                          quizVideoRef.current.muted = !quizVideoMuted;
+                          setQuizVideoMuted(!quizVideoMuted);
+                        }
+                      }}
+                      className="p-1.5 sm:p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-xs border border-white/20 transition-all cursor-pointer shadow-xs"
+                      title={quizVideoMuted ? "Unmute Video Audio" : "Mute Video Audio"}
+                    >
+                      {quizVideoMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-rose-300" />}
+                    </button>
+                  </div>
+
+                  {/* Bottom Captions & Royal Title */}
+                  <div className="absolute bottom-3 left-3 text-left max-w-[70%] z-10 pointer-events-none">
+                    <div className="flex items-center gap-1">
+                      <span className="font-display font-black text-xs sm:text-sm text-white drop-shadow-md">
+                        👑 Queen of Factory of Fun
+                      </span>
+                    </div>
+                    <p className="font-handwritten text-[11px] sm:text-xs text-rose-200 font-bold truncate drop-shadow-xs">
+                      "Main apni favourite hoon! Savoring every sweet memory ♡"
+                    </p>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <span className="text-xs font-display font-black uppercase text-rose-600 tracking-wider">
-                    #{currentMoodSetting.scaleNumber} {currentMoodSetting.emoji} {currentMoodSetting.label} QUIZ CLEARED!
-                  </span>
-                  <h3 className="font-display font-black text-2xl text-stone-900">
-                    You Earned {roundScore} Macaronis! 🧀
+                {/* Score & Clear Badge */}
+                <div className="space-y-1 pt-1">
+                  <div className="inline-flex items-center gap-1.5 bg-amber-100 border border-amber-300 px-3 py-1 rounded-full text-xs font-display font-black text-amber-900 shadow-2xs">
+                    <Trophy className="w-3.5 h-3.5 text-amber-600" />
+                    <span>#{currentMoodSetting.scaleNumber} {currentMoodSetting.emoji} {currentMoodSetting.label} CLEARED!</span>
+                  </div>
+                  <h3 className="font-display font-black text-xl sm:text-2xl text-stone-900">
+                    +{roundScore} Macaronis Unlocked! 🧀
                   </h3>
-                  <p className="font-handwritten text-sm text-stone-600 font-bold">
-                    Total Comfort Sandwiches: {player.cucumberSandwiches} 🥪
+                  <p className="font-handwritten text-xs sm:text-sm text-stone-600 font-bold">
+                    Total Sandwiches Balance: {player.cucumberSandwiches} 🥪
                   </p>
                 </div>
 
@@ -271,19 +346,25 @@ export function App() {
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+                <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
                   <button
-                    onClick={() => handleStartMoodQuiz(activeMoodId)}
+                    onClick={() => {
+                      audioEngine.playSfx('click');
+                      handleStartMoodQuiz(activeMoodId);
+                    }}
                     className="flex-1 py-3 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-2xl text-xs sm:text-sm font-black uppercase flex items-center justify-center gap-2 shadow-sm cursor-pointer hover:opacity-95"
                   >
                     <RefreshCw className="w-4 h-4" />
                     <span>Play Another Round</span>
                   </button>
                   <button
-                    onClick={() => handleNavigate('home')}
+                    onClick={() => {
+                      audioEngine.playSfx('click');
+                      handleNavigate('home');
+                    }}
                     className="flex-1 py-3 text-xs sm:text-sm font-black uppercase bg-white border border-stone-300 rounded-2xl hover:bg-stone-50 flex items-center justify-center gap-1.5 shadow-xs cursor-pointer text-stone-800"
                   >
-                    <span>Back to Home & Video 🏠</span>
+                    <span>Back to Home 🏠</span>
                   </button>
                 </div>
               </div>

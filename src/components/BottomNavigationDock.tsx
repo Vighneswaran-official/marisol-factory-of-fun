@@ -12,7 +12,7 @@ export const BottomNavigationDock: React.FC<BottomNavigationDockProps> = ({ acti
   const tabs: Array<{ id: MainNavTab; label: string; emoji: string }> = [
     { id: 'home', label: 'Home', emoji: '🏠' },
     { id: 'music', label: 'Music', emoji: '🎵' },
-    { id: 'quiz', label: '1000+ Quiz', emoji: '🎯' },
+    { id: 'quiz', label: 'Mood Quiz', emoji: '🎯' },
     { id: 'wall', label: 'Chat & Wall', emoji: '💬' },
   ];
 

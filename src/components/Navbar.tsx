@@ -3,7 +3,7 @@ import type { ScreenState, AudioSettings } from '../types/game';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
 import { 
-  Flame, Volume2, ArrowLeft, Menu, X, Globe, Download
+  Flame, ArrowLeft, Menu, X, Sparkles, Volume2, UserCheck, CheckCircle2
 } from 'lucide-react';
 import { authService } from '../services/authService';
 
@@ -14,21 +14,12 @@ interface NavbarProps {
   onOpenGoogleSignIn?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpenInstallApp, onOpenGoogleSignIn }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpenGoogleSignIn }) => {
   const player = gameState.getPlayer();
   const currentUser = authService.getCurrentUser();
   const isAuthenticated = authService.isAuthenticated();
   const [audioState, setAudioState] = useState<AudioSettings>(audioEngine.getSettings());
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  const toggleMusic = () => {
-    const next = !audioState.musicOn;
-    audioEngine.updateSettings({ musicOn: next });
-    setAudioState(audioEngine.getSettings());
-    if (next) {
-      audioEngine.startMusic('menu');
-    }
-  };
 
   const toggleSfx = () => {
     const next = !audioState.sfxOn;
@@ -47,10 +38,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-[#FAF7F0]/95 backdrop-blur-md border-b-2.5 border-ink px-3 sm:px-6 py-2.5 shadow-paper">
+      <header className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur-md border-b border-stone-200/80 px-3 sm:px-6 py-2.5 shadow-xs">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
           
-          {/* Left: Back Button or Brand Title */}
+          {/* Left: Custom Logo or Back Button */}
           <div className="flex items-center gap-2">
             {currentScreen !== 'home' ? (
               <button 
@@ -58,7 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                   audioEngine.playSfx('click');
                   onNavigate('home');
                 }}
-                className="sketch-btn py-1.5 px-2.5 sm:px-3 bg-white flex items-center gap-1.5 shadow-sketch text-xs sm:text-sm font-display font-black text-ink hover:bg-paper-100 transition-all"
+                className="py-1.5 px-3 bg-white border border-stone-200 rounded-xl flex items-center gap-1.5 shadow-xs text-xs sm:text-sm font-display font-black text-stone-800 hover:bg-stone-50 transition-all cursor-pointer"
                 title="Return to Home Screen"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -70,16 +61,26 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                   audioEngine.playSfx('click');
                   onNavigate('home');
                 }}
-                className="flex items-center gap-2 group text-left"
+                className="flex items-center gap-2.5 group text-left cursor-pointer"
               >
-                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-ink bg-coral-500 overflow-hidden shadow-sketch flex items-center justify-center">
-                  <span className="font-handwritten text-white text-base sm:text-lg font-bold">M</span>
+                {/* Custom Brand Crown Logo Badge */}
+                <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-400 p-0.5 shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center">
+                  <div className="w-full h-full bg-white rounded-[14px] flex items-center justify-center relative overflow-hidden">
+                    <span className="text-base sm:text-lg">👑</span>
+                  </div>
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full flex items-center justify-center shadow-2xs">
+                    <Sparkles className="w-2 h-2 text-white fill-white" />
+                  </span>
                 </div>
+
                 <div>
-                  <h1 className="font-display font-black text-base sm:text-xl tracking-tight leading-none text-ink group-hover:text-plum-700 transition-colors">
-                    MARISOL
-                  </h1>
-                  <p className="font-handwritten text-[10px] sm:text-xs text-ink-light font-bold -mt-0.5">
+                  <div className="flex items-center gap-1">
+                    <h1 className="font-display font-black text-base sm:text-lg tracking-tight leading-none text-stone-900 group-hover:text-rose-600 transition-colors">
+                      MARISOL
+                    </h1>
+                    <span className="text-rose-500 font-black text-xs">✨</span>
+                  </div>
+                  <p className="font-display text-[9px] sm:text-[10px] text-rose-700 font-extrabold tracking-wider uppercase -mt-0.5">
                     FACTORY OF FUN
                   </p>
                 </div>
@@ -90,58 +91,45 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
           {/* Center / Right: Core Stats & Menu Controls */}
           <div className="flex items-center gap-1.5 sm:gap-2.5">
             
-            {/* Chef Title Badge (Desktop only) */}
-            <div className="hidden lg:flex items-center gap-1 bg-white border-2 border-ink px-2.5 py-1 rounded-xl shadow-sketch text-xs font-bold text-plum-700">
-              <span className="truncate max-w-[140px]">
-                {player.chefTitle || 'Apprentice Chopper 🥒'}
-              </span>
-            </div>
-
-            {/* Cucumber Sandwiches Score */}
+            {/* Macaronis Score */}
             <div 
-              className="flex items-center gap-1 bg-emerald-50 text-emerald-800 border-2 border-ink px-2 sm:px-2.5 py-1 rounded-xl shadow-sketch text-xs sm:text-sm font-black"
-              title={`${player.cucumberSandwiches || 0} Cucumber Sandwiches`}
+              className="flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200 px-2.5 py-1 rounded-xl shadow-2xs text-xs sm:text-sm font-black"
+              title={`${player.cucumberSandwiches || 0} Macaronis`}
             >
-              <span>🥪</span>
+              <span>🧀</span>
               <span>{player.cucumberSandwiches || 0}</span>
             </div>
 
             {/* Streak Counter */}
             <div 
-              className="flex items-center gap-1 bg-coral-500 text-white border-2 border-ink px-2 sm:px-2.5 py-1 rounded-xl shadow-sketch text-xs sm:text-sm font-bold"
+              className="flex items-center gap-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white px-2.5 py-1 rounded-xl shadow-xs text-xs sm:text-sm font-bold"
               title={`${player.streak} Day Streak`}
             >
               <Flame className="w-3.5 h-3.5 fill-white animate-bounce-gentle" />
               <span>{player.streak}</span>
             </div>
 
-            {/* Google Sign In / Profile Avatar (Desktop and Mobile) */}
+            {/* Account Profile / Login Button */}
             {onOpenGoogleSignIn && (
               <button
                 onClick={() => {
                   audioEngine.playSfx('click');
                   onOpenGoogleSignIn();
                 }}
-                className={`flex p-1.5 px-2 sm:px-2.5 rounded-xl border-2 border-ink shadow-sketch transition-all items-center gap-1.5 ${
-                  isAuthenticated ? 'bg-white hover:bg-emerald-50' : 'bg-white hover:bg-purple-50'
-                }`}
-                title={isAuthenticated && currentUser ? `Signed in as ${currentUser.name}` : "Mobile Google Sign In"}
+                className="flex p-1.5 px-2.5 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 shadow-xs transition-all items-center gap-1.5 cursor-pointer"
+                title={isAuthenticated && currentUser ? `Signed in as ${currentUser.name}` : "Account Sign In"}
               >
                 {isAuthenticated && currentUser ? (
-                  <div className="w-4 h-4 rounded-full overflow-hidden border border-ink/40 shrink-0">
-                    <img src={currentUser.avatarUrl} alt="" className="w-full h-full object-cover" />
-                  </div>
+                  <span className="text-emerald-700 flex items-center gap-1 text-xs font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="max-w-[70px] truncate hidden sm:inline">{currentUser.name.split(' ')[0]}</span>
+                  </span>
                 ) : (
-                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                  </svg>
+                  <span className="text-blue-700 flex items-center gap-1 text-xs font-bold">
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">LOGIN</span>
+                  </span>
                 )}
-                <span className="font-display font-black text-xs hidden sm:inline">
-                  {isAuthenticated && currentUser ? currentUser.name.split(' ')[0] : 'GOOGLE'}
-                </span>
               </button>
             )}
 
@@ -151,103 +139,66 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                 audioEngine.playSfx('click');
                 setIsMenuOpen(true);
               }}
-              className="sketch-btn-gold py-1.5 px-2.5 sm:px-3 flex items-center gap-1.5 text-xs sm:text-sm font-display font-black shadow-sketch hover:scale-105 active:scale-95 transition-all"
+              className="py-1.5 px-2.5 sm:px-3 bg-stone-900 hover:bg-stone-800 text-white rounded-xl flex items-center gap-1.5 text-xs sm:text-sm font-display font-black shadow-xs transition-all cursor-pointer"
               title="Open Navigation Menu"
             >
-              <Menu className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              <Menu className="w-4 h-4" />
               <span>MENU</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Responsive Slide-Out Drawer Navigation Menu */}
+      {/* Slide-Out Drawer Navigation Menu */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs animate-fade-in">
           <div 
-            className="w-full max-w-sm bg-[#FAF7F0] border-l-3 border-ink h-full overflow-y-auto p-4 sm:p-6 shadow-sketch-xl flex flex-col justify-between animate-slide-left space-y-4"
+            className="w-full max-w-sm bg-[#FAF8F5] border-l border-stone-300 h-full overflow-y-auto p-4 sm:p-6 shadow-xl flex flex-col justify-between animate-slide-left space-y-4"
           >
-            {/* Drawer Header */}
             <div>
-              <div className="flex items-center justify-between border-b-2 border-ink/20 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full border-2 border-ink bg-coral-500 flex items-center justify-center text-white font-handwritten font-bold text-base shadow-sketch">
-                    M
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-400 flex items-center justify-center text-sm shadow-xs">
+                    👑
                   </div>
                   <div>
-                    <h2 className="font-display font-black text-base text-ink">FACTORY OF FUN</h2>
-                    <p className="font-handwritten text-xs text-ink-light font-bold">Navigation & Lounges</p>
+                    <h2 className="font-display font-black text-sm text-stone-900">MARISOL FACTORY</h2>
+                    <p className="font-handwritten text-xs text-rose-700 font-bold">Comfort & Fun Hub</p>
                   </div>
                 </div>
 
                 <button
                   onClick={() => setIsMenuOpen(false)}
-                  className="p-1.5 rounded-xl border-2 border-ink bg-white hover:bg-paper-100 shadow-sketch-xs"
+                  className="p-1.5 rounded-xl border border-stone-300 bg-white hover:bg-stone-100 shadow-2xs cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Student Identity Card in Menu */}
-              <div className="mt-3 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-3 flex items-center justify-between shadow-2xs">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-10 h-10 rounded-xl border border-ink overflow-hidden bg-white shadow-2xs shrink-0 flex items-center justify-center">
-                    {isAuthenticated && currentUser ? (
-                      <img src={currentUser.avatarUrl} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-xl">👩‍🎓</span>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-display font-black text-xs text-ink truncate">
-                      {isAuthenticated && currentUser ? currentUser.name : (player.nickname || 'Curious Student')}
-                    </div>
-                    <div className="text-[10px] font-handwritten text-purple-800 font-bold truncate">
-                      {currentUser?.email ? currentUser.email : 'Tap below to sync email & name'}
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onOpenGoogleSignIn?.();
-                  }}
-                  className="sketch-btn px-2 py-1 text-[11px] font-black uppercase bg-white border border-purple-300 shadow-2xs shrink-0 flex items-center gap-1"
-                >
-                  {isAuthenticated ? (
-                    <span>PROFILE</span>
-                  ) : (
-                    <>
-                      <Globe className="w-3 h-3 text-blue-500" />
-                      <span>GOOGLE LOGIN</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Navigation Menu Links (3 Core Pillars) */}
+              {/* Navigation Menu Links */}
               <div className="mt-4 space-y-2">
                 {[
-                  { screen: 'home' as ScreenState, label: 'Check Her Mood', emoji: '🌸', desc: 'Live mood, daily affirmations & comfort' },
-                  { screen: 'quiz' as ScreenState, label: 'Quiz Game', emoji: '🎯', desc: 'Fun trivia questions, streaks & instant scores' },
-                  { screen: 'batch_wall' as ScreenState, label: 'Bulletin Chat', emoji: '📌', desc: 'Post notes & reply at your own time' },
+                  { screen: 'home' as ScreenState, label: 'Home & Video', emoji: '🏠', desc: 'Hero video, live mood check-in & comfort' },
+                  { screen: 'music' as ScreenState, label: 'Music Streamer', emoji: '🎵', desc: 'Search and play songs across the internet' },
+                  { screen: 'quiz' as ScreenState, label: 'Food & Movie Quiz', emoji: '🎯', desc: 'Play trivia & earn Macaroni dishes' },
+                  { screen: 'batch_wall' as ScreenState, label: 'Batch Chat & Wall', emoji: '💬', desc: 'Live group chat & bulletin corkboard' },
                 ].map(item => {
                   const isActive = currentScreen === item.screen;
                   return (
                     <button
                       key={item.screen}
                       onClick={() => handleMenuNavigate(item.screen)}
-                      className={`w-full p-2.5 rounded-2xl border-2 transition-all flex items-center gap-3 text-left ${
+                      className={`w-full p-3 rounded-2xl border transition-all flex items-center gap-3 text-left cursor-pointer ${
                         isActive
-                          ? 'bg-purple-700 text-white border-ink shadow-sketch-xs font-bold'
-                          : 'bg-white border-ink/15 hover:border-ink hover:bg-paper-50 text-ink shadow-2xs'
+                          ? 'bg-rose-600 text-white border-rose-600 shadow-sm font-bold'
+                          : 'bg-white border-stone-200 hover:border-pink-300 text-stone-800 shadow-2xs'
                       }`}
                     >
                       <span className="text-xl">{item.emoji}</span>
                       <div className="min-w-0 flex-1">
                         <div className="font-display font-black text-xs sm:text-sm">{item.label}</div>
-                        <div className={`text-[10px] font-handwritten truncate ${isActive ? 'text-purple-200' : 'text-ink-light'}`}>
+                        <div className={`text-[10px] font-handwritten truncate ${isActive ? 'text-rose-200' : 'text-stone-500'}`}>
                           {item.desc}
                         </div>
                       </div>
@@ -256,51 +207,33 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                 })}
               </div>
 
-              {/* Audio Settings Quick Controls inside Menu */}
-              <div className="mt-4 p-3 bg-white border-2 border-ink rounded-2xl shadow-xs space-y-2">
-                <div className="font-display font-black text-xs text-ink flex items-center justify-between">
+              {/* Tactile Audio Settings Controls inside Menu */}
+              <div className="mt-4 p-3 bg-white border border-stone-200 rounded-2xl shadow-xs space-y-2">
+                <div className="font-display font-black text-xs text-stone-800 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <Volume2 className="w-3.5 h-3.5 text-purple-700" />
-                    <span>SYNTH AUDIO SYSTEM</span>
+                    <Volume2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>AUDIO SYSTEM</span>
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={toggleMusic}
-                    className={`py-1.5 px-2 rounded-xl border-1.5 border-ink text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-1 ${
-                      audioState.musicOn ? 'bg-doodleTeal text-white' : 'bg-paper-100 text-ink-light'
-                    }`}
-                  >
-                    <span>Music:</span>
-                    <span>{audioState.musicOn ? 'ON 🎵' : 'OFF'}</span>
-                  </button>
+                <div>
                   <button
                     onClick={toggleSfx}
-                    className={`py-1.5 px-2 rounded-xl border-1.5 border-ink text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-1 ${
-                      audioState.sfxOn ? 'bg-doodleTeal text-white' : 'bg-paper-100 text-ink-light'
+                    className={`w-full py-2 px-3 rounded-xl border text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer ${
+                      audioState.sfxOn ? 'bg-rose-50 border-rose-300 text-rose-900' : 'bg-stone-100 text-stone-500'
                     }`}
                   >
-                    <span>SFX:</span>
-                    <span>{audioState.sfxOn ? 'ON 🔔' : 'OFF'}</span>
+                    <span>Keyboard / Tap Clicks:</span>
+                    <span className="font-black">{audioState.sfxOn ? 'ON 🔔' : 'MUTED'}</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Drawer Bottom Actions: Install App */}
-            <div className="pt-2 border-t-2 border-ink/20">
-              {onOpenInstallApp && (
-                <button
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onOpenInstallApp();
-                  }}
-                  className="w-full py-2.5 bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 text-white rounded-2xl border-2 border-ink font-display font-black text-xs flex items-center justify-center gap-2 shadow-sketch"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>DOWNLOAD / INSTALL APP</span>
-                </button>
-              )}
+            {/* Drawer Bottom */}
+            <div className="pt-3 border-t border-stone-200 text-center">
+              <span className="text-[11px] font-handwritten font-bold text-stone-500">
+                Kritika's Comfort Space • Batch MLP41PT 👑
+              </span>
             </div>
 
           </div>
