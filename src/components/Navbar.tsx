@@ -46,21 +46,21 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur-md border-b border-stone-200/80 px-3 sm:px-6 py-2.5 shadow-xs">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
+      <header className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur-md border-b border-stone-200/80 px-2 sm:px-6 py-2 shadow-xs">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-1 sm:gap-2">
           
           {/* Left: Custom Logo or Back Button */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             {currentScreen !== 'home' ? (
               <button 
                 onClick={() => {
                   audioEngine.playSfx('click');
                   onNavigate('home');
                 }}
-                className="py-1.5 px-3 bg-white border border-stone-200 rounded-xl flex items-center gap-1.5 shadow-xs text-xs sm:text-sm font-display font-black text-stone-800 hover:bg-stone-50 transition-all cursor-pointer"
+                className="py-1 px-2.5 sm:py-1.5 sm:px-3 bg-white border border-stone-200 rounded-xl flex items-center gap-1 shadow-xs text-xs sm:text-sm font-display font-black text-stone-800 hover:bg-stone-50 transition-all cursor-pointer shrink-0"
                 title="Return to Home Screen"
               >
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="w-3.5 h-3.5" />
                 <span>HOME</span>
               </button>
             ) : (
@@ -69,26 +69,26 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                   audioEngine.playSfx('click');
                   onNavigate('home');
                 }}
-                className="flex items-center gap-2.5 group text-left cursor-pointer"
+                className="flex items-center gap-1.5 sm:gap-2.5 group text-left cursor-pointer min-w-0"
               >
                 {/* Custom Brand Crown Logo Badge */}
-                <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-400 p-0.5 shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center">
-                  <div className="w-full h-full bg-white rounded-[14px] flex items-center justify-center relative overflow-hidden">
-                    <span className="text-base sm:text-lg">👑</span>
+                <div className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-400 p-0.5 shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center shrink-0">
+                  <div className="w-full h-full bg-white rounded-[13px] sm:rounded-[14px] flex items-center justify-center relative overflow-hidden">
+                    <span className="text-sm sm:text-lg">👑</span>
                   </div>
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full flex items-center justify-center shadow-2xs">
-                    <Sparkles className="w-2 h-2 text-white fill-white" />
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-amber-400 rounded-full flex items-center justify-center shadow-2xs">
+                    <Sparkles className="w-1.5 h-1.5 sm:w-2 sm:h-2 text-white fill-white" />
                   </span>
                 </div>
 
-                <div>
-                  <div className="flex items-center gap-1">
-                    <h1 className="font-display font-black text-base sm:text-lg tracking-tight leading-none text-stone-900 group-hover:text-rose-600 transition-colors">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-0.5 sm:gap-1">
+                    <h1 className="font-display font-black text-sm sm:text-base tracking-tight leading-none text-stone-900 group-hover:text-rose-600 transition-colors">
                       MARISOL
                     </h1>
-                    <span className="text-rose-500 font-black text-xs">✨</span>
+                    <span className="text-rose-500 font-black text-[10px] sm:text-xs">✨</span>
                   </div>
-                  <p className="font-display text-[9px] sm:text-[10px] text-rose-700 font-extrabold tracking-wider uppercase -mt-0.5">
+                  <p className="font-display text-[8px] sm:text-[9px] text-rose-700 font-extrabold tracking-wider uppercase -mt-0.5 truncate hidden min-[360px]:block">
                     FACTORY OF FUN
                   </p>
                 </div>
@@ -96,12 +96,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
             )}
           </div>
 
-          {/* Center / Right: Core Stats & Menu Controls */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5">
+          {/* Right: Core Stats & Menu Controls */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             
             {/* Macaronis Score */}
             <div 
-              className="flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200 px-2.5 py-1 rounded-xl shadow-2xs text-xs sm:text-sm font-black"
+              className="flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200 px-2 py-1 rounded-xl shadow-2xs text-xs font-black shrink-0"
               title={`${player.cucumberSandwiches || 0} Macaronis`}
             >
               <span>🧀</span>
@@ -110,10 +110,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
 
             {/* Streak Counter */}
             <div 
-              className="flex items-center gap-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white px-2.5 py-1 rounded-xl shadow-xs text-xs sm:text-sm font-bold"
+              className="flex items-center gap-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white px-2 py-1 rounded-xl shadow-xs text-xs font-bold shrink-0"
               title={`${player.streak} Day Streak`}
             >
-              <Flame className="w-3.5 h-3.5 fill-white animate-bounce-gentle" />
+              <Flame className="w-3 h-3 fill-white animate-bounce-gentle" />
               <span>{player.streak}</span>
             </div>
 
@@ -124,18 +124,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                   audioEngine.playSfx('click');
                   onOpenGoogleSignIn();
                 }}
-                className="flex p-1.5 px-2.5 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 shadow-xs transition-all items-center gap-1.5 cursor-pointer"
+                className="flex p-1.5 px-2 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 shadow-xs transition-all items-center gap-1 cursor-pointer shrink-0"
                 title={isAuthenticated && currentUser ? `Signed in as ${currentUser.name}` : "Account Sign In"}
               >
                 {isAuthenticated && currentUser ? (
                   <span className="text-emerald-700 flex items-center gap-1 text-xs font-bold">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span className="max-w-[70px] truncate hidden sm:inline">{currentUser.name.split(' ')[0]}</span>
+                    <span className="max-w-[60px] truncate hidden md:inline">{currentUser.name.split(' ')[0]}</span>
                   </span>
                 ) : (
                   <span className="text-blue-700 flex items-center gap-1 text-xs font-bold">
                     <UserCheck className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">LOGIN</span>
+                    <span className="hidden md:inline">LOGIN</span>
                   </span>
                 )}
               </button>
@@ -147,7 +147,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                 audioEngine.playSfx('click');
                 setIsMenuOpen(true);
               }}
-              className="py-1.5 px-2.5 sm:px-3 bg-stone-900 hover:bg-stone-800 text-white rounded-xl flex items-center gap-1.5 text-xs sm:text-sm font-display font-black shadow-xs transition-all cursor-pointer"
+              className="py-1.5 px-2 sm:px-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl flex items-center gap-1 text-xs font-display font-black shadow-xs transition-all cursor-pointer shrink-0"
+              title="Open Navigation Menu"
+            >
+              <Menu className="w-3.5 h-3.5" />
+              <span className="hidden min-[400px]:inline">MENU</span>
+            </button>
+          </div>
+        </div>
+      </header>
               title="Open Navigation Menu"
             >
               <Menu className="w-4 h-4" />
