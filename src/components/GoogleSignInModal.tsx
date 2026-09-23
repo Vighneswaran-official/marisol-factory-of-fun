@@ -84,9 +84,17 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
     >
       <div className="space-y-4 text-left">
         {errorMessage && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-2xl text-xs flex items-center gap-2 animate-fade-in">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-            <span>{errorMessage}</span>
+          <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-2xl text-xs space-y-1 animate-fade-in">
+            <div className="flex items-center gap-2 font-bold">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>Google Sign-In Notice</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-rose-700 pl-6">
+              {errorMessage}
+            </p>
+            <p className="text-[11px] font-semibold text-rose-900 pl-6 pt-1">
+              👉 You can immediately sign in below by entering your Google Email address.
+            </p>
           </div>
         )}
 
