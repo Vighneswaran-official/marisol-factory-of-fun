@@ -247,6 +247,10 @@ class AuthService {
     return this.classmates;
   }
 
+  public formatEmailName(email: string): string {
+    return formatNameFromEmail(email);
+  }
+
   /**
    * 1-Tap Quick Student Login (Works offline & without domain restrictions)
    */
