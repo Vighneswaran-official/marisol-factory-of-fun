@@ -29,9 +29,14 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
   const [selectedClassmateDetail, setSelectedClassmateDetail] = useState<StudentProfile | null>(null);
 
   // Tabs & Filters
-  const [feedScope, setFeedScope] = useState<'all' | 'mine' | 'search'>('all');
+  const [feedScope, setFeedScope] = useState<'all' | 'kritika' | 'mine' | 'search'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMoodFilter, setSelectedMoodFilter] = useState('All');
+
+  // Bulletin Threaded Replies State
+  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+  const [replyInputMap, setReplyInputMap] = useState<Record<string, string>>({});
+  const [isSendingReply, setIsSendingReply] = useState<Record<string, boolean>>({});
 
   // New Post Form State
   const [studentName, setStudentName] = useState(currentUser?.name || player.nickname || 'Student');
@@ -75,7 +80,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
         if (post.userId && post.userId !== currentUser.id) return false;
         if (!post.userId && post.studentName.toLowerCase() !== currentUser.name.toLowerCase()) return false;
       }
+    } else if (feedScope === 'kritika') {
+      const isFromKritika = post.studentName.toLowerCase().includes('kritika') || post.studentName.toLowerCase().includes('marisol');
+      const hasKritikaReply = post.replies?.some(r => r.isKritika);
+      if (!isFromKritika && !hasKritikaReply) return false;
     }
+
     if (selectedMoodFilter !== 'All' && post.mood !== selectedMoodFilter) {
       return false;
     }
@@ -84,11 +94,17 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
     return (
       post.studentName.toLowerCase().includes(q) ||
       post.text.toLowerCase().includes(q) ||
-      post.mood.toLowerCase().includes(q)
+      post.mood.toLowerCase().includes(q) ||
+      post.replies?.some(r => r.text.toLowerCase().includes(q) || r.authorName.toLowerCase().includes(q))
     );
   });
 
   const uniqueMoods = ['All', ...Array.from(new Set(allPosts.map(p => p.mood)))];
+  const kritikaPostsCount = allPosts.filter(p => 
+    p.studentName.toLowerCase().includes('kritika') || 
+    p.studentName.toLowerCase().includes('marisol') ||
+    p.replies?.some(r => r.isKritika)
+  ).length;
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -126,6 +142,45 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
     setPostText('');
     setImagePreview(null);
     setShowNewPostModal(false);
+  };
+
+  const handleToggleReplies = (postId: string) => {
+    audioEngine.playSfx('click');
+    setExpandedReplies(prev => ({
+      ...prev,
+      [postId]: !prev[postId]
+    }));
+  };
+
+  const handleSendReply = async (postId: string) => {
+    const text = (replyInputMap[postId] || '').trim();
+    if (!text) return;
+
+    setIsSendingReply(prev => ({ ...prev, [postId]: true }));
+    audioEngine.playSfx('fanfare');
+
+    const authorName = currentUser?.name || studentName || 'Batch Classmate';
+    const authorEmail = currentUser?.email;
+    const isKritika = authorName.toLowerCase().includes('kritika') || 
+                      (authorEmail && authorEmail.toLowerCase().includes('kritika')) ||
+                      authorName.toLowerCase().includes('marisol');
+
+    if (isKritika) {
+      confetti({ particleCount: 75, spread: 70, origin: { y: 0.65 } });
+    }
+
+    await batchWallService.addReply(postId, {
+      authorId: currentUser?.id,
+      authorName,
+      authorEmail,
+      avatarUrl: currentUser?.avatarUrl,
+      text,
+      isKritika
+    });
+
+    setIsSendingReply(prev => ({ ...prev, [postId]: false }));
+    setReplyInputMap(prev => ({ ...prev, [postId]: '' }));
+    setExpandedReplies(prev => ({ ...prev, [postId]: true }));
   };
 
   const handleAddReaction = (postId: string, stickerAlias: string) => {
@@ -186,10 +241,10 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
           <div className="text-center min-w-0">
             <div className="flex items-center justify-center gap-1 text-[11px] font-display font-black uppercase text-purple-700 tracking-wider">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>BATCH MLP41PT LOUNGE</span>
+              <span>📌 ASYNC BULLETIN BOARD</span>
             </div>
             <h1 className="font-display text-lg sm:text-2xl font-black tracking-tight text-ink truncate">
-              COMMUNITY CHAT & WALL 💬
+              BATCH 41 BULLETIN BOARD 📌
             </h1>
           </div>
 
@@ -199,7 +254,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
               audioEngine.playSfx('click');
               setShowGoogleModal(true);
             }}
-            className="flex items-center gap-1.5 bg-white hover:bg-purple-50 border-2 border-ink px-2.5 py-1.5 rounded-2xl text-xs font-display font-black shadow-sketch transition-all shrink-0"
+            className="flex items-center gap-1.5 bg-white hover:bg-purple-50 border-2 border-ink px-2.5 py-1.5 rounded-2xl text-xs font-display font-black shadow-sketch transition-all shrink-0 cursor-pointer"
             title="Account & Realtime Sync"
           >
             {isAuthenticated && currentUser ? (
@@ -210,12 +265,25 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 <span className="max-w-[75px] truncate hidden sm:inline">{currentUser.name.split(' ')[0]}</span>
               </span>
             ) : (
-              <span className="text-purple-700 flex items-center gap-1 text-xs">
+              <span className="text-blue-700 flex items-center gap-1 text-xs">
                 <UserCheck className="w-4 h-4" />
-                <span>SIGN IN</span>
+                <span>GOOGLE CONNECT</span>
               </span>
             )}
           </button>
+        </div>
+
+        {/* Cozy Bulletin Banner */}
+        <div className="bg-gradient-to-r from-amber-50 via-pink-50 to-purple-50 border-2 border-amber-200 rounded-2xl p-2.5 sm:p-3 shadow-2xs flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xl shrink-0">📌</span>
+            <p className="font-handwritten text-xs sm:text-sm font-bold text-amber-950 leading-snug">
+              Leave notes, questions & appreciation at your own pace — Kritika & classmates reply at their own time! 💌
+            </p>
+          </div>
+          <span className="bg-amber-200/70 text-amber-900 font-display text-[9px] font-black uppercase px-2 py-0.5 rounded-full shrink-0 hidden sm:inline">
+            ASYNC REPLIES
+          </span>
         </div>
 
         {/* 2. DECLUTTERED LIVE MOOD RADAR: INSTAGRAM/SLACK-STYLE STATUS STORY RINGS */}
@@ -272,22 +340,35 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
           </div>
         </div>
 
-        {/* 3. SEGMENTED TABS & SEARCH BAR (Decluttered Navigation) */}
+        {/* 3. SEGMENTED TABS & SEARCH BAR (Bulletin Board Navigation) */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-1.5 bg-paper-100 p-1 rounded-2xl border-2 border-ink shadow-inner">
+          <div className="flex items-center justify-between gap-1 bg-paper-100 p-1 rounded-2xl border-2 border-ink shadow-inner overflow-x-auto scrollbar-none">
             <button
               onClick={() => {
                 audioEngine.playSfx('click');
                 setFeedScope('all');
               }}
-              className={`flex-1 py-1.5 px-2 rounded-xl font-display font-black text-xs transition-all flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-1.5 px-2 rounded-xl font-display font-black text-xs transition-all flex items-center justify-center gap-1 whitespace-nowrap cursor-pointer ${
                 feedScope === 'all'
                   ? 'bg-purple-700 text-white shadow-sketch-xs scale-102'
                   : 'text-ink-light hover:text-ink'
               }`}
             >
-              <MessageCircle className="w-3.5 h-3.5" />
-              <span>All Notes ({allPosts.length})</span>
+              <span>📌 All Notes ({allPosts.length})</span>
+            </button>
+
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setFeedScope('kritika');
+              }}
+              className={`flex-1 py-1.5 px-2 rounded-xl font-display font-black text-xs transition-all flex items-center justify-center gap-1 whitespace-nowrap cursor-pointer ${
+                feedScope === 'kritika'
+                  ? 'bg-pink-600 text-white shadow-sketch-xs scale-102'
+                  : 'text-ink-light hover:text-pink-600'
+              }`}
+            >
+              <span>💌 Kritika ({kritikaPostsCount})</span>
             </button>
 
             <button
@@ -295,7 +376,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 audioEngine.playSfx('click');
                 setFeedScope('mine');
               }}
-              className={`flex-1 py-1.5 px-2 rounded-xl font-display font-black text-xs transition-all flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-1.5 px-2 rounded-xl font-display font-black text-xs transition-all flex items-center justify-center gap-1 whitespace-nowrap cursor-pointer ${
                 feedScope === 'mine'
                   ? 'bg-purple-700 text-white shadow-sketch-xs scale-102'
                   : 'text-ink-light hover:text-ink'
@@ -309,9 +390,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 audioEngine.playSfx('click');
                 setFeedScope(feedScope === 'search' ? 'all' : 'search');
               }}
-              className={`py-1.5 px-3 rounded-xl font-display font-black text-xs transition-all flex items-center justify-center gap-1 ${
+              className={`py-1.5 px-2.5 rounded-xl font-display font-black text-xs transition-all flex items-center justify-center gap-1 cursor-pointer ${
                 feedScope === 'search' || searchQuery
-                  ? 'bg-pink-600 text-white shadow-sketch-xs'
+                  ? 'bg-ink text-white shadow-sketch-xs'
                   : 'text-ink-light hover:text-ink'
               }`}
               title="Search and filter notes"
@@ -424,11 +505,43 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 (currentUser?.name && post.studentName.toLowerCase() === currentUser.name.toLowerCase())
               );
 
+              const replies = post.replies || [];
+              const repliesCount = replies.length;
+              const hasKritikaReply = replies.some(r => r.isKritika);
+              const isExpanded = Boolean(expandedReplies[post.id]);
+              const replyText = replyInputMap[post.id] || '';
+              const sending = Boolean(isSendingReply[post.id]);
+
               return (
                 <div
                   key={post.id}
-                  className="bg-white border-2.5 border-ink rounded-3xl p-4 sm:p-5 shadow-sketch space-y-3 transition-all hover:border-purple-400"
+                  className={`bg-white border-2.5 rounded-3xl p-4 sm:p-5 shadow-sketch space-y-3 transition-all relative ${
+                    hasKritikaReply
+                      ? 'border-pink-400 bg-gradient-to-b from-pink-50/20 via-white to-white'
+                      : 'border-ink hover:border-purple-400'
+                  }`}
                 >
+                  {/* Decorative Pin for Bulletin Board aesthetic */}
+                  <div className="absolute -top-2.5 right-6 text-sm select-none pointer-events-none drop-shadow-xs">
+                    📌
+                  </div>
+
+                  {/* Highlight Banner if Kritika replied */}
+                  {hasKritikaReply && (
+                    <div className="bg-gradient-to-r from-pink-100/90 via-rose-50 to-amber-50 border border-pink-300 rounded-2xl p-2 px-3 flex items-center justify-between text-xs animate-scale-up shadow-2xs">
+                      <span className="font-display font-black text-rose-900 flex items-center gap-1.5 text-[11px] tracking-wide">
+                        <Heart className="w-3.5 h-3.5 text-rose-600 fill-rose-500" />
+                        <span>KRITIKA REPLIED TO THIS NOTE 💌</span>
+                      </span>
+                      <button
+                        onClick={() => handleToggleReplies(post.id)}
+                        className="text-[10px] font-handwritten font-bold text-rose-700 underline cursor-pointer hover:text-rose-900"
+                      >
+                        {isExpanded ? 'Hide' : 'Read Reply ↓'}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Post Header */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-3">
@@ -470,7 +583,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                               batchWallService.deletePost(post.id);
                             }
                           }}
-                          className="p-1.5 rounded-lg border border-rose-300 text-rose-600 hover:bg-rose-50 transition-colors"
+                          className="p-1.5 rounded-lg border border-rose-300 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                           title="Delete your post"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -495,31 +608,52 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                     </div>
                   )}
 
-                  {/* Reactions Section */}
-                  <div className="pt-2 border-t-1.5 border-dashed border-ink/20 flex flex-wrap items-center gap-1.5">
-                    {reactionEntries.map(([alias, count]) => {
-                      const st = STICKERS.find(s => s.alias === alias) || STICKERS[0];
-                      return (
-                        <button
-                          key={alias}
-                          onClick={() => handleAddReaction(post.id, alias)}
-                          className="inline-flex items-center gap-1 bg-paper-100 hover:bg-pink-100 border border-ink/30 px-2 py-0.5 rounded-full text-xs font-handwritten font-bold text-ink transition-transform active:scale-90"
-                        >
-                          <span>{st.badgeEmoji}</span>
-                          <span className="font-display font-black text-[11px]">{count}</span>
-                        </button>
-                      );
-                    })}
+                  {/* Actions Bar: Reactions & Reply Button */}
+                  <div className="pt-2 border-t-1.5 border-dashed border-ink/20 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {reactionEntries.map(([alias, count]) => {
+                        const st = STICKERS.find(s => s.alias === alias) || STICKERS[0];
+                        return (
+                          <button
+                            key={alias}
+                            onClick={() => handleAddReaction(post.id, alias)}
+                            className="inline-flex items-center gap-1 bg-paper-100 hover:bg-pink-100 border border-ink/30 px-2 py-0.5 rounded-full text-xs font-handwritten font-bold text-ink transition-transform active:scale-90 cursor-pointer"
+                          >
+                            <span>{st.badgeEmoji}</span>
+                            <span className="font-display font-black text-[11px]">{count}</span>
+                          </button>
+                        );
+                      })}
 
-                    {/* Add Reaction Button */}
+                      {/* Add Reaction Button */}
+                      <button
+                        onClick={() => {
+                          audioEngine.playSfx('click');
+                          setReactingPostId(reactingPostId === post.id ? null : post.id);
+                        }}
+                        className="inline-flex items-center gap-1 bg-white hover:bg-paper-200 border-1.5 border-dashed border-ink/40 px-2.5 py-0.5 rounded-full text-xs font-handwritten font-bold text-ink-light transition-colors cursor-pointer"
+                      >
+                        <span>+ React</span>
+                      </button>
+                    </div>
+
+                    {/* Async Threaded Reply Toggle Button */}
                     <button
-                      onClick={() => {
-                        audioEngine.playSfx('click');
-                        setReactingPostId(reactingPostId === post.id ? null : post.id);
-                      }}
-                      className="inline-flex items-center gap-1 bg-white hover:bg-paper-200 border-1.5 border-dashed border-ink/40 px-2.5 py-0.5 rounded-full text-xs font-handwritten font-bold text-ink-light transition-colors"
+                      onClick={() => handleToggleReplies(post.id)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-display font-black transition-all cursor-pointer ${
+                        isExpanded
+                          ? 'bg-purple-700 text-white shadow-sketch-xs'
+                          : repliesCount > 0
+                            ? (hasKritikaReply ? 'bg-pink-100 text-pink-900 border border-pink-300 hover:bg-pink-200' : 'bg-purple-100 text-purple-900 border border-purple-300 hover:bg-purple-200')
+                            : 'bg-white hover:bg-paper-100 border border-ink/30 text-ink-light'
+                      }`}
                     >
-                      <span>+ React</span>
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>
+                        {repliesCount > 0 
+                          ? `${repliesCount} ${repliesCount === 1 ? 'Reply' : 'Replies'}${hasKritikaReply ? ' 👑' : ''}`
+                          : 'Reply'}
+                      </span>
                     </button>
                   </div>
 
@@ -533,12 +667,112 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                         <button
                           key={s.alias}
                           onClick={() => handleAddReaction(post.id, s.alias)}
-                          className="w-8 h-8 rounded-xl bg-white border border-ink/30 flex items-center justify-center text-base hover:scale-110 active:scale-95 transition-transform shadow-xs"
+                          className="w-8 h-8 rounded-xl bg-white border border-ink/30 flex items-center justify-center text-base hover:scale-110 active:scale-95 transition-transform shadow-xs cursor-pointer"
                           title={s.title}
                         >
                           {s.badgeEmoji}
                         </button>
                       ))}
+                    </div>
+                  )}
+
+                  {/* 6. BULLETIN THREADED REPLIES DRAWER */}
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t-2 border-dashed border-ink/15 space-y-3 bg-paper-50/70 p-3 sm:p-4 rounded-2xl animate-scale-up">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-display font-black text-ink uppercase tracking-wide flex items-center gap-1.5">
+                          <span>💌</span>
+                          <span>Threaded Replies ({repliesCount})</span>
+                        </span>
+                        <span className="font-handwritten text-xs text-purple-700 font-bold">
+                          Reply at your own time ✨
+                        </span>
+                      </div>
+
+                      {/* Replies List */}
+                      {repliesCount === 0 ? (
+                        <p className="font-handwritten text-xs text-ink-light italic py-1">
+                          No replies yet. Be the first to leave a warm note or question!
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {replies.map(reply => (
+                            <div
+                              key={reply.id}
+                              className={`p-3 rounded-2xl transition-all ${
+                                reply.isKritika
+                                  ? 'bg-gradient-to-r from-pink-50 via-rose-50 to-amber-50 border-2 border-pink-300 shadow-xs'
+                                  : 'bg-white border border-ink/20 shadow-2xs'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-7 h-7 rounded-full overflow-hidden border ${
+                                    reply.isKritika ? 'border-pink-500 ring-2 ring-pink-200' : 'border-ink/20'
+                                  }`}>
+                                    <img
+                                      src={reply.avatarUrl || '/marisol/avatars/01_brighter_ideas.png'}
+                                      alt={reply.authorName}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-display font-black text-xs text-ink">
+                                      {reply.authorName}
+                                    </span>
+                                    {reply.isKritika && (
+                                      <span className="bg-gradient-to-r from-pink-500 to-rose-600 text-white font-display text-[9px] font-black uppercase px-2 py-0.2 rounded-full shadow-2xs flex items-center gap-1">
+                                        <span>👑 KRITIKA 💌</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <span className="font-handwritten text-[10px] text-ink-light font-bold">
+                                  {reply.timestamp}
+                                </span>
+                              </div>
+                              <p className={`font-sans text-xs leading-relaxed pl-9 ${
+                                reply.isKritika ? 'text-rose-950 font-medium' : 'text-ink'
+                              }`}>
+                                {reply.text}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Reply Composer Form */}
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleSendReply(post.id);
+                        }}
+                        className="flex items-center gap-2 pt-1"
+                      >
+                        <input
+                          type="text"
+                          value={replyText}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setReplyInputMap(prev => ({ ...prev, [post.id]: val }));
+                          }}
+                          placeholder={
+                            currentUser?.name?.toLowerCase().includes('kritika')
+                              ? "Reply as Kritika at your own time... 💌"
+                              : `Reply to ${post.studentName} at your own time...`
+                          }
+                          className="flex-1 px-3 py-2 bg-white border border-ink/30 rounded-xl text-xs font-medium outline-none focus:border-purple-600 transition-colors"
+                          required
+                        />
+                        <button
+                          type="submit"
+                          disabled={sending || !replyText.trim()}
+                          className="sketch-btn-primary px-3 py-2 text-xs font-black uppercase flex items-center gap-1 shadow-sketch-xs shrink-0 cursor-pointer disabled:opacity-50"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>{sending ? '...' : 'Reply'}</span>
+                        </button>
+                      </form>
                     </div>
                   )}
                 </div>

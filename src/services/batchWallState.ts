@@ -1,6 +1,18 @@
 // Shared Batch Wall State Service for MLP41PT Batch Students with Firebase Firestore
 import { db, collection, addDoc, onSnapshot, query, orderBy, limit, doc, setDoc, deleteDoc } from './firebase';
 
+export interface BulletinReply {
+  id: string;
+  authorId?: string;
+  authorName: string;
+  authorEmail?: string;
+  avatarUrl?: string;
+  text: string;
+  timestamp: string;
+  createdAt: number;
+  isKritika?: boolean; // Highlighted special reply from Kritika!
+}
+
 export interface BatchUpdatePost {
   id: string;
   userId?: string;
@@ -15,6 +27,8 @@ export interface BatchUpdatePost {
   timestamp: string; // ISO or human readable
   createdAt?: number;
   reactions: Record<string, number>; // stickerAlias -> count
+  replies?: BulletinReply[]; // Asynchronous threaded replies from Kritika and classmates
+  category?: 'tribute' | 'question' | 'cheer' | 'general';
 }
 
 const STORAGE_KEY = 'marisol_batch_updates_v2';
@@ -238,6 +252,58 @@ class BatchWallService {
     }
 
     this.notify();
+  }
+
+  /**
+   * Post an async reply to a bulletin note (allows Kritika or classmates to reply at their own time)
+   */
+  public async addReply(postId: string, replyData: {
+    authorId?: string;
+    authorName: string;
+    authorEmail?: string;
+    avatarUrl?: string;
+    text: string;
+    isKritika?: boolean;
+  }): Promise<BulletinReply | null> {
+    const post = this.posts.find(p => p.id === postId);
+    if (!post) return null;
+
+    if (!post.replies) {
+      post.replies = [];
+    }
+
+    const email = replyData.authorEmail || '';
+    const name = replyData.authorName || '';
+    const isKritika = replyData.isKritika || 
+      name.toLowerCase().includes('kritika') || 
+      email.toLowerCase().includes('kritika') ||
+      name.toLowerCase().includes('marisol');
+
+    const newReply: BulletinReply = {
+      id: `rep_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      authorId: replyData.authorId,
+      authorName: replyData.authorName.trim() || 'Batch 41 Classmate',
+      authorEmail: replyData.authorEmail,
+      avatarUrl: replyData.avatarUrl || '/marisol/avatars/01_brighter_ideas.png',
+      text: replyData.text.trim(),
+      timestamp: 'Just now',
+      createdAt: Date.now(),
+      isKritika
+    };
+
+    post.replies.push(newReply);
+    this.saveToStorage();
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'batch_updates', postId), { replies: post.replies }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to sync reply to Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return newReply;
   }
 
   public subscribe(listener: () => void) {

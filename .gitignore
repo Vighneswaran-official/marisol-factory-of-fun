@@ -26,3 +26,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+*.apk
+apk_latest/
+apk_output/
+platform-tools/
