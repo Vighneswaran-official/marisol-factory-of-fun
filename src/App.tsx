@@ -29,7 +29,6 @@ import { LevelClearHeroModal } from './components/LevelClearHeroModal';
 import { InstallAppModal } from './components/InstallAppModal';
 import { GlowUpWeekModal } from './components/GlowUpWeekModal';
 import { CozyModeOverlay } from './components/CozyModeOverlay';
-import { CartoonTalkiesModal } from './components/CartoonTalkiesModal';
 import { BottomNavigationDock, type MainNavTab } from './components/BottomNavigationDock';
 import { RECIPES } from './data/recipes';
 import confetti from 'canvas-confetti';
@@ -61,8 +60,6 @@ export function App() {
   const [showCelebrationLocket, setShowCelebrationLocket] = useState(false);
   const [showGlowUpWeek, setShowGlowUpWeek] = useState(false);
   const [showCozyMode, setShowCozyMode] = useState(false);
-  const [showCartoonTalkies, setShowCartoonTalkies] = useState(false);
-  const [cartoonTalkiesMode, setCartoonTalkiesMode] = useState<'video' | 'magazine'>('video');
   const [showInstallApp, setShowInstallApp] = useState(false);
 
   const [selectedHindiSongId, setSelectedHindiSongId] = useState<string | undefined>(undefined);
@@ -206,8 +203,6 @@ export function App() {
     setActiveNavTab(tab);
     if (tab === 'home') {
       setCurrentScreen('home');
-    } else if (tab === 'anime') {
-      setShowCartoonTalkies(true);
     } else if (tab === 'lounge') {
       setShowMusicJukebox(true);
     } else if (tab === 'quiz') {
@@ -244,10 +239,6 @@ export function App() {
             onOpenSecretLocket={() => setShowSecretLocket(true)}
             onOpenGlowUpWeek={() => setShowGlowUpWeek(true)}
             onOpenCozyMode={() => setShowCozyMode(true)}
-            onOpenCartoonTalkies={(mode = 'video') => {
-              setCartoonTalkiesMode(mode);
-              setShowCartoonTalkies(true);
-            }}
             onOpenInstallApp={() => setShowInstallApp(true)}
           />
         )}
@@ -338,13 +329,6 @@ export function App() {
             onCookRecipe={startCookingRecipeDirect}
           />
         )}
-
-        {/* Cartoon Talkies Speaking Video Studio & Magazine Modal */}
-        <CartoonTalkiesModal
-          isOpen={showCartoonTalkies}
-          initialMode={cartoonTalkiesMode}
-          onClose={() => setShowCartoonTalkies(false)}
-        />
 
         {/* Pre-Quiz Mood Selector Modal */}
         {showMoodModal && (
