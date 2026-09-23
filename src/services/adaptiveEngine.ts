@@ -90,13 +90,15 @@ class AdaptiveEngine {
   }
 
   // Select next question adaptively
-  public selectQuestions(category: Category, count: number = 5, playedIds: string[] = []): Question[] {
+  public selectQuestions(category?: Category, count: number = 5, playedIds: string[] = []): Question[] {
     let available = QUESTIONS_DATABASE.filter(q => !playedIds.includes(q.id));
 
     // If category specific, filter by category
-    const categoryQuestions = available.filter(q => q.category === category);
-    if (categoryQuestions.length >= count) {
-      available = categoryQuestions;
+    if (category) {
+      const categoryQuestions = available.filter(q => q.category === category);
+      if (categoryQuestions.length >= count) {
+        available = categoryQuestions;
+      }
     }
 
     // Check if we have missed questions to reintroduce (Spaced Repetition)

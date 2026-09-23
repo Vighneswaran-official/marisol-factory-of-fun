@@ -1,478 +1,287 @@
 import { useState } from 'react';
-import type { ScreenState, Zone, Question, Recipe } from './types/game';
+import type { ScreenState, Question } from './types/game';
 import { gameState } from './services/gameState';
-import { adaptiveEngine } from './services/adaptiveEngine';
 import { audioEngine } from './services/synthAudioEngine';
 import { Navbar } from './components/Navbar';
-import { OpeningCinematic } from './components/OpeningCinematic';
 import { HomeScreen } from './components/HomeScreen';
-import { GameMap } from './components/GameMap';
 import { QuestionCard } from './components/QuestionCard';
-import { MovieDetectiveCard } from './components/MovieDetectiveCard';
 import { LearningCard } from './components/LearningCard';
-import { DailyChallenge } from './components/DailyChallenge';
-import { PlayerProfileCard } from './components/PlayerProfileCard';
-import { Classroom } from './components/Classroom';
-import { MoodSelectorModal } from './components/MoodSelectorModal';
-import { RecipeModal } from './components/RecipeModal';
-import { VaultHub } from './components/VaultHub';
 import { BatchUpdatesWall } from './components/BatchUpdatesWall';
-import { MusicJukeboxModal } from './components/MusicJukeboxModal';
-import { ComfortCornerModal } from './components/ComfortCornerModal';
-import { SecretLocketModal } from './components/SecretLocketModal';
-import { CelebrationLocketModal } from './components/CelebrationLocketModal';
-import { LevelClearHeroModal } from './components/LevelClearHeroModal';
-import { InstallAppModal } from './components/InstallAppModal';
-import { GlowUpWeekModal } from './components/GlowUpWeekModal';
 import { GoogleSignInModal } from './components/GoogleSignInModal';
 import { BottomNavigationDock, type MainNavTab } from './components/BottomNavigationDock';
-import { FloatingVideoPlayer } from './components/FloatingVideoPlayer';
-import { RECIPES } from './data/recipes';
+import { 
+  getQuestionsForMood, 
+  getMoodMacaroni, 
+  KRITIKA_STICKER_MOODS,
+  type MoodProfileSetting 
+} from './services/moodQuizService';
+import { ArrowLeft, RefreshCw, Trophy, Clock, Film } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export function App() {
   const [player, setPlayer] = useState(gameState.getPlayer());
-  const [currentScreen, setCurrentScreen] = useState<ScreenState>(() => {
-    return player.onboardingCompleted ? 'home' : 'cinematic';
-  });
+  const [currentScreen, setCurrentScreen] = useState<ScreenState>('home');
+  const [activeNavTab, setActiveNavTab] = useState<MainNavTab>('home');
+  const [showGoogleSignIn, setShowGoogleSignIn] = useState(false);
 
-  const [_activeZone, setActiveZone] = useState<Zone | null>(null);
+  // Active Mood State
+  const [activeMoodId, setActiveMoodId] = useState<string>('happy');
 
   // Active Quiz Round State
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [currentQIndex, setCurrentQIndex] = useState(0);
-  const [roundSandwiches, setRoundSandwiches] = useState(0);
+  const [roundScore, setRoundScore] = useState(0);
   const [showLearningCard, setShowLearningCard] = useState(false);
   const [lastAnswer, setLastAnswer] = useState<{ option: string; isCorrect: boolean } | null>(null);
   const [playedIds, setPlayedIds] = useState<string[]>([]);
+  const [quizFinished, setQuizFinished] = useState(false);
 
-  // Foodie & Cinema State
-  const [showMoodModal, setShowMoodModal] = useState(false);
-  const [showRecipeModal, setShowRecipeModal] = useState(false);
-  const [showMusicJukebox, setShowMusicJukebox] = useState(false);
-  const [showComfortCorner, setShowComfortCorner] = useState(false);
-  const [showSecretLocket, setShowSecretLocket] = useState(false);
-  const [showLevelClearHero, setShowLevelClearHero] = useState(false);
-  const [showCelebrationLocket, setShowCelebrationLocket] = useState(false);
-  const [showGlowUpWeek, setShowGlowUpWeek] = useState(false);
-  const [showInstallApp, setShowInstallApp] = useState(false);
-  const [showGoogleSignIn, setShowGoogleSignIn] = useState(false);
+  // Active Mood Details
+  const currentMoodSetting: MoodProfileSetting = 
+    KRITIKA_STICKER_MOODS.find(m => m.id === activeMoodId) || KRITIKA_STICKER_MOODS[0];
+  const currentMacaroni = getMoodMacaroni(activeMoodId);
 
-  const [selectedHindiSongId, setSelectedHindiSongId] = useState<string | undefined>(undefined);
-  const [activeTargetRecipe, setActiveTargetRecipe] = useState<Recipe>(RECIPES[0]);
-  const [endlessRoundCount, setEndlessRoundCount] = useState(0);
-  const [titleUpgraded, setTitleUpgraded] = useState(false);
-  const [activeNavTab, setActiveNavTab] = useState<MainNavTab>('home');
-
-  // Screen navigation (no intrusive auto background music)
+  // Screen navigation handler
   const handleNavigate = (screen: ScreenState) => {
     setCurrentScreen(screen);
     setPlayer(gameState.getPlayer());
-    if (screen === 'home') setActiveNavTab('home');
-    else if (screen === 'batch_wall') setActiveNavTab('wall');
-    else if (screen === 'quiz') setActiveNavTab('play');
-    else if (screen === 'vault' || screen === 'recipes' || screen === 'stickers' || screen === 'passport') setActiveNavTab('vault');
-    else if (screen === 'profile') setActiveNavTab('profile');
+    if (screen === 'home') {
+      setActiveNavTab('home');
+      setQuizFinished(false);
+    } else if (screen === 'batch_wall') {
+      setActiveNavTab('wall');
+      setQuizFinished(false);
+    } else if (screen === 'quiz') {
+      setActiveNavTab('quiz');
+    }
   };
 
-  // Launch Mood-first Quiz Flow
-  const handleStartCulinaryTrivia = () => {
-    setShowMoodModal(true);
+  // Bottom Navigation tab click handler
+  const handleBottomTabSelect = (tab: MainNavTab) => {
+    setActiveNavTab(tab);
+    if (tab === 'home') {
+      handleNavigate('home');
+    } else if (tab === 'quiz') {
+      handleStartMoodQuiz(activeMoodId);
+    } else if (tab === 'wall') {
+      handleNavigate('batch_wall');
+    }
   };
 
-  const handleConfirmMood = (selectedMood: string) => {
-    gameState.setActiveSticker(selectedMood);
-    setShowMoodModal(false);
-
-    // Generate endless course tailored to this mood
-    const { questions, targetRecipe } = gameState.getEndlessCourse(selectedMood, endlessRoundCount);
-    setActiveTargetRecipe(targetRecipe);
-    setQuizQuestions(questions);
+  // Launch Quiz Tailored to Girl's Selected Mood
+  const handleStartMoodQuiz = (moodId: string) => {
+    setActiveMoodId(moodId);
+    audioEngine.playSfx('fanfare');
+    const moodQuestions = getQuestionsForMood(moodId, 5, playedIds);
+    setQuizQuestions(moodQuestions);
     setCurrentQIndex(0);
-    setRoundSandwiches(0);
+    setRoundScore(0);
     setShowLearningCard(false);
-    gameState.clearCollectedIngredients();
-    setPlayer(gameState.getPlayer());
-
+    setQuizFinished(false);
     setCurrentScreen('quiz');
-    setActiveNavTab('play');
-  };
-
-  const startZoneQuiz = (zone: Zone) => {
-    setActiveZone(zone);
-
-    const selected = adaptiveEngine.selectQuestions(zone.category, 5, playedIds);
-    setQuizQuestions(selected);
-    setCurrentQIndex(0);
-    setRoundSandwiches(0);
-    setShowLearningCard(false);
-    setCurrentScreen('quiz');
-    setActiveNavTab('play');
+    setActiveNavTab('quiz');
     audioEngine.startMusic('quiz');
   };
 
-  const startCookingRecipeDirect = (recipe: Recipe) => {
-    setActiveTargetRecipe(recipe);
-    const { questions } = gameState.getEndlessCourse(recipe.moodMatch, endlessRoundCount);
-    setQuizQuestions(questions);
-    setCurrentQIndex(0);
-    setRoundSandwiches(0);
-    setShowLearningCard(false);
-    gameState.clearCollectedIngredients();
-    setPlayer(gameState.getPlayer());
-    setCurrentScreen('quiz');
-    setActiveNavTab('play');
-    audioEngine.startMusic('quiz');
-  };
-
-  const handleAnswerQuestion = (selectedOption: string, timeTakenMs: number) => {
+  // Handle Question Answer
+  const handleAnswerQuestion = (selectedOption: string, _timeTakenMs: number) => {
     const currentQ = quizQuestions[currentQIndex];
     const isCorrect = selectedOption === currentQ.correctAnswer;
-    const earnedSandwiches = isCorrect ? 3 : 0;
+    const points = isCorrect ? 3 : 0;
 
-    adaptiveEngine.recordAnswer(currentQ, isCorrect, timeTakenMs);
     gameState.recordQuestionAnswered(isCorrect);
 
     if (isCorrect) {
+      audioEngine.playSfx('fanfare');
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
       gameState.incrementStreak();
-      const res = gameState.addCucumberSandwiches(earnedSandwiches);
-      if (res.titleUpgraded) setTitleUpgraded(true);
-      setRoundSandwiches(prev => prev + earnedSandwiches);
-
-      if (currentQ.secretIngredient) {
-        gameState.addCollectedIngredient(currentQ.secretIngredient);
-      }
+      gameState.addCucumberSandwiches(points);
+      setRoundScore(prev => prev + points);
     } else {
+      audioEngine.playSfx('wrong');
       gameState.resetStreak();
     }
+    setPlayer(gameState.getPlayer());
 
     setLastAnswer({ option: selectedOption, isCorrect });
     setPlayedIds(prev => [...prev, currentQ.id]);
     setShowLearningCard(true);
-    setPlayer(gameState.getPlayer());
   };
 
+  // Move to Next Question or Complete Quiz
   const handleNextQuizQuestion = () => {
     setShowLearningCard(false);
-    setLastAnswer(null);
-
     if (currentQIndex + 1 < quizQuestions.length) {
       setCurrentQIndex(prev => prev + 1);
     } else {
+      setQuizFinished(true);
       audioEngine.playSfx('fanfare');
-      confetti({ particleCount: 120, spread: 80, origin: { y: 0.55 } });
-      
-      const completionBonus = 5;
-      gameState.addCucumberSandwiches(completionBonus);
-      setRoundSandwiches(prev => prev + completionBonus);
-      gameState.unlockRecipe(activeTargetRecipe.id);
-      
-      setPlayer(gameState.getPlayer());
-      // Trigger Hero Banner Video level clear celebration!
-      setShowLevelClearHero(true);
-    }
-  };
-
-  const handleStartNextCourse = () => {
-    setShowRecipeModal(false);
-    setTitleUpgraded(false);
-    const nextCount = endlessRoundCount + 1;
-    setEndlessRoundCount(nextCount);
-
-    const activeSticker = gameState.getActiveSticker();
-    const { questions, targetRecipe } = gameState.getEndlessCourse(activeSticker, nextCount);
-    setActiveTargetRecipe(targetRecipe);
-    setQuizQuestions(questions);
-    setCurrentQIndex(0);
-    setRoundSandwiches(0);
-    setShowLearningCard(false);
-    gameState.clearCollectedIngredients();
-    setPlayer(gameState.getPlayer());
-
-    setCurrentScreen('quiz');
-  };
-
-  const handleBottomTabSelect = (tab: MainNavTab) => {
-    setActiveNavTab(tab);
-    if (tab === 'home') {
-      setCurrentScreen('home');
-    } else if (tab === 'wall') {
-      setCurrentScreen('batch_wall');
-    } else if (tab === 'play') {
-      handleStartCulinaryTrivia();
-    } else if (tab === 'comfort') {
-      setShowComfortCorner(true);
-    } else if (tab === 'vault') {
-      setCurrentScreen('vault');
-    } else if (tab === 'profile') {
-      setCurrentScreen('profile');
+      confetti({ particleCount: 90, spread: 85, origin: { y: 0.5 } });
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] font-sans text-ink selection:bg-pink-200">
-      
-      {/* Show Header Navbar on all screens except cinematic intro */}
-      {currentScreen !== 'cinematic' && (
-        <Navbar 
-          currentScreen={currentScreen} 
-          onNavigate={handleNavigate} 
-          onOpenInstallApp={() => setShowInstallApp(true)}
-          onOpenGoogleSignIn={() => setShowGoogleSignIn(true)}
-        />
-      )}
+    <div className="min-h-screen bg-[#FFFDF7] text-ink font-sans antialiased selection:bg-pink-200">
+      {/* Top Navbar */}
+      <Navbar
+        currentScreen={currentScreen}
+        onNavigate={handleNavigate}
+        onOpenGoogleSignIn={() => setShowGoogleSignIn(true)}
+      />
 
-      {/* Main Screen Container */}
-      <main className="animate-fade-in pb-16">
-        {currentScreen === 'cinematic' && (
-          <OpeningCinematic onComplete={() => handleNavigate('home')} />
-        )}
-
+      {/* Main Content Area */}
+      <main className="animate-fade-in pb-20">
+        
+        {/* 1. HOME SCREEN: Hero Video, Mood Selector & Macaroni Preview */}
         {currentScreen === 'home' && (
           <HomeScreen
             onNavigate={handleNavigate}
-            onQuickPlay={handleStartCulinaryTrivia}
-            onOpenMusic={() => setShowMusicJukebox(true)}
-            onOpenComfortCorner={() => setShowComfortCorner(true)}
-            onOpenSecretLocket={() => setShowSecretLocket(true)}
-            onOpenGlowUpWeek={() => setShowGlowUpWeek(true)}
-            onOpenInstallApp={() => setShowInstallApp(true)}
+            onStartMoodQuiz={handleStartMoodQuiz}
             onOpenGoogleSignIn={() => setShowGoogleSignIn(true)}
+            activeMoodId={activeMoodId}
+            onSelectMood={setActiveMoodId}
           />
         )}
 
-        {currentScreen === 'map' && (
-          <GameMap onSelectZone={startZoneQuiz} />
-        )}
+        {/* 2. MOOD-ADAPTED QUIZ GAME SCREEN */}
+        {currentScreen === 'quiz' && (
+          <div className="max-w-xl mx-auto p-4 sm:p-6 pb-28 space-y-4">
+            {/* Quiz Top Action Bar */}
+            <div className="flex items-center justify-between gap-2 border-b-2 border-ink/10 pb-3">
+              <button
+                onClick={() => handleNavigate('home')}
+                className="sketch-btn py-1.5 px-3 bg-white flex items-center gap-1.5 shadow-sketch text-xs font-display font-bold hover:bg-paper-100 transition-all cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>HOME</span>
+              </button>
 
-        {currentScreen === 'quiz' && quizQuestions.length > 0 && (
-          <div className="p-4 sm:p-6 pb-24">
-            {!showLearningCard ? (
-              quizQuestions[currentQIndex]?.type === 'movie_detective' ? (
-                <MovieDetectiveCard
-                  question={quizQuestions[currentQIndex]}
-                  questionNumber={currentQIndex + 1}
-                  totalQuestions={quizQuestions.length}
-                  onAnswer={handleAnswerQuestion}
-                />
-              ) : (
-                <QuestionCard
-                  question={quizQuestions[currentQIndex]}
-                  questionNumber={currentQIndex + 1}
-                  totalQuestions={quizQuestions.length}
-                  onAnswer={handleAnswerQuestion}
-                />
+              <div className="text-center">
+                <span className="font-display font-black text-xs uppercase text-pink-600 tracking-wider">
+                  {currentMoodSetting.emoji} {currentMoodSetting.label} Quiz
+                </span>
+                <h2 className="font-display font-black text-lg text-ink">
+                  Question {currentQIndex + 1} of {quizQuestions.length}
+                </h2>
+              </div>
+
+              <div className="flex items-center gap-1 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-full text-xs font-display font-black text-amber-900 shadow-2xs">
+                <span>🔥 Streak:</span>
+                <span>{player.streak}</span>
+              </div>
+            </div>
+
+            {/* Quiz Card or Finish View */}
+            {!quizFinished ? (
+              quizQuestions.length > 0 && (
+                <div>
+                  {!showLearningCard ? (
+                    <QuestionCard
+                      question={quizQuestions[currentQIndex]}
+                      questionNumber={currentQIndex + 1}
+                      totalQuestions={quizQuestions.length}
+                      onAnswer={handleAnswerQuestion}
+                    />
+                  ) : (
+                    <LearningCard
+                      question={quizQuestions[currentQIndex]}
+                      isCorrect={lastAnswer?.isCorrect || false}
+                      userAnswer={lastAnswer?.option || ''}
+                      earnedXp={lastAnswer?.isCorrect ? 150 : 0}
+                      onNext={handleNextQuizQuestion}
+                    />
+                  )}
+                </div>
               )
             ) : (
-              <LearningCard
-                question={quizQuestions[currentQIndex]}
-                isCorrect={lastAnswer?.isCorrect || false}
-                userAnswer={lastAnswer?.option || ''}
-                earnedXp={lastAnswer?.isCorrect ? 150 : 0}
-                onNext={handleNextQuizQuestion}
-              />
+              /* Quiz Completed Celebration with Mood Macaroni Award! */
+              <div className="bg-white border-2.5 border-ink rounded-3xl p-5 sm:p-7 text-center space-y-4 shadow-sketch animate-scale-up">
+                <div className="w-16 h-16 mx-auto bg-amber-100 border-2 border-ink rounded-2xl flex items-center justify-center text-3xl shadow-xs">
+                  <Trophy className="w-8 h-8 text-amber-600" />
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-xs font-display font-black uppercase text-pink-600 tracking-wider">
+                    {currentMoodSetting.emoji} {currentMoodSetting.label} QUIZ CLEARED!
+                  </span>
+                  <h3 className="font-display font-black text-2xl text-ink">
+                    You Earned {roundScore} Macaronis! 🧀
+                  </h3>
+                  <p className="font-handwritten text-sm text-stone-600 font-bold">
+                    Total Comfort Sandwiches: {player.cucumberSandwiches} 🥪
+                  </p>
+                </div>
+
+                {/* Unlocked Mood Macaroni Dish Card */}
+                <div className="bg-gradient-to-r from-amber-50/90 via-pink-50 to-purple-50 border-2 border-amber-300 rounded-2xl p-4 text-left space-y-2 shadow-inner">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{currentMacaroni.emoji}</span>
+                      <div>
+                        <span className="text-[10px] font-display font-black uppercase text-amber-700">
+                          COMFORT MACARONI REWARD
+                        </span>
+                        <h4 className="font-display font-black text-sm text-ink">
+                          {currentMacaroni.name}
+                        </h4>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-amber-900 bg-white/80 px-2 py-0.5 rounded-full border border-amber-200">
+                      <Clock className="w-3 h-3 text-amber-700" />
+                      <span>{currentMacaroni.cookTime}</span>
+                    </div>
+                  </div>
+
+                  <p className="font-sans text-xs text-stone-700 leading-snug">
+                    {currentMacaroni.description}
+                  </p>
+
+                  <div className="flex items-center gap-1.5 text-xs pt-1 border-t border-amber-200/60">
+                    <Film className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                    <span className="font-display font-bold text-amber-950">Pairing:</span>
+                    <span className="font-medium text-stone-600 truncate">{currentMacaroni.pairingMovie}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+                  <button
+                    onClick={() => handleStartMoodQuiz(activeMoodId)}
+                    className="sketch-btn-primary flex-1 py-3 text-xs sm:text-sm font-black uppercase flex items-center justify-center gap-2 shadow-sketch cursor-pointer"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Play Another Round</span>
+                  </button>
+                  <button
+                    onClick={() => handleNavigate('home')}
+                    className="sketch-btn flex-1 py-3 text-xs sm:text-sm font-black uppercase bg-white border-2 border-ink hover:bg-paper-100 flex items-center justify-center gap-1.5 shadow-sketch cursor-pointer"
+                  >
+                    <span>Back to Home & Video 🏠</span>
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}
 
-
-        {currentScreen === 'daily' && (
-          <DailyChallenge onComplete={() => {
-            setShowLevelClearHero(true);
-            handleNavigate('home');
-          }} />
-        )}
-
-        {currentScreen === 'profile' && (
-          <PlayerProfileCard
-            onNavigate={handleNavigate}
-            onOpenSecretLocket={() => setShowSecretLocket(true)}
-            onOpenGlowUpWeek={() => setShowGlowUpWeek(true)}
-            onOpenMusicJukebox={() => setShowMusicJukebox(true)}
-            onOpenInstallApp={() => setShowInstallApp(true)}
-          />
-        )}
-
-        {currentScreen === 'classroom' && (
-          <Classroom 
-            mode="student" 
-            onStartQuiz={handleStartCulinaryTrivia} 
-            onNavigateHome={() => handleNavigate('home')} 
-          />
-        )}
-
-        {currentScreen === 'teacher_custom' && (
-          <Classroom 
-            mode="teacher" 
-            onStartQuiz={handleStartCulinaryTrivia} 
-            onNavigateHome={() => handleNavigate('home')} 
-          />
-        )}
-
-        {currentScreen === 'secret_classroom' && (
-          <Classroom 
-            mode="secret" 
-            onStartQuiz={handleStartCulinaryTrivia} 
-            onNavigateHome={() => handleNavigate('home')} 
-          />
-        )}
-
-        {currentScreen === 'vault' && (
-          <VaultHub
-            onNavigate={handleNavigate}
-            onCookRecipe={startCookingRecipeDirect}
-            onSelectMood={(_alias) => setPlayer(gameState.getPlayer())}
-          />
-        )}
-
-        {currentScreen === 'recipes' && (
-          <VaultHub
-            initialTab="recipes"
-            onNavigate={handleNavigate}
-            onCookRecipe={startCookingRecipeDirect}
-            onSelectMood={(_alias) => setPlayer(gameState.getPlayer())}
-          />
-        )}
-
-        {currentScreen === 'stickers' && (
-          <VaultHub
-            initialTab="stickers"
-            onNavigate={handleNavigate}
-            onCookRecipe={startCookingRecipeDirect}
-            onSelectMood={(_alias) => setPlayer(gameState.getPlayer())}
-          />
-        )}
-
-        {currentScreen === 'passport' && (
-          <VaultHub
-            initialTab="passport"
-            onNavigate={handleNavigate}
-            onCookRecipe={startCookingRecipeDirect}
-            onSelectMood={(_alias) => setPlayer(gameState.getPlayer())}
-          />
-        )}
-
+        {/* 3. BULLETIN CHAT (Batch Updates Wall) */}
         {currentScreen === 'batch_wall' && (
-          <BatchUpdatesWall
-            onNavigate={handleNavigate}
-          />
+          <BatchUpdatesWall onNavigate={handleNavigate} />
         )}
 
-        {/* Pre-Quiz Mood Selector Modal */}
-        {showMoodModal && (
-          <MoodSelectorModal
-            currentMood={gameState.getActiveSticker()}
-            onSelectMood={handleConfirmMood}
-            onClose={() => setShowMoodModal(false)}
-            onOpenComfortCorner={() => setShowComfortCorner(true)}
-          />
-        )}
-
-        {/* Music Jukebox / Lounge Modal */}
-        {showMusicJukebox && (
-          <MusicJukeboxModal
-            initialSongId={selectedHindiSongId}
-            onClose={() => {
-              setShowMusicJukebox(false);
-              setSelectedHindiSongId(undefined);
-            }}
-          />
-        )}
-
-        {/* Girl's Perspective Comfort & Mood SOS Modal */}
-        {showComfortCorner && (
-          <ComfortCornerModal
-            onClose={() => {
-              setShowComfortCorner(false);
-              setPlayer(gameState.getPlayer());
-            }}
-            onOpenMusic={() => {
-              setShowComfortCorner(false);
-              setSelectedHindiSongId(undefined);
-              setShowMusicJukebox(true);
-            }}
-            onOpenHindiSong={(songId) => {
-              setShowComfortCorner(false);
-              setSelectedHindiSongId(songId);
-              setShowMusicJukebox(true);
-            }}
-          />
-        )}
-
-        {/* Secret Locket Modal */}
-        {showSecretLocket && (
-          <SecretLocketModal onClose={() => setShowSecretLocket(false)} />
-        )}
-
-        {/* Install / Download App Modal (Android & iOS) */}
-        {showInstallApp && (
-          <InstallAppModal onClose={() => setShowInstallApp(false)} />
-        )}
-
-        {/* Level Cleared Hero Banner Video Celebration Modal */}
-        {showLevelClearHero && (
-          <LevelClearHeroModal
-            earnedSandwiches={roundSandwiches || 5}
-            onClose={() => {
-              setShowLevelClearHero(false);
-              setShowRecipeModal(true);
-            }}
-          />
-        )}
-
-        {/* Milestone / Level Celebration Locket Animation */}
-        {showCelebrationLocket && (
-          <CelebrationLocketModal
-            onClose={() => {
-              setShowCelebrationLocket(false);
-              setShowRecipeModal(true);
-            }}
-          />
-        )}
-
-        {/* Glow-Up Week Polaroid Scrapbook Modal */}
-        {showGlowUpWeek && (
-          <GlowUpWeekModal onClose={() => setShowGlowUpWeek(false)} />
-        )}
-
-        {/* Google Sign In & Student Presence Modal */}
-        {showGoogleSignIn && (
-          <GoogleSignInModal onClose={() => setShowGoogleSignIn(false)} />
-        )}
-
-        {/* Level Complete Secret Recipe Reveal Modal */}
-        {showRecipeModal && (
-          <RecipeModal
-            recipe={activeTargetRecipe}
-            earnedSandwiches={roundSandwiches}
-            chefTitle={player.chefTitle || 'Apprentice Chopper 🥒'}
-            titleUpgraded={titleUpgraded}
-            collectedIngredients={gameState.getCollectedIngredients()}
-            activeMood={gameState.getActiveSticker()}
-            onNextCourse={handleStartNextCourse}
-            onViewVault={() => {
-              setShowRecipeModal(false);
-              handleNavigate('recipes');
-            }}
-            onGoHome={() => {
-              setShowRecipeModal(false);
-              handleNavigate('home');
-            }}
-          />
-        )}
       </main>
 
-      {/* Floating Bottom Navigation Dock */}
-      {currentScreen !== 'cinematic' && (
-        <BottomNavigationDock
-          activeTab={activeNavTab}
-          onTabSelect={handleBottomTabSelect}
-        />
-      )}
+      {/* Floating Bottom Navigation Dock (Home & Video | Mood Quiz | Bulletin Chat) */}
+      <BottomNavigationDock
+        activeTab={activeNavTab}
+        onTabSelect={handleBottomTabSelect}
+      />
 
-      {/* Background / Minimized Floating Video Player (Picture-in-Picture) */}
-      <FloatingVideoPlayer />
+      {/* Clean Google Sign-In & Student Profile Modal */}
+      {showGoogleSignIn && (
+        <GoogleSignInModal onClose={() => setShowGoogleSignIn(false)} />
+      )}
     </div>
   );
 }
+
 export default App;

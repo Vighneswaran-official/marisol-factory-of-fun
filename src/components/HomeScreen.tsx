@@ -1,583 +1,352 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useRef } from 'react';
 import type { ScreenState } from '../types/game';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
-import { wellnessState, KRITIKA_MOODS, type KritikaMoodId } from '../services/wellnessState';
-import { RECIPES } from '../data/recipes';
-import { STICKERS } from '../data/stickers';
-import { Marisol } from './Marisol';
-import { SparkleStreak } from './SparkleStreak';
-import { batchWallService } from '../services/batchWallState';
 import { authService } from '../services/authService';
 import { 
-  Play, 
-  Sparkles, 
-  Heart, 
-  Lock, 
-  Camera, 
-  Music,
-  Film,
-  ChefHat,
-  ArrowRight,
-  RefreshCw,
-  Image as ImageIcon,
-  MessageSquareHeart,
-  LogIn
+  KRITIKA_STICKER_MOODS, 
+  getMoodMacaroni, 
+  type MoodProfileSetting 
+} from '../services/moodQuizService';
+import { 
+  Play, Pause, Volume2, VolumeX, Sparkles, 
+  MessageCircle, UserCheck, CheckCircle2, Flame,
+  Clock, Film
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import heroBannerVideoSrc from '../assets/Hero Banner video.mp4';
 
 interface HomeScreenProps {
   onNavigate: (screen: ScreenState) => void;
-  onQuickPlay: () => void;
-  onOpenMusic: () => void;
-  onOpenComfortCorner: () => void;
-  onOpenSecretLocket: () => void;
-  onOpenGlowUpWeek: () => void;
-  onOpenInstallApp?: () => void;
+  onStartMoodQuiz: (moodId: string) => void;
   onOpenGoogleSignIn?: () => void;
+  activeMoodId: string;
+  onSelectMood: (moodId: string) => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigate,
-  onQuickPlay,
-  onOpenMusic,
-  onOpenComfortCorner,
-  onOpenSecretLocket,
-  onOpenGlowUpWeek,
-  onOpenInstallApp,
+  onStartMoodQuiz,
   onOpenGoogleSignIn,
+  activeMoodId,
+  onSelectMood
 }) => {
   const [, setTick] = useState(0);
   const player = gameState.getPlayer();
-  const currentQueenMood = wellnessState.getQueenMood();
-  const moodProfile = wellnessState.getMoodProfile();
   const currentUser = authService.getCurrentUser();
   const isAuthenticated = authService.isAuthenticated();
 
-  useEffect(() => {
-    const unsub = wellnessState.subscribe(() => setTick(t => t + 1));
-    return unsub;
-  }, []);
+  // Video Player State
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(true);
 
-  const handleSelectQueenMood = (moodId: KritikaMoodId) => {
-    audioEngine.playSfx('click');
-    wellnessState.setQueenMood(moodId);
-  };
+  // Active Selected Mood & Matching Macaroni
+  const currentMoodSetting: MoodProfileSetting = 
+    KRITIKA_STICKER_MOODS.find(m => m.id === activeMoodId) || KRITIKA_STICKER_MOODS[0];
+  const currentMacaroni = getMoodMacaroni(activeMoodId);
 
-  // Recipe of the day based on day of year
-  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
-  const recipeOfTheDay = RECIPES[dayOfYear % RECIPES.length];
-
-  // Daily Affirmation
-  const [currentAffirmation, setCurrentAffirmation] = useState(() => wellnessState.getDailyAffirmation());
-
-  const handleNextAffirmation = () => {
-    audioEngine.playSfx('click');
-    setCurrentAffirmation(wellnessState.drawNextLoveNote());
-  };
-
-  // Active Sticker
-  const currentSticker = STICKERS.find(s => s.alias === player.activeSticker) || STICKERS[0];
-
-  // Dialogue adapted to queen's selected mood
-  const getQueenDialogue = () => {
-    switch (currentQueenMood) {
-      case 'Tired':
-        return "You've worked so hard today, Kritika. Let's wrap in a warm blanket and recharge. 🌙💤";
-      case 'Stressed':
-        return "Deep breath, darling. Drop your shoulders, sip some chai. You are doing amazing! 🌸💆‍♀️";
-      case 'Cozy':
-        return "Hot cup of ginger chai & zero stress on our agenda today, queen! ☕☁️";
-      case 'Excited':
-        return "Tell me everything! What great news are we celebrating today?! 👑✨🎉";
-      case 'Low':
-        return "Sending you the biggest, warmest sisterly hug. You are so cherished, Kritika! 💕🧸";
-      case 'Romantic':
-        return "Main apni favourite hoon! Savor every dreamy moment and sweet daydream! 🎀🌷";
-      case 'Happy':
-      default:
-        return player.streak >= 3
-          ? `You're on a ${player.streak}-question streak! Unstoppable glow, queen! ✨`
-          : `Ready for today's comfort snack & good Bollywood tunes, babe? 💖`;
+  const toggleVideoPlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        videoRef.current.play();
+        setIsPlaying(true);
+      }
     }
   };
 
+  const toggleVideoMute = () => {
+    if (videoRef.current) {
+      const nextMuted = !isMuted;
+      videoRef.current.muted = nextMuted;
+      setIsMuted(nextMuted);
+    }
+  };
+
+  const handleMoodClick = (mood: MoodProfileSetting) => {
+    audioEngine.playSfx('click');
+    onSelectMood(mood.id);
+    confetti({ particleCount: 35, spread: 60, origin: { y: 0.7 } });
+    if (isAuthenticated) {
+      authService.updateDailyMood(mood.label, mood.emoji, mood.dialogue.slice(0, 75));
+    }
+    setTick(t => t + 1);
+  };
+
   return (
-    <div className="min-h-screen bg-[#FFFDF7] p-3 sm:p-5 pb-28 text-ink">
-      <div className="max-w-xl mx-auto space-y-4">
-        
-        {/* 1. LIVE VIBE & MOOD CHECK-IN WIDGET */}
-        <div 
-          className="border-2 border-pink-200/90 rounded-3xl p-4 shadow-sketch-sm space-y-3 transition-all duration-500"
-          style={{ background: moodProfile.bgAtmosphere }}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl animate-pulse">💗</span>
-              <div>
-                <h2 className="font-display font-black text-sm sm:text-base text-pink-950 tracking-tight flex items-center gap-1.5">
-                  HOW IS KRITIKA DOING TODAY?
-                </h2>
-                <p className="text-[11px] font-handwritten font-bold text-pink-800/80">
-                  Tap your mood to personalize your entire comfort sanctuary ♡
-                </p>
-              </div>
+    <div className="min-h-screen bg-[#FFFDF7] p-3 sm:p-6 pb-28 text-ink">
+      <div className="max-w-2xl mx-auto space-y-5">
+
+        {/* 1. TOP HEADER & GOOGLE CONNECT BAR */}
+        <div className="flex items-center justify-between gap-2 border-b-2 border-ink/10 pb-3">
+          <div>
+            <div className="flex items-center gap-1.5 text-[11px] font-display font-black text-rose-600 uppercase tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>MARISOL • KRITIKA'S COMFORT SPACE</span>
+            </div>
+            <h1 className="font-display text-xl sm:text-2xl font-black text-ink">
+              Factory of Fun 👑✨
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1.5 bg-paper-100 border border-ink/20 px-2.5 py-1 rounded-xl text-xs font-bold shadow-2xs">
+              <span>🧀 {player.cucumberSandwiches} Macaronis</span>
+              <span>•</span>
+              <span className="flex items-center gap-0.5 text-amber-700">
+                <Flame className="w-3.5 h-3.5 fill-amber-500" />
+                <span>{player.streak}</span>
+              </span>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onOpenGoogleSignIn?.();
+              }}
+              className="flex items-center gap-1.5 bg-white hover:bg-paper-100 border-2 border-ink px-3 py-1.5 rounded-2xl text-xs font-display font-black shadow-sketch transition-all cursor-pointer shrink-0"
+              title="Account & Real-Time Sync"
+            >
+              {isAuthenticated && currentUser ? (
+                <span className="text-emerald-700 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="max-w-[75px] truncate">{currentUser.name.split(' ')[0]}</span>
+                </span>
+              ) : (
+                <span className="text-blue-700 flex items-center gap-1">
+                  <UserCheck className="w-4 h-4" />
+                  <span>GOOGLE CONNECT</span>
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* 2. HER HERO VIDEO BANNER (Front and Center) */}
+        <div className="relative rounded-3xl border-2.5 border-ink overflow-hidden shadow-sketch bg-black group">
+          <video
+            ref={videoRef}
+            src={heroBannerVideoSrc}
+            autoPlay
+            loop
+            muted={isMuted}
+            playsInline
+            className="w-full h-56 sm:h-72 object-cover"
+          />
+
+          {/* Video Gradient Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+
+          {/* Video Badge & Title Overlay */}
+          <div className="absolute bottom-3 left-3.5 right-3.5 flex items-end justify-between pointer-events-none">
+            <div className="space-y-0.5">
+              <span className="bg-rose-500 text-white font-display text-[10px] font-black uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-xs">
+                <Sparkles className="w-2.5 h-2.5 fill-white" />
+                <span>KRITIKA VERMA 👑</span>
+              </span>
+              <h2 className="font-display font-black text-white text-base sm:text-xl drop-shadow-md">
+                Queen of Factory of Fun
+              </h2>
+              <p className="font-handwritten text-white/90 text-xs sm:text-sm font-bold drop-shadow-sm">
+                "Main apni favourite hoon! Savoring every sweet memory ♡"
+              </p>
+            </div>
+
+            {/* Video Play/Pause & Mute Buttons */}
+            <div className="flex items-center gap-1.5 pointer-events-auto">
               <button
-                onClick={() => {
-                  audioEngine.playSfx('powerup');
-                  onOpenComfortCorner();
-                }}
-                className="inline-flex items-center gap-1 bg-pink-100 hover:bg-pink-200 border border-pink-300 text-pink-900 font-display font-black text-xs px-2.5 py-1.5 rounded-full shadow-2xs hover:scale-105 active:scale-95 transition-all"
-                title="Girl's Comfort Corner & Mood TLC"
+                onClick={toggleVideoMute}
+                className="w-8 h-8 rounded-full bg-white/80 hover:bg-white border border-ink/30 flex items-center justify-center text-ink transition-transform active:scale-95 shadow-xs cursor-pointer"
+                title={isMuted ? "Unmute sound" : "Mute sound"}
               >
-                <Heart className="w-3 h-3 fill-pink-500 text-pink-500" />
-                <span>TLC</span>
+                {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-rose-600" />}
               </button>
 
               <button
-                onClick={() => {
-                  audioEngine.playSfx('powerup');
-                  onOpenComfortCorner();
-                }}
-                className="inline-flex items-center gap-1.5 bg-white/90 hover:bg-white border-2 border-pink-300 text-pink-900 font-display font-black text-xs px-3 py-1.5 rounded-full shadow-2xs hover:scale-105 active:scale-95 transition-all"
+                onClick={toggleVideoPlay}
+                className="w-8 h-8 rounded-full bg-white/80 hover:bg-white border border-ink/30 flex items-center justify-center text-ink transition-transform active:scale-95 shadow-xs cursor-pointer"
+                title={isPlaying ? "Pause video" : "Play video"}
               >
-                <span>Cozy Sanctuary</span>
-                <span>🤍</span>
+                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-ink" />}
               </button>
             </div>
           </div>
+        </div>
 
-          {/* 7 Mood Selector Chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-handwritten font-bold">
-            {KRITIKA_MOODS.map(mood => {
-              const isSelected = mood.id === currentQueenMood;
+        {/* 3. KRITIKA'S MOOD SELECTOR (Adapted from her real sticker sheet) */}
+        <div className="bg-white border-2.5 border-ink rounded-3xl p-4 sm:p-5 shadow-sketch space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xl">🌸</span>
+              <h3 className="font-display font-black text-sm text-ink uppercase tracking-wide">
+                Pick Her Mood to Adapt Quiz & Macaronis:
+              </h3>
+            </div>
+            <span className="text-[10px] font-handwritten font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+              Adapts Instantly ✨
+            </span>
+          </div>
+
+          {/* Mood Pills */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {KRITIKA_STICKER_MOODS.map(mood => {
+              const isSelected = mood.id === activeMoodId;
               return (
                 <button
                   key={mood.id}
-                  onClick={() => handleSelectQueenMood(mood.id)}
-                  className={`
-                    px-3 py-1.5 rounded-2xl border transition-all shrink-0 flex items-center gap-1.5
-                    ${
-                      isSelected
-                        ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white border-pink-600 shadow-sm scale-105 font-black ring-2 ring-pink-300'
-                        : 'bg-white/80 text-ink-light border-pink-200 hover:bg-white hover:border-pink-400'
-                    }
-                  `}
+                  onClick={() => handleMoodClick(mood)}
+                  className={`p-2.5 rounded-2xl border-2 transition-all flex flex-col items-center justify-center text-center cursor-pointer ${
+                    isSelected
+                      ? 'bg-ink text-white border-ink shadow-sketch-xs scale-102 font-bold'
+                      : 'bg-paper-50 hover:bg-pink-50 border-ink/20 text-ink shadow-2xs'
+                  }`}
                 >
-                  <span className="text-sm">{mood.emoji}</span>
-                  <span>{mood.label}</span>
+                  <span className="text-2xl mb-1">{mood.emoji}</span>
+                  <span className="font-display font-black text-xs leading-none">
+                    {mood.label}
+                  </span>
+                  <span className={`text-[9px] font-handwritten truncate max-w-[120px] mt-1 ${
+                    isSelected ? 'text-pink-200' : 'text-stone-500'
+                  }`}>
+                    {mood.stickerQuote}
+                  </span>
                 </button>
               );
             })}
           </div>
-
-          {/* Instant Sisterly Reassurance Banner */}
-          <div className="bg-white/85 backdrop-blur-xs border border-pink-200 p-2.5 rounded-2xl flex items-center gap-2.5 animate-fade-in shadow-2xs">
-            <span className="text-xl">🌸</span>
-            <p className="text-xs font-handwritten font-black text-pink-900 leading-snug">
-              {moodProfile.reassurance}
-            </p>
-          </div>
         </div>
 
-        {/* 2. DAILY FLAME & SPARKLE STREAK HEATMAP */}
-        <SparkleStreak />
-
-        {/* 3. TODAY'S AFFIRMATION STICKY CARD */}
-        <div className="bg-[#FFFCEB] border-2.5 border-[#E8D48A] rounded-3xl p-4 shadow-sketch text-left relative overflow-hidden">
-          <div className="w-20 h-4 bg-amber-200/70 border border-amber-300 mx-auto -mt-4 rounded-xs mb-2 shadow-2xs" />
-          
-          <div className="flex items-center justify-between border-b border-amber-200/80 pb-2 mb-2">
-            <div className="flex items-center gap-1.5 font-display font-black text-xs text-amber-900 uppercase">
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              <span>TODAY'S AFFIRMATION FOR KRITIKA</span>
-            </div>
-            <button
-              onClick={handleNextAffirmation}
-              className="p-1 rounded-lg text-amber-800 hover:bg-amber-100 transition-colors flex items-center gap-1 text-[11px] font-handwritten font-bold"
-              title="Shuffle Affirmation"
-            >
-              <RefreshCw className="w-3 h-3" />
-              <span>New Note</span>
-            </button>
-          </div>
-
-          <p className="font-handwritten text-sm sm:text-base text-ink font-bold leading-relaxed">
-            "{currentAffirmation.quote}"
-          </p>
-          <div className="flex items-center justify-between pt-2 text-[11px] font-handwritten font-bold text-amber-800">
-            <span>{currentAffirmation.subtext}</span>
-            <span className="italic">— {currentAffirmation.from}</span>
-          </div>
-        </div>
-
-        {/* 4. RECIPE OF THE DAY CARD */}
-        <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-amber-50 border-2.5 border-emerald-400/80 rounded-3xl p-4 shadow-sketch flex items-center justify-between gap-3 text-left">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-2xl bg-white border-2 border-emerald-300 flex items-center justify-center text-2xl shadow-inner shrink-0">
-              {recipeOfTheDay.emoji}
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="bg-emerald-600 text-white font-display text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase">
-                  RECIPE OF THE DAY
-                </span>
-                <span className="font-handwritten text-[11px] text-emerald-800 font-bold">
-                  {recipeOfTheDay.cuisine}
-                </span>
-              </div>
-              <h3 className="font-display font-black text-sm text-ink truncate mt-0.5">
-                {recipeOfTheDay.title.split('&')[0]}
-              </h3>
-              <p className="font-handwritten text-xs text-ink-light font-bold truncate">
-                Paired with {recipeOfTheDay.moviePairing.movie.split('(')[0]} 🎬
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onNavigate('recipes');
-            }}
-            className="sketch-btn-gold px-3 py-2 text-xs font-black uppercase flex items-center gap-1 shadow-sketch-xs shrink-0 hover:scale-105 active:scale-95 transition-all"
-          >
-            <span>VAULT</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {/* 4.5 STUDENT DAILY LIFE UPDATES & BATCH 41 WALL */}
-        <div 
-          className="bg-gradient-to-r from-purple-50 via-pink-50 to-indigo-50 border-2.5 border-purple-300 rounded-3xl p-4 shadow-sketch hover:border-purple-500 transition-all cursor-pointer group space-y-2.5"
-          onClick={() => {
-            audioEngine.playSfx('click');
-            onNavigate('batch_wall');
-          }}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-10 h-10 rounded-2xl bg-white border-2 border-purple-300 flex items-center justify-center text-xl shadow-xs shrink-0 group-hover:scale-105 transition-transform">
-                <MessageSquareHeart className="w-5 h-5 text-purple-700" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-display font-black text-xs sm:text-sm text-purple-950">
-                    STUDENT DAILY LIFE UPDATES
-                  </span>
-                  <span className="bg-purple-600 text-white font-display text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase">
-                    MLP41PT
-                  </span>
-                </div>
-                <p className="text-[11px] font-handwritten font-bold text-purple-800 truncate">
-                  Real-time classmates' moods, notes & daily life stories ♡
-                </p>
-              </div>
-            </div>
-
-            <span className="sketch-btn-gold px-2.5 py-1 text-[11px] font-black uppercase flex items-center gap-1 shadow-sketch-xs shrink-0">
-              <span className="hidden sm:inline">OPEN</span>
-              <span>WALL</span>
-              <ArrowRight className="w-3 h-3" />
-            </span>
-          </div>
-
-          {/* Google Connection & Classmate Status Bar */}
-          <div className="flex items-center justify-between gap-2 bg-white/70 border border-purple-200/80 rounded-2xl px-3 py-1.5 text-xs">
-            {isAuthenticated && currentUser ? (
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-5 h-5 rounded-full overflow-hidden border border-purple-300 shrink-0">
-                  <img src={currentUser.avatarUrl} alt="User" className="w-full h-full object-cover" />
-                </div>
-                <span className="font-display font-bold text-purple-950 truncate text-[11px]">
-                  Connected as <span className="underline decoration-purple-400">{currentUser.name.split(' ')[0]}</span> ({currentUser.currentMoodEmoji} {currentUser.currentMood})
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between w-full">
-                <span className="font-handwritten font-bold text-purple-800 text-xs">
-                  Connect with Google to post your daily mood:
-                </span>
-                {onOpenGoogleSignIn && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      audioEngine.playSfx('click');
-                      onOpenGoogleSignIn();
-                    }}
-                    className="inline-flex items-center gap-1 bg-white hover:bg-purple-50 border border-purple-300 px-2 py-0.5 rounded-lg text-[10px] font-display font-black text-purple-900 shadow-2xs hover:scale-105 active:scale-95 transition-all"
-                  >
-                    <LogIn className="w-3 h-3 text-purple-600" />
-                    <span>SIGN IN</span>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Latest Post Snippet */}
-          {(() => {
-            const latestPost = batchWallService.getPosts()[0];
-            if (!latestPost) return null;
-            return (
-              <div className="bg-white/90 border border-purple-200 rounded-2xl p-2.5 flex items-center justify-between gap-2.5 shadow-2xs">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-base shrink-0">{latestPost.moodEmoji}</span>
-                  <div className="min-w-0 text-xs">
-                    <span className="font-display font-black text-ink">{latestPost.studentName}: </span>
-                    <span className="font-handwritten text-xs text-ink-light font-bold truncate">
-                      "{latestPost.text}"
-                    </span>
-                  </div>
-                </div>
-                <span className="font-handwritten text-[10px] font-bold text-purple-700 shrink-0">
-                  {latestPost.timestamp}
-                </span>
-              </div>
-            );
-          })()}
-        </div>
-
-        {/* 5. KRITIKA COMPANION & CHEF SCORE HUB */}
-        <div className="bg-white border-3 border-pink-200/90 rounded-3xl p-5 shadow-sketch text-center space-y-3.5 relative overflow-hidden">
-          
-          {/* Active Mood Pill */}
-          <div className="inline-flex items-center gap-1.5 bg-pink-50 border border-pink-200 px-3 py-0.5 rounded-full font-handwritten text-xs font-bold text-pink-800">
-            <span>{moodProfile.emoji}</span>
-            <span>Active Vibe: {moodProfile.label}</span>
-            <Sparkles className="w-3 h-3 text-pink-400" />
-          </div>
-
-          {/* Kritika Companion with Dynamic Dialogue */}
-          <div className="flex justify-center pt-0.5">
-            <Marisol
-              pose={player.activeSticker}
-              expression={player.streak >= 3 ? 'excited' : 'welcome'}
-              size="large"
-              dialogue={getQueenDialogue()}
-              bubblePosition="top"
-              onClick={() => {
-                audioEngine.playSfx('powerup');
-                onNavigate('stickers');
-              }}
-            />
-          </div>
-
-          {/* Chef Rank & Cucumber Sandwiches Score Board */}
-          <div className="space-y-1.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-pink-50 border-2 border-emerald-400/40 rounded-2xl p-3 text-left shadow-inner">
-            <div className="flex justify-between items-center font-display text-xs sm:text-sm font-black text-ink">
-              <span className="text-emerald-900 flex items-center gap-1">
-                <span>👩‍🍳</span> {player.chefTitle || 'Apprentice Chopper 🥒'}
-              </span>
-              <span className="text-emerald-800 bg-white border border-emerald-400 px-2.5 py-0.5 rounded-xl shadow-2xs font-black">
-                {player.cucumberSandwiches || 0} 🥪 Cucumber Sandwiches
-              </span>
-            </div>
-
-            {/* Progress to Next Chef Title */}
-            <div className="w-full h-3 bg-white border border-ink/30 rounded-full overflow-hidden shadow-inner">
-              <div 
-                className="h-full bg-gradient-to-r from-emerald-400 via-teal-400 to-pink-400 border-r border-ink/40 transition-all duration-500"
-                style={{ width: `${Math.min(100, ((player.cucumberSandwiches || 0) % 25) * 4)}%` }}
-              />
-            </div>
-
-            <div className="flex justify-between items-center font-handwritten text-[11px] text-ink-light font-bold">
-              <span>+3 Cucumber Sandwiches per correct trivia</span>
-              <span>Next Title at {(Math.floor((player.cucumberSandwiches || 0) / 25) + 1) * 25} 🥪</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 6. ONE STICKER PREVIEW CARD (Direct preview on load) */}
-        <div 
-          onClick={() => {
-            audioEngine.playSfx('click');
-            onNavigate('stickers');
-          }}
-          className="bg-white border-2.5 border-purple-300 rounded-3xl p-3.5 shadow-sketch hover:border-purple-500 hover:scale-101 active:scale-98 transition-all flex items-center justify-between text-left cursor-pointer group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl border-2 border-ink overflow-hidden bg-purple-100 shadow-xs shrink-0 group-hover:scale-105 transition-transform">
-              <img 
-                src={currentSticker.avatarUrl} 
-                alt={currentSticker.title} 
-                className="w-full h-full object-cover" 
-              />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-display font-black text-xs sm:text-sm text-ink">ACTIVE COMPANION STICKER</span>
-                <span className="bg-purple-100 text-purple-700 font-handwritten text-[10px] font-bold px-2 py-0.5 rounded-full border border-purple-300">
-                  {currentSticker.vibe}
-                </span>
-              </div>
-              <p className="font-handwritten text-xs text-purple-900 font-bold">
-                "{currentSticker.quote}" • Tap to view full sticker book ✨
-              </p>
-            </div>
-          </div>
-          <ImageIcon className="w-5 h-5 text-purple-400 group-hover:text-purple-600 transition-colors shrink-0" />
-        </div>
-
-        {/* 7. PRIMARY ACTION: COOKING & CINEMA TRIVIA */}
-        <button
-          onClick={() => {
-            audioEngine.playSfx('click');
-            onQuickPlay();
-          }}
-          className="sketch-btn-primary w-full p-4 sm:p-5 text-xl sm:text-2xl font-black uppercase flex items-center justify-between shadow-sketch hover:scale-102 active:scale-98 transition-all border-3 border-ink"
-        >
-          <div className="flex items-center gap-3.5 text-left">
-            <div className="w-12 h-12 rounded-2xl bg-white/20 border-2 border-white/40 flex items-center justify-center text-2xl shrink-0 shadow-inner">
-              🍳
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span>COOKING & CINEMA TRIVIA</span>
-                <span className="bg-white text-rose-800 font-display text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  ENDLESS
-                </span>
-              </div>
-              <span className="block font-handwritten text-xs sm:text-sm text-paper-100 normal-case font-bold mt-0.5">
-                Answer trivia, collect secret ingredients & unlock mouth-watering recipes!
-              </span>
-            </div>
-          </div>
-          <Play className="w-7 h-7 fill-white shrink-0 ml-2" />
-        </button>
-
-        {/* 8. SECTION TILES: Bollywood Lounge & Food-Movie Pairings */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          
-          {/* Card: Hindi Bollywood Songs */}
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onOpenMusic();
-            }}
-            className="w-full bg-gradient-to-br from-red-600 via-rose-600 to-purple-700 text-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch hover:shadow-sketch-lg hover:scale-102 transition-all text-left flex items-center justify-between relative overflow-hidden group"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-2xl border-2 border-white/40 overflow-hidden bg-rose-200 shrink-0 shadow-inner">
-                <img 
-                  src="/marisol/avatars/11_music_mood.png" 
-                  alt="Kritika Headphones" 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform" 
-                />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-display font-black text-sm uppercase">YOUTUBE JUKEBOX</span>
-                  <span className="bg-red-500 text-white font-display text-[9px] font-black px-1.5 py-0.2 rounded-full border border-white/40">
-                    🔴 YT EMBED
-                  </span>
-                </div>
-                <div className="font-handwritten text-xs text-rose-100 font-bold truncate">
-                  Curated Bollywood hits & self-love tunes! 🎵
-                </div>
-              </div>
-            </div>
-            <Music className="w-5 h-5 text-rose-200 group-hover:rotate-45 transition-transform shrink-0" />
-          </button>
-
-          {/* Card: Food & Movie Pairings */}
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onNavigate('recipes');
-            }}
-            className="w-full bg-gradient-to-br from-rose-400 via-pink-500 to-rose-600 text-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch hover:shadow-sketch-lg hover:scale-102 transition-all text-left flex items-center justify-between relative overflow-hidden group"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-2xl border-2 border-white/40 bg-white/20 flex items-center justify-center text-2xl shrink-0 shadow-inner">
-                <ChefHat className="w-6 h-6 text-white" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="font-display font-black text-sm uppercase">RECIPE VAULT</span>
-                  <span className="bg-white/25 text-[9px] px-1.5 py-0.5 rounded-full font-handwritten">FILTER</span>
-                </div>
-                <div className="font-handwritten text-xs text-rose-100 font-bold truncate">
-                  Chai, Maggi, Truffle Fries & cuisine search!
-                </div>
-              </div>
-            </div>
-            <Film className="w-5 h-5 text-white group-hover:scale-125 transition-transform shrink-0" />
-          </button>
-        </div>
-
-        {/* 9. WELLNESS SHORTCUTS: Secret Locket & Glow-Up Week */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* Secret Locket */}
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onOpenSecretLocket();
-            }}
-            className="bg-white border-2.5 border-pink-300 rounded-3xl p-3.5 flex flex-col items-center justify-center text-center gap-1 shadow-sketch-sm hover:border-pink-500 hover:scale-102 transition-all"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-pink-100 border border-pink-300 flex items-center justify-center text-pink-700 shadow-2xs">
-              <Lock className="w-5 h-5" />
-            </div>
-            <span className="font-display font-black text-xs sm:text-sm text-ink">
-              SECRET LOCKET 🔐
-            </span>
-            <span className="font-handwritten text-[11px] text-pink-700 font-bold">
-              Notes & Voice Memos
-            </span>
-          </button>
-
-          {/* Glow-Up Week Scrapbook */}
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onOpenGlowUpWeek();
-            }}
-            className="bg-white border-2.5 border-purple-300 rounded-3xl p-3.5 flex flex-col items-center justify-center text-center gap-1 shadow-sketch-sm hover:border-purple-500 hover:scale-102 transition-all"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-purple-100 border border-purple-300 flex items-center justify-center text-purple-700 shadow-2xs">
-              <Camera className="w-5 h-5" />
-            </div>
-            <span className="font-display font-black text-xs sm:text-sm text-ink">
-              GLOW-UP WEEK 📸
-            </span>
-            <span className="font-handwritten text-[11px] text-purple-700 font-bold">
-              Polaroid Scrapbook & Export
-            </span>
-          </button>
-        </div>
-
-        {/* 10. DOWNLOAD ON MOBILE APP BANNER */}
-        {onOpenInstallApp && (
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onOpenInstallApp();
-            }}
-            className="w-full bg-gradient-to-r from-rose-50 via-pink-50 to-amber-50 border-2.5 border-pink-300 rounded-3xl p-4 shadow-sketch hover:border-pink-500 hover:scale-101 active:scale-98 transition-all flex items-center justify-between text-left group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl border-2 border-ink overflow-hidden bg-rose-200 shadow-xs shrink-0 group-hover:rotate-6 transition-transform">
-                <img src="/icon-192.png" alt="Marisol App" className="w-full h-full object-cover" />
+        {/* 4. CURRENT MOOD STATUS & REASSURANCE CARD */}
+        <div className="bg-gradient-to-r from-pink-50/90 via-purple-50/70 to-amber-50/80 border-2.5 border-ink rounded-3xl p-4 sm:p-5 shadow-sketch space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-2xl bg-white border-2 border-ink flex items-center justify-center text-2xl shadow-xs">
+                {currentMoodSetting.emoji}
               </div>
               <div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-display font-black text-xs sm:text-sm text-ink">DOWNLOAD APP ON MOBILE</span>
-                  <span className="bg-pink-500 text-white font-display text-[9px] font-black px-1.5 py-0.2 rounded-full">
-                    📲 ANDROID & IOS
-                  </span>
-                </div>
-                <p className="font-handwritten text-xs text-pink-700 font-bold">
-                  Install on your iPhone or Android home screen for instant full-screen comfort! 💖
-                </p>
+                <span className="text-[10px] font-display font-black uppercase text-rose-700 tracking-wider">
+                  CURRENT COMFORT STATUS
+                </span>
+                <h4 className="font-display font-black text-base text-ink leading-tight">
+                  {currentMoodSetting.label}
+                </h4>
               </div>
             </div>
-            <span className="text-xl shrink-0 group-hover:translate-x-1 transition-transform">➔</span>
+            <span className="bg-white/90 border border-ink/20 px-2.5 py-1 rounded-full text-xs font-handwritten font-bold text-ink-light shadow-2xs">
+              "{currentMoodSetting.stickerQuote}"
+            </span>
+          </div>
+
+          <p className="font-handwritten text-sm sm:text-base text-stone-800 font-bold leading-relaxed bg-white/70 p-3 rounded-2xl border border-ink/15">
+            "{currentMoodSetting.dialogue}"
+          </p>
+        </div>
+
+        {/* 5. MOOD-MATCHED MACARONI DISH (Delicious culinary comfort) */}
+        <div className="bg-white border-2.5 border-ink rounded-3xl p-4 sm:p-5 shadow-sketch space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{currentMacaroni.emoji}</span>
+              <div>
+                <span className="text-[10px] font-display font-black uppercase text-amber-700 tracking-wider">
+                  TODAY'S MOOD MACARONI REWARD
+                </span>
+                <h3 className="font-display font-black text-base text-ink leading-tight">
+                  {currentMacaroni.name}
+                </h3>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-full text-[11px] font-display font-bold text-amber-900 shrink-0">
+              <Clock className="w-3 h-3 text-amber-700" />
+              <span>{currentMacaroni.cookTime}</span>
+            </div>
+          </div>
+
+          <p className="font-sans text-xs sm:text-sm text-stone-700 leading-relaxed">
+            {currentMacaroni.description}
+          </p>
+
+          {/* Secret Ingredients tags */}
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {currentMacaroni.secretIngredients.map(ing => (
+              <span 
+                key={ing}
+                className="bg-paper-100 border border-ink/20 px-2 py-0.5 rounded-full text-[11px] font-handwritten font-bold text-ink"
+              >
+                {ing}
+              </span>
+            ))}
+          </div>
+
+          {/* Movie Pairing */}
+          <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-2.5 flex items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <Film className="w-4 h-4 text-amber-700 shrink-0" />
+              <div>
+                <span className="font-display font-black text-amber-950">Watch With: </span>
+                <span className="font-medium text-stone-700">{currentMacaroni.pairingMovie}</span>
+              </div>
+            </div>
+            <span className="font-handwritten text-[11px] text-amber-900 font-bold hidden sm:inline italic">
+              {currentMacaroni.pairingQuote}
+            </span>
+          </div>
+        </div>
+
+        {/* 6. PRIMARY ACTIONS: START MOOD QUIZ & OPEN BULLETIN CHAT */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          {/* Action 1: Start Quiz for this Mood */}
+          <button
+            onClick={() => {
+              audioEngine.playSfx('fanfare');
+              onStartMoodQuiz(activeMoodId);
+            }}
+            className="sketch-btn-primary p-4 rounded-3xl flex items-center justify-between gap-3 shadow-sketch cursor-pointer hover:scale-101 active:scale-98 transition-all"
+          >
+            <div className="text-left space-y-0.5">
+              <span className="text-[10px] font-display font-black uppercase text-pink-200 tracking-wider">
+                MOOD-ADAPTED TRIVIA
+              </span>
+              <div className="font-display font-black text-base text-white">
+                Play {currentMoodSetting.label} Quiz 🎯
+              </div>
+              <p className="font-handwritten text-xs text-white/90 font-bold">
+                Earn Macaronis & comfort rewards!
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-2xl bg-white text-rose-600 flex items-center justify-center font-bold shrink-0 shadow-xs">
+              <Play className="w-5 h-5 fill-rose-600" />
+            </div>
           </button>
-        )}
+
+          {/* Action 2: Open Bulletin Board */}
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              onNavigate('batch_wall');
+            }}
+            className="p-4 rounded-3xl bg-white border-2.5 border-ink hover:border-purple-600 flex items-center justify-between gap-3 shadow-sketch cursor-pointer hover:scale-101 active:scale-98 transition-all"
+          >
+            <div className="text-left space-y-0.5">
+              <span className="text-[10px] font-display font-black uppercase text-purple-700 tracking-wider">
+                ASYNC COMMUNITY
+              </span>
+              <div className="font-display font-black text-base text-ink">
+                Bulletin Chat 📌
+              </div>
+              <p className="font-handwritten text-xs text-stone-600 font-bold">
+                Read notes & reply at your own time!
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 border border-ink/20 flex items-center justify-center font-bold shrink-0 shadow-xs">
+              <MessageCircle className="w-5 h-5" />
+            </div>
+          </button>
+        </div>
 
       </div>
     </div>

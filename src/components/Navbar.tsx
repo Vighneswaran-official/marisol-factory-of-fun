@@ -226,15 +226,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                 </button>
               </div>
 
-              {/* Navigation Menu Links */}
-              <div className="mt-4 space-y-1.5">
+              {/* Navigation Menu Links (3 Core Pillars) */}
+              <div className="mt-4 space-y-2">
                 {[
-                  { screen: 'home' as ScreenState, label: 'Home Dashboard', emoji: '🏠', desc: 'Main hub & daily activities' },
-                  { screen: 'batch_wall' as ScreenState, label: 'Batch 41 Wall & Chat', emoji: '💬', desc: 'Community updates, cheers & stories' },
-                  { screen: 'recipes' as ScreenState, label: 'Recipe Vault', emoji: '📖', desc: 'Unlock secret Bollywood dishes' },
-                  { screen: 'stickers' as ScreenState, label: '11 Mood Stickers', emoji: '✨', desc: 'Kritika\'s companion moods' },
-                  { screen: 'classroom' as ScreenState, label: 'Batch 41 Classroom', emoji: '🎓', desc: 'Student quiz arena & tributes' },
-                  { screen: 'profile' as ScreenState, label: 'Student Profile', emoji: '👑', desc: 'Stats, identity & achievements' },
+                  { screen: 'home' as ScreenState, label: 'Check Her Mood', emoji: '🌸', desc: 'Live mood, daily affirmations & comfort' },
+                  { screen: 'quiz' as ScreenState, label: 'Quiz Game', emoji: '🎯', desc: 'Fun trivia questions, streaks & instant scores' },
+                  { screen: 'batch_wall' as ScreenState, label: 'Bulletin Chat', emoji: '📌', desc: 'Post notes & reply at your own time' },
                 ].map(item => {
                   const isActive = currentScreen === item.screen;
                   return (
