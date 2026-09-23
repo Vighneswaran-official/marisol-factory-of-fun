@@ -156,14 +156,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
           </div>
         </div>
       </header>
-              title="Open Navigation Menu"
-            >
-              <Menu className="w-4 h-4" />
-              <span>MENU</span>
-            </button>
-          </div>
-        </div>
-      </header>
 
       {/* Slide-Out Drawer Navigation Menu */}
       {isMenuOpen && (
