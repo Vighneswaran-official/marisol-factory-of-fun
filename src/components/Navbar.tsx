@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { ScreenState, AudioSettings } from '../types/game';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
-import { Flame, Volume2, VolumeX, BookOpen, Lock } from 'lucide-react';
+import { Flame, Volume2, VolumeX, BookOpen, Lock, MessageSquareHeart } from 'lucide-react';
 
 interface NavbarProps {
   currentScreen: ScreenState;
@@ -112,6 +112,20 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
             >
               <span className="text-xs">✨</span>
               <span className="font-handwritten text-xs font-black hidden md:inline">11 MOODS</span>
+            </button>
+
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onNavigate('batch_wall');
+              }}
+              title="Batch MLP41PT Daily Life & Wall"
+              className={`p-2 rounded-xl border-2 border-ink shadow-sketch transition-all flex items-center gap-1 ${
+                currentScreen === 'batch_wall' ? 'bg-purple-700 text-white' : 'bg-white text-ink hover:bg-paper-100'
+              }`}
+            >
+              <MessageSquareHeart className="w-4 h-4 text-purple-700" />
+              <span className="font-handwritten text-xs font-black hidden md:inline">WALL</span>
             </button>
 
             <button

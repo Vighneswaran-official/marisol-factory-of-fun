@@ -7,6 +7,7 @@ import { RECIPES } from '../data/recipes';
 import { STICKERS } from '../data/stickers';
 import { Marisol } from './Marisol';
 import { SparkleStreak } from './SparkleStreak';
+import { batchWallService } from '../services/batchWallState';
 import { 
   Play, 
   Sparkles, 
@@ -18,7 +19,8 @@ import {
   ChefHat,
   ArrowRight,
   RefreshCw,
-  Image as ImageIcon
+  Image as ImageIcon,
+  MessageSquareHeart
 } from 'lucide-react';
 
 interface HomeScreenProps {
@@ -239,6 +241,64 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <span>VAULT</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
+        </div>
+
+        {/* 4.5 STUDENT DAILY LIFE UPDATES & BATCH 41 WALL */}
+        <div 
+          onClick={() => {
+            audioEngine.playSfx('click');
+            onNavigate('batch_wall');
+          }}
+          className="bg-gradient-to-r from-purple-50 via-pink-50 to-indigo-50 border-2.5 border-purple-300 rounded-3xl p-4 shadow-sketch hover:border-purple-500 hover:scale-101 active:scale-98 transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-white border-2 border-purple-300 flex items-center justify-center text-xl shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+                <MessageSquareHeart className="w-5 h-5 text-purple-700" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-display font-black text-xs sm:text-sm text-purple-950">
+                    STUDENT DAILY LIFE UPDATES
+                  </span>
+                  <span className="bg-purple-600 text-white font-display text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase">
+                    MLP41PT
+                  </span>
+                </div>
+                <p className="text-[11px] font-handwritten font-bold text-purple-800 truncate">
+                  Share what's happening in your day & see classmate notes ♡
+                </p>
+              </div>
+            </div>
+
+            <span className="sketch-btn-gold px-2.5 py-1 text-[11px] font-black uppercase flex items-center gap-1 shadow-sketch-xs shrink-0">
+              <span className="hidden sm:inline">OPEN</span>
+              <span>WALL</span>
+              <ArrowRight className="w-3 h-3" />
+            </span>
+          </div>
+
+          {/* Latest Post Snippet */}
+          {(() => {
+            const latestPost = batchWallService.getPosts()[0];
+            if (!latestPost) return null;
+            return (
+              <div className="bg-white/80 border border-purple-200 rounded-2xl p-2.5 flex items-center justify-between gap-2.5 shadow-2xs mt-2.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-base shrink-0">{latestPost.moodEmoji}</span>
+                  <div className="min-w-0 text-xs">
+                    <span className="font-display font-black text-ink">{latestPost.studentName}: </span>
+                    <span className="font-handwritten text-xs text-ink-light font-bold truncate">
+                      "{latestPost.text}"
+                    </span>
+                  </div>
+                </div>
+                <span className="font-handwritten text-[10px] font-bold text-purple-700 shrink-0">
+                  {latestPost.timestamp}
+                </span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* 5. KRITIKA COMPANION & CHEF SCORE HUB */}
