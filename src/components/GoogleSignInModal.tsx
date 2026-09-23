@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { BaseModal } from './BaseModal';
 import { authService, type StudentProfile } from '../services/authService';
+import { isFirebaseConfigured } from '../services/firebase';
 import { audioEngine } from '../services/synthAudioEngine';
-import { CheckCircle2, LogOut, Sparkles, User, Mail, ShieldCheck, HeartHandshake } from 'lucide-react';
+import { CheckCircle2, LogOut, Sparkles, User, Mail, ShieldCheck, HeartHandshake, Loader2, AlertCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface GoogleSignInModalProps {
@@ -15,13 +16,34 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
   const currentUser = authService.getCurrentUser();
   const isAuthenticated = authService.isAuthenticated();
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [inputName, setInputName] = useState(currentUser?.name || '');
   const [inputEmail, setInputEmail] = useState(currentUser?.email || '');
   const [currentMood, setCurrentMood] = useState(currentUser?.currentMood || 'Radiant & Grateful');
   const [currentMoodEmoji, setCurrentMoodEmoji] = useState(currentUser?.currentMoodEmoji || '💡');
   const [statusNote, setStatusNote] = useState(currentUser?.statusNote || '');
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleFirebaseGoogleSignIn = async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    audioEngine.playSfx('click');
+
+    const res = await authService.signInWithFirebaseGoogle();
+    setIsLoading(false);
+
+    if (res.success && res.user) {
+      audioEngine.playSfx('fanfare');
+      confetti({ particleCount: 85, spread: 75, origin: { y: 0.6 } });
+      setTick(t => t + 1);
+      if (onSuccess) onSuccess(res.user);
+      onClose();
+    } else {
+      setErrorMessage(res.error || 'Popup closed or Google Sign-In could not complete.');
+    }
+  };
+
+  const handleCustomSignIn = (e: React.FormEvent) => {
     e.preventDefault();
     audioEngine.playSfx('fanfare');
     confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
@@ -39,35 +61,17 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
     onClose();
   };
 
-  const handleFastGoogleAuth = () => {
-    audioEngine.playSfx('fanfare');
-    confetti({ particleCount: 75, spread: 70, origin: { y: 0.6 } });
-
-    const user = authService.signInWithGoogle({
-      name: 'Kritika (Google Verified)',
-      email: 'kritika.official@gmail.com',
-      avatarUrl: '/marisol/avatars/01_brighter_ideas.png',
-      mood: 'Radiant & Grateful',
-      moodEmoji: '💡',
-      statusNote: 'Signed in with Google! Excited to connect with Batch 41 ♡',
-    });
-
-    setTick(t => t + 1);
-    if (onSuccess) onSuccess(user);
-    onClose();
-  };
-
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     audioEngine.playSfx('click');
-    authService.signOut();
+    await authService.signOut();
     setTick(t => t + 1);
   };
 
   return (
     <BaseModal
       onClose={onClose}
-      title={isAuthenticated ? "GOOGLE ACCOUNT LINKED" : "SIGN IN WITH GOOGLE"}
-      subtitle={isAuthenticated ? "Connected to Batch MLP41PT Network" : "Share your daily mood & discover classmate updates"}
+      title={isAuthenticated ? "GOOGLE ACCOUNT LINKED" : "FIREBASE GOOGLE SIGN IN"}
+      subtitle={isAuthenticated ? "Connected to Firebase & Batch MLP41PT Network" : "Real-time sync for your daily life updates & classmate moods"}
       icon={
         <div className="w-6 h-6 flex items-center justify-center">
           <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -93,6 +97,14 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
       maxWidth="max-w-md"
     >
       <div className="space-y-4 text-left">
+        {/* Error notification if popup was cancelled or errored */}
+        {errorMessage && (
+          <div className="bg-rose-50 border border-rose-300 text-rose-800 p-2.5 rounded-xl text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         {isAuthenticated && currentUser ? (
           /* Already Signed In View */
           <div className="space-y-4">
@@ -110,7 +122,7 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
                     {currentUser.name}
                   </h3>
                   <span className="bg-emerald-600 text-white font-display text-[9px] font-black px-1.5 py-0.2 rounded-full flex items-center gap-1">
-                    <CheckCircle2 className="w-2.5 h-2.5" /> VERIFIED GOOGLE
+                    <CheckCircle2 className="w-2.5 h-2.5" /> FIREBASE AUTH
                   </span>
                 </div>
                 <p className="font-sans text-xs text-ink-light truncate mt-0.5">
@@ -170,61 +182,73 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
           <div className="space-y-4">
             {/* Value Proposition Pills */}
             <div className="bg-purple-50 border border-purple-200 rounded-2xl p-3 text-xs space-y-1.5">
-              <div className="font-display font-black text-purple-950 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-purple-700" />
-                <span>Why Sign in with Google?</span>
+              <div className="flex items-center justify-between">
+                <div className="font-display font-black text-purple-950 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-purple-700" />
+                  <span>Why Sign in with Google & Firebase?</span>
+                </div>
+                <span className={`text-[9px] font-display font-black px-2 py-0.5 rounded-full ${
+                  isFirebaseConfigured ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {isFirebaseConfigured ? 'Firebase Active 🟢' : 'Demo / 1-Tap Mode ⚡'}
+                </span>
               </div>
               <ul className="space-y-1 font-handwritten font-bold text-purple-900 text-xs">
                 <li className="flex items-center gap-1.5">
                   <span>✨</span> See live classmate moods & what everyone is feeling today
                 </li>
                 <li className="flex items-center gap-1.5">
-                  <span>💌</span> Share your daily life updates & photos to Batch 41 Wall
+                  <span>💌</span> Share your daily life updates & photos to Batch 41 Wall in real-time
                 </li>
                 <li className="flex items-center gap-1.5">
-                  <span>👑</span> Sync your chef titles & stickers with your verified Google account
+                  <span>👑</span> Sync your profile & stickers across devices automatically
                 </li>
               </ul>
             </div>
 
-            {/* Fast 1-Tap Google Button */}
+            {/* Official Firebase Google Sign In Button */}
             <button
-              onClick={handleFastGoogleAuth}
-              className="w-full py-3 px-4 bg-white hover:bg-gray-50 border-2.5 border-ink rounded-2xl shadow-sketch flex items-center justify-center gap-3 transition-all hover:scale-102 active:scale-98 cursor-pointer"
+              onClick={handleFirebaseGoogleSignIn}
+              disabled={isLoading}
+              className="w-full py-3 px-4 bg-white hover:bg-gray-50 border-2.5 border-ink rounded-2xl shadow-sketch flex items-center justify-center gap-3 transition-all hover:scale-102 active:scale-98 cursor-pointer disabled:opacity-60"
             >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                />
-              </svg>
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 text-purple-700 animate-spin" />
+              ) : (
+                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+              )}
               <span className="font-display font-black text-xs sm:text-sm text-ink">
-                1-TAP GOOGLE SIGN IN
+                {isLoading ? "CONNECTING TO GOOGLE..." : "SIGN IN WITH GOOGLE"}
               </span>
             </button>
 
             <div className="flex items-center gap-2">
               <div className="h-px bg-ink/20 flex-1" />
               <span className="font-handwritten text-[11px] font-bold text-ink-light uppercase">
-                or customize account
+                or manual profile sign-in
               </span>
               <div className="h-px bg-ink/20 flex-1" />
             </div>
 
             {/* Manual Google Account Input Form */}
-            <form onSubmit={handleSignIn} className="space-y-3">
+            <form onSubmit={handleCustomSignIn} className="space-y-3">
               <div className="space-y-1">
                 <label className="font-display font-black text-xs uppercase text-ink flex items-center gap-1">
                   <User className="w-3.5 h-3.5 text-purple-700" />

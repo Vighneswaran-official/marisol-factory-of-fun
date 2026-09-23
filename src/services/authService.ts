@@ -1,5 +1,19 @@
-// Google Authentication & Student Community Presence Service
+// Google Authentication & Student Community Presence Service with Firebase
 import { gameState } from './gameState';
+import { 
+  auth, 
+  googleProvider, 
+  signInWithPopup, 
+  firebaseSignOut, 
+  onAuthStateChanged,
+  isFirebaseConfigured,
+  db,
+  doc,
+  setDoc,
+  onSnapshot,
+  collection,
+  type FirebaseUser
+} from './firebase';
 
 export interface StudentProfile {
   id: string;
@@ -85,9 +99,63 @@ class AuthService {
   private currentUser: StudentProfile | null = null;
   private classmates: StudentProfile[] = [];
   private listeners: Set<() => void> = new Set();
+  public isFirebaseEnabled = isFirebaseConfigured;
 
   constructor() {
     this.loadFromStorage();
+    this.initFirebaseListeners();
+  }
+
+  private initFirebaseListeners() {
+    if (auth) {
+      onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+        if (firebaseUser) {
+          const profile: StudentProfile = {
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName || 'Google Student',
+            email: firebaseUser.email || '',
+            avatarUrl: firebaseUser.photoURL || '/marisol/avatars/01_brighter_ideas.png',
+            batch: 'MLP41PT',
+            currentMood: this.currentUser?.currentMood || 'Radiant & Grateful',
+            currentMoodEmoji: this.currentUser?.currentMoodEmoji || '💡',
+            statusNote: this.currentUser?.statusNote || 'Connected via Firebase Google Auth ♡',
+            lastUpdated: 'Just now',
+            isGoogleVerified: true,
+          };
+          this.currentUser = profile;
+          this.saveUserToStorage();
+          this.syncClassmateList(profile);
+          this.syncWithFirestore(profile);
+          this.notify();
+        }
+      });
+    }
+
+    // Realtime Firestore sync for classmates if db is initialized
+    if (db) {
+      try {
+        const studentsCol = collection(db, 'students');
+        onSnapshot(studentsCol, (snapshot) => {
+          const remoteStudents: StudentProfile[] = [];
+          snapshot.forEach((d) => {
+            const data = d.data() as StudentProfile;
+            remoteStudents.push(data);
+          });
+          if (remoteStudents.length > 0) {
+            // Merge with default classmates
+            const map = new Map<string, StudentProfile>();
+            DEFAULT_CLASSMATES.forEach(c => map.set(c.id, c));
+            remoteStudents.forEach(c => map.set(c.id, c));
+            if (this.currentUser) map.set(this.currentUser.id, this.currentUser);
+            this.classmates = Array.from(map.values());
+            this.saveClassmatesToStorage();
+            this.notify();
+          }
+        });
+      } catch (err) {
+        console.warn('Firestore students sync error:', err);
+      }
+    }
   }
 
   private loadFromStorage() {
@@ -126,6 +194,34 @@ class AuthService {
     } catch {}
   }
 
+  private syncClassmateList(user: StudentProfile) {
+    const existingIdx = this.classmates.findIndex(c => c.email.toLowerCase() === user.email.toLowerCase() || c.id === user.id);
+    if (existingIdx >= 0) {
+      this.classmates[existingIdx] = user;
+    } else {
+      this.classmates.unshift(user);
+    }
+    this.saveClassmatesToStorage();
+
+    // Sync with game state player nickname
+    const currentP = gameState.getPlayer();
+    if (user.name && user.name !== currentP.nickname) {
+      currentP.nickname = user.name;
+      gameState.savePlayer(currentP);
+    }
+  }
+
+  private async syncWithFirestore(profile: StudentProfile) {
+    if (db) {
+      try {
+        const studentDoc = doc(db, 'students', profile.id);
+        await setDoc(studentDoc, profile, { merge: true });
+      } catch (err) {
+        console.warn('Failed to sync student with Firestore:', err);
+      }
+    }
+  }
+
   public getCurrentUser(): StudentProfile | null {
     return this.currentUser;
   }
@@ -139,8 +235,52 @@ class AuthService {
   }
 
   /**
-   * Sign In with Google
-   * Can accept a custom profile from Google One-Tap/GIS or a friendly fast profile
+   * Real Firebase Google Sign-In with Popup
+   */
+  public async signInWithFirebaseGoogle(): Promise<{ success: boolean; user?: StudentProfile; error?: string }> {
+    if (auth && googleProvider) {
+      try {
+        const result = await signInWithPopup(auth, googleProvider);
+        const fbUser = result.user;
+        const profile: StudentProfile = {
+          id: fbUser.uid,
+          name: fbUser.displayName || 'Google Student',
+          email: fbUser.email || '',
+          avatarUrl: fbUser.photoURL || '/marisol/avatars/01_brighter_ideas.png',
+          batch: 'MLP41PT',
+          currentMood: 'Radiant & Grateful',
+          currentMoodEmoji: '💡',
+          statusNote: 'Signed in with Firebase Google Auth! Ready for Batch 41 ♡',
+          lastUpdated: 'Just now',
+          isGoogleVerified: true,
+        };
+
+        this.currentUser = profile;
+        this.saveUserToStorage();
+        this.syncClassmateList(profile);
+        await this.syncWithFirestore(profile);
+        this.notify();
+        return { success: true, user: profile };
+      } catch (err: any) {
+        console.error('Firebase Google Sign-In popup error:', err);
+        return { success: false, error: err?.message || 'Google popup sign-in failed' };
+      }
+    } else {
+      // Firebase credentials not yet added in environment, trigger fast Google auth
+      const user = this.signInWithGoogle({
+        name: 'Kritika (Google Verified)',
+        email: 'kritika.google@gmail.com',
+        avatarUrl: '/marisol/avatars/01_brighter_ideas.png',
+        mood: 'Radiant & Grateful',
+        moodEmoji: '💡',
+        statusNote: 'Signed in with Google! Excited to connect with Batch 41 ♡',
+      });
+      return { success: true, user };
+    }
+  }
+
+  /**
+   * Sign In with Google (Manual or 1-Tap fallback)
    */
   public signInWithGoogle(customInfo?: {
     name?: string;
@@ -170,28 +310,19 @@ class AuthService {
 
     this.currentUser = user;
     this.saveUserToStorage();
-
-    // Update or prepend to classmates list
-    const existingIdx = this.classmates.findIndex(c => c.email.toLowerCase() === user.email.toLowerCase() || c.id === user.id);
-    if (existingIdx >= 0) {
-      this.classmates[existingIdx] = user;
-    } else {
-      this.classmates.unshift(user);
-    }
-    this.saveClassmatesToStorage();
-
-    // Sync with game state player nickname
-    const currentP = gameState.getPlayer();
-    if (name && name !== currentP.nickname) {
-      currentP.nickname = name;
-      gameState.savePlayer(currentP);
-    }
+    this.syncClassmateList(user);
+    this.syncWithFirestore(user);
 
     this.notify();
     return user;
   }
 
-  public signOut() {
+  public async signOut() {
+    if (auth) {
+      try {
+        await firebaseSignOut(auth);
+      } catch {}
+    }
     this.currentUser = null;
     this.saveUserToStorage();
     this.notify();
@@ -214,6 +345,8 @@ class AuthService {
         this.classmates[idx] = { ...this.currentUser };
         this.saveClassmatesToStorage();
       }
+
+      this.syncWithFirestore(this.currentUser);
       this.notify();
     }
   }
