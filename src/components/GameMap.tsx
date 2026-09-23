@@ -4,10 +4,10 @@ import type { Zone } from '../types/game';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
 import { Marisol } from './Marisol';
-import { Lock, Play, Film, Tv, Sparkles, Clapperboard, HelpCircle, Rocket, Globe, Cpu, Music, ShieldAlert } from 'lucide-react';
+import { Lock, Play, Film, Tv, Sparkles, Clapperboard, HelpCircle, Rocket, Globe, Cpu, Music } from 'lucide-react';
 
 interface GameMapProps {
-  onSelectZone: (zone: Zone, isBoss: boolean) => void;
+  onSelectZone: (zone: Zone) => void;
 }
 
 const ICON_MAP: Record<string, any> = {
@@ -119,32 +119,16 @@ export const GameMap: React.FC<GameMapProps> = ({ onSelectZone }) => {
                 {/* Actions */}
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   {isUnlocked ? (
-                    <>
-                      {/* Standard Quiz Round */}
-                      <button
-                        onClick={() => {
-                          audioEngine.playSfx('click');
-                          onSelectZone(zone, false);
-                        }}
-                        className="sketch-btn-primary flex-1 sm:flex-initial px-4 py-2.5 flex items-center justify-center gap-2 text-sm sm:text-base font-bold shadow-sketch"
-                      >
-                        <Play className="w-4 h-4 fill-white" />
-                        <span>PLAY ROUND</span>
-                      </button>
-
-                      {/* Boss Challenge */}
-                      <button
-                        onClick={() => {
-                          audioEngine.playSfx('click');
-                          onSelectZone(zone, true);
-                        }}
-                        className="sketch-btn-gold px-3 py-2.5 flex items-center justify-center gap-1.5 text-xs sm:text-sm font-black shadow-sketch"
-                        title="Boss Battle: The Final Cut"
-                      >
-                        <ShieldAlert className="w-4 h-4 text-ink" />
-                        <span>BOSS</span>
-                      </button>
-                    </>
+                    <button
+                      onClick={() => {
+                        audioEngine.playSfx('click');
+                        onSelectZone(zone);
+                      }}
+                      className="sketch-btn-primary flex-1 sm:flex-initial px-4 py-2.5 flex items-center justify-center gap-2 text-sm sm:text-base font-bold shadow-sketch"
+                    >
+                      <Play className="w-4 h-4 fill-white" />
+                      <span>PLAY ROUND</span>
+                    </button>
                   ) : (
                     <div className="bg-paper-200 border-2 border-ink px-4 py-2 rounded-xl text-xs font-bold text-ink-light shadow-sketch">
                       Requires {zone.requiredXp} XP to unlock

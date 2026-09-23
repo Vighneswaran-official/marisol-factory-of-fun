@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { audioEngine } from '../services/synthAudioEngine';
 import { gameState } from '../services/gameState';
-import { Heart, Sparkles, X, Utensils, Music, ShieldAlert, Award, Smile } from 'lucide-react';
+import { wellnessState } from '../services/wellnessState';
+import { RECIPES } from '../data/recipes';
+import { Heart, Sparkles, X, Utensils, Music, ShieldAlert, Award, Smile, Coffee, Film, Cloud } from 'lucide-react';
 
 interface ComfortCornerModalProps {
   onClose: () => void;
   onOpenMusic: () => void;
   onOpenHindiSong?: (songId: string) => void;
+  initialTab?: 'rage' | 'cravings' | 'affirmations' | 'vent' | 'cozy';
 }
 
 const STRESS_BUBBLES = [
@@ -61,11 +64,22 @@ const GIRL_AFFIRMATIONS = [
   "90% of female fury is just low blood sugar demanding garlic butter carbs. Eat something delicious!"
 ];
 
-export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose, onOpenMusic, onOpenHindiSong }) => {
+export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({
+  onClose,
+  onOpenMusic,
+  onOpenHindiSong,
+  initialTab = 'rage'
+}) => {
   const [poppedBubbles, setPoppedBubbles] = useState<Record<string, boolean>>({});
   const [claimedSandwiches, setClaimedSandwiches] = useState(false);
-  const [activeTab, setActiveTab] = useState<'rage' | 'cravings' | 'vent' | 'affirmations'>('rage');
+  const [activeTab, setActiveTab] = useState<'rage' | 'cravings' | 'affirmations' | 'vent' | 'cozy'>(initialTab);
   const [affirmationIdx, setAffirmationIdx] = useState(0);
+
+  // Cozy Mode Data
+  const pinnedIds = wellnessState.getPinnedSongIds();
+  const allSongs = wellnessState.getAllSongs();
+  const favoriteSong = allSongs.find(s => pinnedIds.includes(s.id)) || allSongs[0];
+  const chaiRecipe = RECIPES.find(r => r.id === 'bollywood_masala_chai') || RECIPES[1];
 
   const handlePop = (id: string) => {
     if (!poppedBubbles[id]) {
@@ -104,11 +118,11 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
                   GIRL'S COMFORT CORNER ♡
                 </h2>
                 <span className="bg-coral-100 text-coral-800 font-handwritten text-[11px] font-black px-2 py-0.5 rounded-full border border-coral-400">
-                  TLC & VENT
+                  SANCTUARY
                 </span>
               </div>
               <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
-                From one girl to another: validation, comfort carbs & instant de-stressing!
+                Validation, warm blanket tranquility, comfort carbs & instant de-stressing!
               </p>
             </div>
           </div>
@@ -127,7 +141,7 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
               <img 
                 src="/marisol/avatars/03_wink_conquer.png" 
                 alt="Kritika wink" 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover" 
               />
             </div>
             <div className="space-y-1">
@@ -179,37 +193,43 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="grid grid-cols-4 gap-1.5 bg-paper-200 border-2 border-ink rounded-2xl p-1 font-display font-black text-[11px] sm:text-xs text-center">
+        {/* Tab Navigation (Unified 5-Tab Bar) */}
+        <div className="grid grid-cols-5 gap-1 bg-paper-200 border-2 border-ink rounded-2xl p-1 font-display font-black text-[10px] sm:text-xs text-center">
           <button
             onClick={() => { audioEngine.playSfx('click'); setActiveTab('rage'); }}
-            className={`py-1.5 px-1 rounded-xl transition-all ${activeTab === 'rage' ? 'bg-white shadow-sketch border border-ink text-coral-600' : 'text-ink-light hover:text-ink'}`}
+            className={`py-1.5 px-0.5 rounded-xl transition-all ${activeTab === 'rage' ? 'bg-white shadow-sketch border border-ink text-coral-600' : 'text-ink-light hover:text-ink'}`}
           >
-            🔥 VENT & POP
+            🔥 VENT
+          </button>
+          <button
+            onClick={() => { audioEngine.playSfx('click'); setActiveTab('cozy'); }}
+            className={`py-1.5 px-0.5 rounded-xl transition-all ${activeTab === 'cozy' ? 'bg-white shadow-sketch border border-ink text-amber-700' : 'text-ink-light hover:text-ink'}`}
+          >
+            ☁️ COZY
           </button>
           <button
             onClick={() => { audioEngine.playSfx('click'); setActiveTab('cravings'); }}
-            className={`py-1.5 px-1 rounded-xl transition-all ${activeTab === 'cravings' ? 'bg-white shadow-sketch border border-ink text-amber-700' : 'text-ink-light hover:text-ink'}`}
+            className={`py-1.5 px-0.5 rounded-xl transition-all ${activeTab === 'cravings' ? 'bg-white shadow-sketch border border-ink text-amber-800' : 'text-ink-light hover:text-ink'}`}
           >
-            🍜 CRAVINGS
+            🍜 FOOD
           </button>
           <button
             onClick={() => { audioEngine.playSfx('click'); setActiveTab('affirmations'); }}
-            className={`py-1.5 px-1 rounded-xl transition-all ${activeTab === 'affirmations' ? 'bg-white shadow-sketch border border-ink text-purple-700' : 'text-ink-light hover:text-ink'}`}
+            className={`py-1.5 px-0.5 rounded-xl transition-all ${activeTab === 'affirmations' ? 'bg-white shadow-sketch border border-ink text-purple-700' : 'text-ink-light hover:text-ink'}`}
           >
-            ✨ AFFIRMATIONS
+            ✨ VIBE
           </button>
           <button
             onClick={() => { audioEngine.playSfx('click'); setActiveTab('vent'); }}
-            className={`py-1.5 px-1 rounded-xl transition-all ${activeTab === 'vent' ? 'bg-white shadow-sketch border border-ink text-emerald-700' : 'text-ink-light hover:text-ink'}`}
+            className={`py-1.5 px-0.5 rounded-xl transition-all ${activeTab === 'vent' ? 'bg-white shadow-sketch border border-ink text-emerald-700' : 'text-ink-light hover:text-ink'}`}
           >
-            🎧 MOOD BEAT
+            🎧 SONGS
           </button>
         </div>
 
         {/* Tab 1: Interactive Stress Popper */}
         {activeTab === 'rage' && (
-          <div className="space-y-3">
+          <div className="space-y-3 animate-fade-in">
             <div className="flex items-center justify-between">
               <span className="font-display font-black text-xs uppercase tracking-wider text-ink flex items-center gap-1">
                 <ShieldAlert className="w-3.5 h-3.5 text-coral-500" />
@@ -256,9 +276,108 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
           </div>
         )}
 
-        {/* Tab 2: Comfort Food Cravings */}
+        {/* Tab 2: Cozy Blanket Wrap Mode (Merged from CozyModeOverlay) */}
+        {activeTab === 'cozy' && (
+          <div className="space-y-3 animate-fade-in text-left">
+            <div className="text-center space-y-1 bg-amber-50/70 border-2 border-amber-200/80 rounded-2xl p-3.5">
+              <div className="inline-flex items-center gap-1.5 bg-amber-100/90 text-amber-900 border border-amber-300 px-3 py-0.5 rounded-full font-handwritten text-xs font-bold">
+                <Cloud className="w-3.5 h-3.5" />
+                <span>COZY BLANKET ACTIVE</span>
+              </div>
+              <h3 className="font-display font-black text-lg text-ink">
+                Wrap Yourself in Warmth, Babe
+              </h3>
+              <p className="font-handwritten text-xs text-ink-light font-bold">
+                Notifications on pause. Warm chai steaming. Your comfort track queued. You've earned this tranquility.
+              </p>
+            </div>
+
+            <div className="space-y-2.5">
+              {/* Pinned Song */}
+              <div className="bg-white border-2 border-pink-200 rounded-2xl p-3 flex items-center justify-between shadow-sketch-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-400 to-rose-400 text-white flex items-center justify-center text-lg shadow-xs shrink-0">
+                    {favoriteSong.emoji}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-handwritten font-bold text-pink-600 block">
+                      YOUR FAVORITE TRACK 🎵
+                    </span>
+                    <h4 className="font-display font-black text-xs sm:text-sm text-ink truncate">
+                      {favoriteSong.title}
+                    </h4>
+                    <p className="font-handwritten text-[11px] text-ink-light font-bold truncate">
+                      {favoriteSong.movie} • {favoriteSong.singers}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    onClose();
+                    onOpenMusic();
+                  }}
+                  className="px-3 py-1.5 bg-pink-500 hover:bg-pink-600 text-white font-display font-black text-xs rounded-xl shadow-xs shrink-0"
+                >
+                  PLAY
+                </button>
+              </div>
+
+              {/* Highway Tapri Chai */}
+              <div className="bg-white border-2 border-amber-200 rounded-2xl p-3 flex items-center justify-between shadow-sketch-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-orange-400 text-white flex items-center justify-center text-lg shadow-xs shrink-0">
+                    <Coffee className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-handwritten font-bold text-amber-700 block">
+                      COZY CHAI PRESCRIPTION ☕
+                    </span>
+                    <h4 className="font-display font-black text-xs sm:text-sm text-ink truncate">
+                      {chaiRecipe.title.split('&')[0]}
+                    </h4>
+                    <p className="font-handwritten text-[11px] text-ink-light font-bold truncate">
+                      Crushed ginger, green cardamom & warm milk hug
+                    </p>
+                  </div>
+                </div>
+
+                <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-1 rounded-lg border border-amber-300 font-handwritten shrink-0">
+                  20 Mins
+                </span>
+              </div>
+
+              {/* Movie Night Pairing */}
+              <div className="bg-white border-2 border-purple-200 rounded-2xl p-3 flex items-center justify-between shadow-sketch-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-400 to-indigo-400 text-white flex items-center justify-center text-lg shadow-xs shrink-0">
+                    <Film className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-handwritten font-bold text-purple-700 block">
+                      MOVIE NIGHT PAIRING 🎬
+                    </span>
+                    <h4 className="font-display font-black text-xs sm:text-sm text-ink truncate">
+                      Jab We Met & Dil Se
+                    </h4>
+                    <p className="font-handwritten text-[11px] text-ink-light font-bold truncate">
+                      Monsoon romance & unstoppable smiles
+                    </p>
+                  </div>
+                </div>
+
+                <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-1 rounded-lg border border-purple-300 font-handwritten shrink-0">
+                  Feel Good
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: Comfort Food Cravings */}
         {activeTab === 'cravings' && (
-          <div className="space-y-2.5">
+          <div className="space-y-2.5 animate-fade-in">
             <div className="flex items-center justify-between">
               <span className="font-display font-black text-xs uppercase tracking-wider text-ink flex items-center gap-1">
                 <Utensils className="w-3.5 h-3.5 text-amber-600" />
@@ -273,7 +392,7 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
               {COMFORT_CRAVINGS.map((craving, idx) => (
                 <div 
                   key={idx}
-                  className="bg-white border-2 border-ink/30 rounded-2xl p-3 flex items-start gap-3 shadow-sketch-xs hover:border-ink transition-all"
+                  className="bg-white border-2 border-ink/30 rounded-2xl p-3 flex items-start gap-3 shadow-sketch-xs hover:border-ink transition-all text-left"
                 >
                   <div className="w-11 h-11 rounded-xl border border-ink/20 bg-amber-50 flex items-center justify-center text-2xl shrink-0">
                     {craving.emoji}
@@ -297,9 +416,9 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
           </div>
         )}
 
-        {/* Tab 3: Affirmations */}
+        {/* Tab 4: Affirmations */}
         {activeTab === 'affirmations' && (
-          <div className="space-y-4 text-center py-3">
+          <div className="space-y-4 text-center py-3 animate-fade-in">
             <div className="w-16 h-16 mx-auto rounded-full border-2.5 border-ink bg-purple-100 flex items-center justify-center text-2xl shadow-sketch">
               👑
             </div>
@@ -326,9 +445,9 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
           </div>
         )}
 
-        {/* Tab 4: Mood Beat Switches */}
+        {/* Tab 5: Mood Beat Switches */}
         {activeTab === 'vent' && (
-          <div className="space-y-3">
+          <div className="space-y-3 animate-fade-in text-left">
             <div className="flex items-center justify-between">
               <span className="font-display font-black text-xs uppercase tracking-wider text-ink flex items-center gap-1">
                 <Music className="w-3.5 h-3.5 text-purple-600" />
@@ -441,7 +560,7 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
         {/* Footer Comfort Quote */}
         <div className="bg-rose-50 border-1.5 border-rose-300 rounded-2xl p-3 flex items-center gap-3">
           <Smile className="w-5 h-5 text-coral-500 shrink-0" />
-          <p className="font-handwritten text-xs text-rose-900 font-bold">
+          <p className="font-handwritten text-xs text-rose-900 font-bold text-left">
             "Bad moods are temporary, but good food, great music, and you being iconic is forever." ♡
           </p>
         </div>

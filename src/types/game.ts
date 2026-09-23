@@ -200,7 +200,6 @@ export type ScreenState =
   | 'home'
   | 'map'
   | 'quiz'
-  | 'boss'
   | 'passport'
   | 'daily'
   | 'profile'

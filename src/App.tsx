@@ -10,13 +10,10 @@ import { GameMap } from './components/GameMap';
 import { QuestionCard } from './components/QuestionCard';
 import { MovieDetectiveCard } from './components/MovieDetectiveCard';
 import { LearningCard } from './components/LearningCard';
-import { BossRound } from './components/BossRound';
 import { KnowledgePassport } from './components/KnowledgePassport';
 import { DailyChallenge } from './components/DailyChallenge';
 import { PlayerProfileCard } from './components/PlayerProfileCard';
-import { ClassroomMode } from './components/ClassroomMode';
-import { TeacherMode } from './components/TeacherMode';
-import { SecretClassroom } from './components/SecretClassroom';
+import { Classroom } from './components/Classroom';
 import { StickerCollection } from './components/StickerCollection';
 import { MoodSelectorModal } from './components/MoodSelectorModal';
 import { RecipeModal } from './components/RecipeModal';
@@ -28,7 +25,6 @@ import { CelebrationLocketModal } from './components/CelebrationLocketModal';
 import { LevelClearHeroModal } from './components/LevelClearHeroModal';
 import { InstallAppModal } from './components/InstallAppModal';
 import { GlowUpWeekModal } from './components/GlowUpWeekModal';
-import { CozyModeOverlay } from './components/CozyModeOverlay';
 import { BottomNavigationDock, type MainNavTab } from './components/BottomNavigationDock';
 import { RECIPES } from './data/recipes';
 import confetti from 'canvas-confetti';
@@ -39,8 +35,7 @@ export function App() {
     return player.onboardingCompleted ? 'home' : 'cinematic';
   });
 
-  const [activeZone, setActiveZone] = useState<Zone | null>(null);
-  const [_isBossMode, setIsBossMode] = useState(false);
+  const [_activeZone, setActiveZone] = useState<Zone | null>(null);
 
   // Active Quiz Round State
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
@@ -59,7 +54,6 @@ export function App() {
   const [showLevelClearHero, setShowLevelClearHero] = useState(false);
   const [showCelebrationLocket, setShowCelebrationLocket] = useState(false);
   const [showGlowUpWeek, setShowGlowUpWeek] = useState(false);
-  const [showCozyMode, setShowCozyMode] = useState(false);
   const [showInstallApp, setShowInstallApp] = useState(false);
 
   const [selectedHindiSongId, setSelectedHindiSongId] = useState<string | undefined>(undefined);
@@ -99,14 +93,8 @@ export function App() {
     setActiveNavTab('quiz');
   };
 
-  const startZoneQuiz = (zone: Zone, isBoss: boolean) => {
+  const startZoneQuiz = (zone: Zone) => {
     setActiveZone(zone);
-    setIsBossMode(isBoss);
-
-    if (isBoss) {
-      setCurrentScreen('boss');
-      return;
-    }
 
     const selected = adaptiveEngine.selectQuestions(zone.category, 5, playedIds);
     setQuizQuestions(selected);
@@ -238,7 +226,6 @@ export function App() {
             onOpenComfortCorner={() => setShowComfortCorner(true)}
             onOpenSecretLocket={() => setShowSecretLocket(true)}
             onOpenGlowUpWeek={() => setShowGlowUpWeek(true)}
-            onOpenCozyMode={() => setShowCozyMode(true)}
             onOpenInstallApp={() => setShowInstallApp(true)}
           />
         )}
@@ -277,17 +264,6 @@ export function App() {
           </div>
         )}
 
-        {currentScreen === 'boss' && activeZone && (
-          <BossRound
-            zone={activeZone}
-            onComplete={(passed) => {
-              if (passed) {
-                setShowLevelClearHero(true);
-              }
-              handleNavigate('map');
-            }}
-          />
-        )}
 
         {currentScreen === 'passport' && (
           <KnowledgePassport />
@@ -305,15 +281,27 @@ export function App() {
         )}
 
         {currentScreen === 'classroom' && (
-          <ClassroomMode onStartQuiz={handleStartCulinaryTrivia} />
+          <Classroom 
+            mode="student" 
+            onStartQuiz={handleStartCulinaryTrivia} 
+            onNavigateHome={() => handleNavigate('home')} 
+          />
         )}
 
         {currentScreen === 'teacher_custom' && (
-          <TeacherMode onSave={() => handleNavigate('home')} />
+          <Classroom 
+            mode="teacher" 
+            onStartQuiz={handleStartCulinaryTrivia} 
+            onNavigateHome={() => handleNavigate('home')} 
+          />
         )}
 
         {currentScreen === 'secret_classroom' && (
-          <SecretClassroom onBackToHome={() => handleNavigate('home')} />
+          <Classroom 
+            mode="secret" 
+            onStartQuiz={handleStartCulinaryTrivia} 
+            onNavigateHome={() => handleNavigate('home')} 
+          />
         )}
 
         {currentScreen === 'stickers' && (
@@ -405,14 +393,6 @@ export function App() {
         {/* Glow-Up Week Polaroid Scrapbook Modal */}
         {showGlowUpWeek && (
           <GlowUpWeekModal onClose={() => setShowGlowUpWeek(false)} />
-        )}
-
-        {/* Cozy Mode Blanket Wrap Overlay */}
-        {showCozyMode && (
-          <CozyModeOverlay
-            onClose={() => setShowCozyMode(false)}
-            onOpenMusic={() => setShowMusicJukebox(true)}
-          />
         )}
 
         {/* Level Complete Secret Recipe Reveal Modal */}

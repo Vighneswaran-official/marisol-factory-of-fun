@@ -23,7 +23,6 @@ interface HomeScreenProps {
   onOpenComfortCorner: () => void;
   onOpenSecretLocket: () => void;
   onOpenGlowUpWeek: () => void;
-  onOpenCozyMode: () => void;
   onOpenInstallApp?: () => void;
 }
 
@@ -34,7 +33,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenComfortCorner,
   onOpenSecretLocket,
   onOpenGlowUpWeek,
-  onOpenCozyMode,
   onOpenInstallApp,
 }) => {
   const [, setTick] = useState(0);
@@ -113,11 +111,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <button
                 onClick={() => {
                   audioEngine.playSfx('powerup');
-                  onOpenCozyMode();
+                  onOpenComfortCorner();
                 }}
                 className="inline-flex items-center gap-1.5 bg-white/90 hover:bg-white border-2 border-pink-300 text-pink-900 font-display font-black text-xs px-3 py-1.5 rounded-full shadow-2xs hover:scale-105 active:scale-95 transition-all"
               >
-                <span>Cozy Mode</span>
+                <span>Cozy Sanctuary</span>
                 <span>🤍</span>
               </button>
             </div>
