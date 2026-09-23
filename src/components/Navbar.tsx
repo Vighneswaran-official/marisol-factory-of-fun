@@ -69,20 +69,20 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                   audioEngine.playSfx('click');
                   onNavigate('home');
                 }}
-                className="flex items-center gap-1.5 sm:gap-2.5 group text-left cursor-pointer min-w-0"
+                className="flex items-center gap-2 group text-left cursor-pointer min-w-0"
               >
-                {/* Custom Brand Crown Logo Badge */}
-                <div className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-400 p-0.5 shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center shrink-0">
-                  <div className="w-full h-full bg-white rounded-[13px] sm:rounded-[14px] flex items-center justify-center relative overflow-hidden">
-                    <span className="text-sm sm:text-lg">👑</span>
+                {/* Custom Brand 'M' Logo Badge */}
+                <div className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-400 p-[2px] shadow-xs group-hover:scale-105 transition-transform flex items-center justify-center shrink-0">
+                  <div className="w-full h-full bg-white rounded-full flex items-center justify-center relative overflow-hidden">
+                    <span className="font-display font-black text-rose-600 text-sm leading-none tracking-tight">M</span>
                   </div>
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-amber-400 rounded-full flex items-center justify-center shadow-2xs">
-                    <Sparkles className="w-1.5 h-1.5 sm:w-2 sm:h-2 text-white fill-white" />
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-400 rounded-full flex items-center justify-center shadow-2xs">
+                    <Sparkles className="w-1.5 h-1.5 text-white fill-white" />
                   </span>
                 </div>
 
                 <div className="min-w-0">
-                  <div className="flex items-center gap-0.5 sm:gap-1">
+                  <div className="flex items-center gap-1">
                     <h1 className="font-display font-black text-sm sm:text-base tracking-tight leading-none text-stone-900 group-hover:text-rose-600 transition-colors">
                       MARISOL
                     </h1>
@@ -96,28 +96,26 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
             )}
           </div>
 
-          {/* Right: Core Stats & Menu Controls */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* Right: Core Stats & Menu Controls (Standard Mobile App Sizing) */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             
             {/* Macaronis Score */}
             <div 
-              className="flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200 px-2 py-1 rounded-xl shadow-2xs text-xs font-black shrink-0"
+              className="h-8 px-2.5 flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200 rounded-full shadow-2xs text-xs font-black shrink-0"
               title={`${player.cucumberSandwiches || 0} Macaronis`}
             >
-              <span>🧀</span>
+              <span className="text-xs">🧀</span>
               <span>{player.cucumberSandwiches || 0}</span>
             </div>
 
             {/* Streak Counter */}
             <div 
-              className="flex items-center gap-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white px-2 py-1 rounded-xl shadow-xs text-xs font-bold shrink-0"
+              className="h-8 px-2.5 flex items-center gap-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-full shadow-xs text-xs font-bold shrink-0"
               title={`${player.streak} Day Streak`}
             >
-              <Flame className="w-3 h-3 fill-white animate-bounce-gentle" />
+              <Flame className="w-3.5 h-3.5 fill-white animate-bounce-gentle" />
               <span>{player.streak}</span>
             </div>
-
-
 
             {/* Responsive Main Menu Button (☰ MENU) */}
             <button
@@ -125,11 +123,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                 audioEngine.playSfx('click');
                 setIsMenuOpen(true);
               }}
-              className="py-1.5 px-2 sm:px-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl flex items-center gap-1 text-xs font-display font-black shadow-xs transition-all cursor-pointer shrink-0"
+              className="h-8 px-3 bg-stone-900 hover:bg-stone-800 text-white rounded-full flex items-center gap-1.5 text-xs font-display font-black shadow-xs transition-all cursor-pointer shrink-0 active:scale-95"
               title="Open Navigation Menu"
             >
               <Menu className="w-3.5 h-3.5" />
-              <span className="hidden min-[400px]:inline">MENU</span>
+              <span className="hidden min-[380px]:inline">MENU</span>
             </button>
           </div>
         </div>
@@ -145,8 +143,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
               {/* Header */}
               <div className="flex items-center justify-between border-b border-stone-200 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-400 flex items-center justify-center text-sm shadow-xs">
-                    👑
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-rose-500 to-amber-400 flex items-center justify-center font-display font-black text-white text-sm shadow-xs">
+                    M
                   </div>
                   <div>
                     <h2 className="font-display font-black text-sm text-stone-900">MARISOL FACTORY</h2>

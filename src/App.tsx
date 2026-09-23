@@ -41,6 +41,18 @@ export function App() {
   const [showMoodHistory, setShowMoodHistory] = useState(false);
   const [showComfortShelf, setShowComfortShelf] = useState(false);
 
+  // Auto pop-up Google sign-in modal on startup if not signed in
+  useEffect(() => {
+    const hasPrompted = sessionStorage.getItem('marisol_prompted_login');
+    if (!authService.isAuthenticated() && !hasPrompted) {
+      sessionStorage.setItem('marisol_prompted_login', 'true');
+      const timer = setTimeout(() => {
+        setShowGoogleSignIn(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   // Active Mood State
   const [activeMoodId, setActiveMoodId] = useState<string>('happy');
 
