@@ -1,4 +1,4 @@
-// Firebase Initialization & Services
+// Firebase Initialization & Services for Marisol: Factory of Fun (Spec v2)
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -8,24 +8,28 @@ import {
   getRedirectResult,
   signOut as firebaseSignOut, 
   onAuthStateChanged,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  PhoneAuthProvider,
   type Auth,
-  type User as FirebaseUser
+  type User as FirebaseUser,
+  type ConfirmationResult
 } from 'firebase/auth';
 import { 
   getFirestore, 
   collection, 
   doc, 
   setDoc, 
-  deleteDoc,
+  deleteDoc, 
   getDocs, 
   addDoc, 
   updateDoc, 
   onSnapshot, 
   query, 
-  orderBy,
-  limit,
-  serverTimestamp,
-  type Firestore
+  orderBy, 
+  limit, 
+  serverTimestamp, 
+  type Firestore 
 } from 'firebase/firestore';
 
 export interface FirebaseConfig {
@@ -37,7 +41,7 @@ export interface FirebaseConfig {
   appId: string;
 }
 
-// Read from Vite environment variables with fallback to project credentials
+// Read from Vite environment variables with fallback to active project credentials
 const envConfig: FirebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyD4dIfV_Xv7sE_sx4wHE6n66QGWw9HZf-A',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'kritika-61cc2.firebaseapp.com',
@@ -81,6 +85,9 @@ export {
   getRedirectResult,
   firebaseSignOut,
   onAuthStateChanged,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  PhoneAuthProvider,
   collection,
   doc,
   setDoc,
@@ -93,5 +100,6 @@ export {
   orderBy,
   limit,
   serverTimestamp,
-  type FirebaseUser
+  type FirebaseUser,
+  type ConfirmationResult
 };

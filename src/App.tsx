@@ -8,6 +8,8 @@ import { QuestionCard } from './components/QuestionCard';
 import { LearningCard } from './components/LearningCard';
 import { BatchUpdatesWall } from './components/BatchUpdatesWall';
 import { GoogleSignInModal } from './components/GoogleSignInModal';
+import { MoodHistoryModal } from './components/MoodHistoryModal';
+import { ComfortShelfModal } from './components/ComfortShelfModal';
 import { BottomNavigationDock, type MainNavTab } from './components/BottomNavigationDock';
 import { 
   getQuestionsForMood, 
@@ -23,6 +25,8 @@ export function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenState>('home');
   const [activeNavTab, setActiveNavTab] = useState<MainNavTab>('home');
   const [showGoogleSignIn, setShowGoogleSignIn] = useState(false);
+  const [showMoodHistory, setShowMoodHistory] = useState(false);
+  const [showComfortShelf, setShowComfortShelf] = useState(false);
 
   // Active Mood State
   const [activeMoodId, setActiveMoodId] = useState<string>('happy');
@@ -121,7 +125,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] text-ink font-sans antialiased selection:bg-pink-200">
+    <div className="min-h-screen bg-[#FAF8F5] text-ink font-sans antialiased selection:bg-pink-200">
       {/* Top Navbar */}
       <Navbar
         currentScreen={currentScreen}
@@ -132,12 +136,14 @@ export function App() {
       {/* Main Content Area */}
       <main className="animate-fade-in pb-20">
         
-        {/* 1. HOME SCREEN: Hero Video, Mood Selector & Macaroni Preview */}
+        {/* 1. HOME SCREEN: Hero Video, 1-9 Mood Selector & Macaroni Preview */}
         {currentScreen === 'home' && (
           <HomeScreen
             onNavigate={handleNavigate}
             onStartMoodQuiz={handleStartMoodQuiz}
             onOpenGoogleSignIn={() => setShowGoogleSignIn(true)}
+            onOpenMoodHistory={() => setShowMoodHistory(true)}
+            onOpenComfortShelf={() => setShowComfortShelf(true)}
             activeMoodId={activeMoodId}
             onSelectMood={setActiveMoodId}
           />
@@ -147,25 +153,25 @@ export function App() {
         {currentScreen === 'quiz' && (
           <div className="max-w-xl mx-auto p-4 sm:p-6 pb-28 space-y-4">
             {/* Quiz Top Action Bar */}
-            <div className="flex items-center justify-between gap-2 border-b-2 border-ink/10 pb-3">
+            <div className="flex items-center justify-between gap-2 border-b border-stone-200 pb-3">
               <button
                 onClick={() => handleNavigate('home')}
-                className="sketch-btn py-1.5 px-3 bg-white flex items-center gap-1.5 shadow-sketch text-xs font-display font-bold hover:bg-paper-100 transition-all cursor-pointer"
+                className="py-1.5 px-3 bg-white border border-stone-200 rounded-xl flex items-center gap-1.5 shadow-xs text-xs font-display font-bold hover:bg-stone-50 transition-all cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>HOME</span>
               </button>
 
               <div className="text-center">
-                <span className="font-display font-black text-xs uppercase text-pink-600 tracking-wider">
-                  {currentMoodSetting.emoji} {currentMoodSetting.label} Quiz
+                <span className="font-display font-black text-xs uppercase text-rose-600 tracking-wider">
+                  #{currentMoodSetting.scaleNumber} {currentMoodSetting.emoji} {currentMoodSetting.label} Quiz
                 </span>
-                <h2 className="font-display font-black text-lg text-ink">
+                <h2 className="font-display font-black text-lg text-stone-900">
                   Question {currentQIndex + 1} of {quizQuestions.length}
                 </h2>
               </div>
 
-              <div className="flex items-center gap-1 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-full text-xs font-display font-black text-amber-900 shadow-2xs">
+              <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full text-xs font-display font-black text-amber-900 shadow-2xs">
                 <span>🔥 Streak:</span>
                 <span>{player.streak}</span>
               </div>
@@ -195,16 +201,16 @@ export function App() {
               )
             ) : (
               /* Quiz Completed Celebration with Mood Macaroni Award! */
-              <div className="bg-white border-2.5 border-ink rounded-3xl p-5 sm:p-7 text-center space-y-4 shadow-sketch animate-scale-up">
-                <div className="w-16 h-16 mx-auto bg-amber-100 border-2 border-ink rounded-2xl flex items-center justify-center text-3xl shadow-xs">
+              <div className="bg-white border border-stone-200 rounded-3xl p-5 sm:p-7 text-center space-y-4 shadow-sm animate-scale-up">
+                <div className="w-16 h-16 mx-auto bg-amber-100 border border-amber-300 rounded-2xl flex items-center justify-center text-3xl shadow-xs">
                   <Trophy className="w-8 h-8 text-amber-600" />
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-xs font-display font-black uppercase text-pink-600 tracking-wider">
-                    {currentMoodSetting.emoji} {currentMoodSetting.label} QUIZ CLEARED!
+                  <span className="text-xs font-display font-black uppercase text-rose-600 tracking-wider">
+                    #{currentMoodSetting.scaleNumber} {currentMoodSetting.emoji} {currentMoodSetting.label} QUIZ CLEARED!
                   </span>
-                  <h3 className="font-display font-black text-2xl text-ink">
+                  <h3 className="font-display font-black text-2xl text-stone-900">
                     You Earned {roundScore} Macaronis! 🧀
                   </h3>
                   <p className="font-handwritten text-sm text-stone-600 font-bold">
@@ -213,7 +219,7 @@ export function App() {
                 </div>
 
                 {/* Unlocked Mood Macaroni Dish Card */}
-                <div className="bg-gradient-to-r from-amber-50/90 via-pink-50 to-purple-50 border-2 border-amber-300 rounded-2xl p-4 text-left space-y-2 shadow-inner">
+                <div className="bg-gradient-to-r from-amber-50/90 via-pink-50 to-purple-50 border border-amber-200 rounded-2xl p-4 text-left space-y-2 shadow-xs">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">{currentMacaroni.emoji}</span>
@@ -221,7 +227,7 @@ export function App() {
                         <span className="text-[10px] font-display font-black uppercase text-amber-700">
                           COMFORT MACARONI REWARD
                         </span>
-                        <h4 className="font-display font-black text-sm text-ink">
+                        <h4 className="font-display font-black text-sm text-stone-900">
                           {currentMacaroni.name}
                         </h4>
                       </div>
@@ -246,14 +252,14 @@ export function App() {
                 <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
                   <button
                     onClick={() => handleStartMoodQuiz(activeMoodId)}
-                    className="sketch-btn-primary flex-1 py-3 text-xs sm:text-sm font-black uppercase flex items-center justify-center gap-2 shadow-sketch cursor-pointer"
+                    className="flex-1 py-3 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-2xl text-xs sm:text-sm font-black uppercase flex items-center justify-center gap-2 shadow-sm cursor-pointer hover:opacity-95"
                   >
                     <RefreshCw className="w-4 h-4" />
                     <span>Play Another Round</span>
                   </button>
                   <button
                     onClick={() => handleNavigate('home')}
-                    className="sketch-btn flex-1 py-3 text-xs sm:text-sm font-black uppercase bg-white border-2 border-ink hover:bg-paper-100 flex items-center justify-center gap-1.5 shadow-sketch cursor-pointer"
+                    className="flex-1 py-3 text-xs sm:text-sm font-black uppercase bg-white border border-stone-300 rounded-2xl hover:bg-stone-50 flex items-center justify-center gap-1.5 shadow-xs cursor-pointer text-stone-800"
                   >
                     <span>Back to Home & Video 🏠</span>
                   </button>
@@ -279,6 +285,16 @@ export function App() {
       {/* Clean Google Sign-In & Student Profile Modal */}
       {showGoogleSignIn && (
         <GoogleSignInModal onClose={() => setShowGoogleSignIn(false)} />
+      )}
+
+      {/* Mood History & 14-Day Heatmap Modal */}
+      {showMoodHistory && (
+        <MoodHistoryModal onClose={() => setShowMoodHistory(false)} />
+      )}
+
+      {/* Comfort Shelf Bookmarks Modal */}
+      {showComfortShelf && (
+        <ComfortShelfModal onClose={() => setShowComfortShelf(false)} />
       )}
     </div>
   );

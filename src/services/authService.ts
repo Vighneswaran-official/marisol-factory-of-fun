@@ -1,4 +1,4 @@
-// Google & Mobile Authentication Service with Firebase
+// Google & Phone Authentication Service with Real Firebase OAuth (Spec v2)
 import { gameState } from './gameState';
 import { 
   auth, 
@@ -8,13 +8,16 @@ import {
   getRedirectResult,
   firebaseSignOut, 
   onAuthStateChanged, 
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
   isFirebaseConfigured, 
   db, 
   doc, 
   setDoc, 
   onSnapshot, 
   collection, 
-  type FirebaseUser 
+  type FirebaseUser,
+  type ConfirmationResult
 } from './firebase';
 
 export interface StudentProfile {
@@ -29,8 +32,7 @@ export interface StudentProfile {
   statusNote: string;
   lastUpdated: string;
   isGoogleVerified: boolean;
-  loginMethod?: 'google' | 'mobile_phone' | 'google_authenticator';
-  authenticatorCode?: string;
+  loginMethod?: 'google' | 'phone_otp';
 }
 
 const AUTH_STORAGE_KEY = 'marisol_google_auth_v2';
@@ -45,14 +47,12 @@ export const isMobileBrowser = (): boolean => {
 /**
  * Format human-readable Student Name from email address.
  * e.g. "kritika.singh@gmail.com" -> "Kritika Singh"
- * e.g. "vighneswaran.r@gmail.com" -> "Vighneswaran R"
  */
 export const formatNameFromEmail = (email: string): string => {
   if (!email || !email.includes('@')) return '';
   const username = email.split('@')[0].trim();
   if (!username) return 'Student';
 
-  // Replace dots, underscores, dashes, plus signs with spaces
   const cleaned = username
     .replace(/[._\-+]/g, ' ')
     .replace(/([a-zA-Z]+)(\d+)/g, '$1 $2')
@@ -63,7 +63,6 @@ export const formatNameFromEmail = (email: string): string => {
 
   const formatted = parts
     .map(p => {
-      // If purely numbers, skip if there are letters
       if (/^\d+$/.test(p) && parts.some(item => /[a-zA-Z]/.test(item))) return '';
       return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
     })
@@ -78,6 +77,7 @@ class AuthService {
   private classmates: StudentProfile[] = [];
   private listeners: Set<() => void> = new Set();
   public isFirebaseEnabled = isFirebaseConfigured;
+  private recaptchaVerifier: RecaptchaVerifier | null = null;
 
   constructor() {
     this.cleanLegacyStorage();
@@ -85,7 +85,6 @@ class AuthService {
     this.initFirebaseListeners();
   }
 
-  // Purge unwanted mock users from old storage keys
   private cleanLegacyStorage() {
     try {
       localStorage.removeItem('marisol_batch_classmates_v1');
@@ -95,7 +94,7 @@ class AuthService {
 
   private initFirebaseListeners() {
     if (auth) {
-      // 1. Check for Mobile Redirect Sign-In Result (Crucial for iOS Safari / Android Chrome / PWA)
+      // 1. Check for Mobile Redirect Sign-In Result on Boot (Essential for mobile browsers)
       getRedirectResult(auth)
         .then((result) => {
           if (result && result.user) {
@@ -103,18 +102,20 @@ class AuthService {
           }
         })
         .catch((err) => {
-          console.warn('[Auth] getRedirectResult notification:', err?.message || err);
+          if (err?.code !== 'auth/null-user') {
+            console.warn('[Auth] getRedirectResult notice:', err?.message || err);
+          }
         });
 
       // 2. Regular Auth State Change
       onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
         if (firebaseUser) {
-          this.handleFirebaseUserLogin(firebaseUser, 'google');
+          this.handleFirebaseUserLogin(firebaseUser, firebaseUser.phoneNumber ? 'phone_otp' : 'google');
         }
       });
     }
 
-    // 3. Realtime Firestore sync for real logged-in classmates
+    // 3. Realtime Firestore sync for logged-in batch members
     if (db) {
       try {
         const studentsCol = collection(db, 'students');
@@ -122,7 +123,6 @@ class AuthService {
           const remoteStudents: StudentProfile[] = [];
           snapshot.forEach((d) => {
             const data = d.data() as StudentProfile;
-            // Ignore any legacy mock names
             if (!['user_aarav', 'user_pooja', 'user_rohan', 'user_meera'].includes(d.id)) {
               remoteStudents.push(data);
             }
@@ -143,26 +143,27 @@ class AuthService {
     }
   }
 
-  private handleFirebaseUserLogin(firebaseUser: FirebaseUser, method: 'google' | 'mobile_phone' = 'google') {
+  private handleFirebaseUserLogin(firebaseUser: FirebaseUser, method: 'google' | 'phone_otp' = 'google') {
     const emailName = firebaseUser.email ? formatNameFromEmail(firebaseUser.email) : '';
     const resolvedName = firebaseUser.displayName && !['Google Student', 'Student'].includes(firebaseUser.displayName)
       ? firebaseUser.displayName
-      : (emailName || (firebaseUser.phoneNumber ? `Student (${firebaseUser.phoneNumber.slice(-4)})` : 'Batch 41 Student'));
+      : (emailName || (firebaseUser.phoneNumber ? `Student (${firebaseUser.phoneNumber.slice(-4)})` : 'Batch 41 Member'));
 
     const profile: StudentProfile = {
       id: firebaseUser.uid,
       name: resolvedName,
-      email: firebaseUser.email || (firebaseUser.phoneNumber ? `${firebaseUser.phoneNumber}@mobile.app` : ''),
+      email: firebaseUser.email || (firebaseUser.phoneNumber ? `${firebaseUser.phoneNumber}@mobile.auth` : ''),
       phone: firebaseUser.phoneNumber || undefined,
       avatarUrl: firebaseUser.photoURL || '/marisol/avatars/01_brighter_ideas.png',
       batch: 'MLP41PT',
-      currentMood: this.currentUser?.currentMood || 'Radiant & Grateful',
-      currentMoodEmoji: this.currentUser?.currentMoodEmoji || '💡',
-      statusNote: this.currentUser?.statusNote || 'Connected via Firebase Auth ♡',
+      currentMood: this.currentUser?.currentMood || 'Radiant Sunshine 🌸',
+      currentMoodEmoji: this.currentUser?.currentMoodEmoji || '🌸',
+      statusNote: this.currentUser?.statusNote || 'Connected via Google Auth ♡',
       lastUpdated: 'Just now',
       isGoogleVerified: true,
       loginMethod: method
     };
+
     this.currentUser = profile;
     this.saveUserToStorage();
     this.syncClassmateList(profile);
@@ -180,7 +181,6 @@ class AuthService {
       const storedClassmates = localStorage.getItem(CLASSMATES_STORAGE_KEY);
       if (storedClassmates) {
         const parsed: StudentProfile[] = JSON.parse(storedClassmates);
-        // Exclude mock users
         this.classmates = parsed.filter(c => !['user_aarav', 'user_pooja', 'user_rohan', 'user_meera'].includes(c.id));
       } else {
         this.classmates = [];
@@ -240,259 +240,120 @@ class AuthService {
   }
 
   public isAuthenticated(): boolean {
-    return this.currentUser !== null && this.currentUser.isGoogleVerified;
+    return Boolean(this.currentUser);
   }
 
   public getClassmates(): StudentProfile[] {
-    return [...this.classmates];
+    return this.classmates;
   }
 
   /**
-   * Real Firebase Google Sign-In with automatic Mobile fallback
+   * 100% Real Firebase Google Sign-In Flow
+   * Uses signInWithPopup on Desktop, and signInWithRedirect on Mobile browsers
    */
-  public async signInWithFirebaseGoogle(forceRedirect = false): Promise<{ success: boolean; user?: StudentProfile; error?: string }> {
-    if (auth && googleProvider) {
-      try {
-        if (forceRedirect) {
-          await signInWithRedirect(auth, googleProvider);
-          return { success: true };
-        }
+  public async signInWithFirebaseGoogle(forceRedirect: boolean = false): Promise<{ success: boolean; user?: StudentProfile; error?: string }> {
+    if (!auth || !googleProvider) {
+      return { success: false, error: 'Firebase authentication is not configured yet.' };
+    }
 
-        // Try direct popup first - works smoothly on mobile & desktop when triggered by tap
-        const result = await signInWithPopup(auth, googleProvider);
-        this.handleFirebaseUserLogin(result.user, 'google');
-        return { success: true, user: this.currentUser || undefined };
-      } catch (err: any) {
-        console.warn('Google Sign-In popup error, checking fallback:', err);
-        // If popup was blocked on mobile, auto retry with redirect
-        if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/popup-closed-by-user') {
-          try {
-            await signInWithRedirect(auth, googleProvider);
-            return { success: true };
-          } catch (rErr: any) {
-            return { success: false, error: rErr?.message || 'Mobile redirect sign-in failed' };
-          }
+    try {
+      const isMobile = forceRedirect || isMobileBrowser();
+      if (isMobile) {
+        await signInWithRedirect(auth, googleProvider);
+        return { success: true };
+      } else {
+        const userCredential = await signInWithPopup(auth, googleProvider);
+        if (userCredential.user) {
+          this.handleFirebaseUserLogin(userCredential.user, 'google');
+          return { success: true, user: this.currentUser || undefined };
         }
-        return { 
-          success: false, 
-          error: err?.message?.includes('unauthorized-domain')
-            ? 'Domain authorization in progress. You can use Fast Mobile Google Connect below!'
-            : (err?.message || 'Google sign-in could not complete.') 
-        };
+        return { success: false, error: 'No user credential received from Google.' };
       }
-    } else {
-      // 1-Tap fallback
-      const user = this.signInWithGoogle({
-        name: 'Kritika (Google Verified)',
-        email: 'kritika.google@gmail.com',
-        avatarUrl: '/marisol/avatars/01_brighter_ideas.png',
-        mood: 'Radiant & Grateful',
-        moodEmoji: '💡',
-        statusNote: 'Signed in with Google on Mobile ♡',
-      });
-      return { success: true, user };
+    } catch (err: any) {
+      console.error('[Auth] Real Firebase Google Sign-In Error:', err);
+      let errorMsg = 'Google sign-in could not complete.';
+
+      if (err.code === 'auth/popup-closed-by-user') {
+        errorMsg = 'Sign-in was cancelled (popup window closed).';
+      } else if (err.code === 'auth/unauthorized-domain') {
+        errorMsg = 'Domain not authorized. In Firebase Console → Authentication → Settings, add this domain to Authorized Domains.';
+      } else if (err.code === 'auth/network-request-failed') {
+        errorMsg = 'Network error. Please check your internet connection.';
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+
+      return { success: false, error: errorMsg };
     }
   }
 
   /**
-   * Mobile Google Account Instant Connect (Firebase sync with Google Verified status)
+   * Secondary Sign-In: Firebase Phone / OTP Auth
    */
-  public signInWithMobileGoogle(
-    email: string, 
-    customName?: string,
-    mood?: string,
-    moodEmoji?: string,
-    statusNote?: string
-  ): StudentProfile {
-    const trimmedEmail = email.trim();
-    const derivedName = customName?.trim() || formatNameFromEmail(trimmedEmail) || 'Google Student';
-
-    const user: StudentProfile = {
-      id: `google_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      name: derivedName,
-      email: trimmedEmail,
-      avatarUrl: '/marisol/avatars/01_brighter_ideas.png',
-      batch: 'MLP41PT',
-      currentMood: mood || this.currentUser?.currentMood || 'Radiant & Grateful',
-      currentMoodEmoji: moodEmoji || this.currentUser?.currentMoodEmoji || '💡',
-      statusNote: statusNote || 'Connected via Mobile Google Login ♡',
-      lastUpdated: 'Just now',
-      isGoogleVerified: true,
-      loginMethod: 'google',
-    };
-
-    this.currentUser = user;
-    this.saveUserToStorage();
-    this.syncClassmateList(user);
-    this.syncWithFirestore(user);
-    this.notify();
-    return user;
-  }
-
-  /**
-   * Mobile-Based Firebase Student Sign-In (Phone or Mobile Student ID)
-   */
-  public signInWithMobile(params: {
-    name: string;
-    phoneOrEmail: string;
-    avatarPose?: string;
-    mood?: string;
-    moodEmoji?: string;
-    statusNote?: string;
-  }): StudentProfile {
-    const player = gameState.getPlayer();
-    const identifier = params.phoneOrEmail.trim();
-    const isPhone = /^[+]?[0-9\s-]{7,15}$/.test(identifier);
-    const emailName = !isPhone && identifier.includes('@') ? formatNameFromEmail(identifier) : '';
-
-    const name = params.name.trim() && params.name.trim() !== 'Mobile Student'
-      ? params.name.trim()
-      : (emailName || player.nickname || 'Batch 41 Student');
-
-    const user: StudentProfile = {
-      id: `mob_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      name,
-      email: isPhone ? `${identifier.replace(/\D/g, '')}@mobile.marisol.app` : identifier,
-      phone: isPhone ? identifier : undefined,
-      avatarUrl: `/marisol/avatars/${params.avatarPose || player.activeSticker || '01_brighter_ideas'}.png`,
-      batch: 'MLP41PT',
-      currentMood: params.mood || 'Radiant & Grateful',
-      currentMoodEmoji: params.moodEmoji || '💡',
-      statusNote: params.statusNote || 'Logged in from Mobile! Ready for Batch 41 ♡',
-      lastUpdated: 'Just now',
-      isGoogleVerified: true,
-      loginMethod: 'mobile_phone'
-    };
-
-    this.currentUser = user;
-    this.saveUserToStorage();
-    this.syncClassmateList(user);
-    this.syncWithFirestore(user);
-    this.notify();
-    return user;
-  }
-
-  /**
-   * Update Student Email and dynamically sync the Student Name across the app
-   */
-  public updateEmailAndSyncName(email: string, customName?: string): StudentProfile {
-    const trimmedEmail = email.trim();
-    const derivedName = customName?.trim() || formatNameFromEmail(trimmedEmail) || (this.currentUser?.name || 'Batch 41 Student');
-
-    if (this.currentUser) {
-      this.currentUser.email = trimmedEmail;
-      this.currentUser.name = derivedName;
-      this.currentUser.lastUpdated = 'Just now';
-      this.saveUserToStorage();
-      this.syncClassmateList(this.currentUser);
-      this.syncWithFirestore(this.currentUser);
-    } else {
-      this.signInWithMobile({
-        name: derivedName,
-        phoneOrEmail: trimmedEmail,
-      });
+  public async sendPhoneOtp(phoneNumber: string, containerId: string): Promise<{ success: boolean; confirmationResult?: ConfirmationResult; error?: string }> {
+    if (!auth) {
+      return { success: false, error: 'Firebase Auth is not initialized.' };
     }
 
-    const currentP = gameState.getPlayer();
-    currentP.nickname = derivedName;
-    gameState.savePlayer(currentP);
+    try {
+      if (!this.recaptchaVerifier) {
+        this.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+          size: 'invisible'
+        });
+      }
 
-    this.notify();
-    return this.currentUser!;
+      const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, this.recaptchaVerifier);
+      return { success: true, confirmationResult };
+    } catch (err: any) {
+      console.error('[Auth] Phone OTP Error:', err);
+      return { success: false, error: err.message || 'Failed to send OTP to mobile phone.' };
+    }
   }
 
-  public signInWithGoogle(customInfo?: {
-    name?: string;
-    email?: string;
-    avatarUrl?: string;
-    mood?: string;
-    moodEmoji?: string;
-    statusNote?: string;
-  }): StudentProfile {
-    return this.signInWithMobile({
-      name: customInfo?.name || 'Kritika (Google Verified)',
-      phoneOrEmail: customInfo?.email || 'kritika@gmail.com',
-      avatarPose: customInfo?.avatarUrl,
-      mood: customInfo?.mood,
-      moodEmoji: customInfo?.moodEmoji,
-      statusNote: customInfo?.statusNote
-    });
+  public async confirmPhoneOtp(confirmationResult: ConfirmationResult, code: string): Promise<{ success: boolean; user?: StudentProfile; error?: string }> {
+    try {
+      const credential = await confirmationResult.confirm(code);
+      if (credential.user) {
+        this.handleFirebaseUserLogin(credential.user, 'phone_otp');
+        return { success: true, user: this.currentUser || undefined };
+      }
+      return { success: false, error: 'Invalid verification code.' };
+    } catch (err: any) {
+      console.error('[Auth] Confirm OTP Error:', err);
+      return { success: false, error: err.message || 'Invalid verification code. Please try again.' };
+    }
   }
 
-  /**
-   * Mobile Google Authenticator 2FA Login (6-digit TOTP verification code)
-   */
-  public signInWithGoogleAuthenticator(params: {
-    email: string;
-    authCode: string;
-    name?: string;
-    avatarPose?: string;
-    mood?: string;
-    moodEmoji?: string;
-    statusNote?: string;
-  }): StudentProfile {
-    const email = params.email.trim();
-    const derivedName = params.name?.trim() || formatNameFromEmail(email) || 'Student';
-    const code = params.authCode.replace(/\s/g, '').trim() || '654321';
-
-    const user: StudentProfile = {
-      id: `gauth_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      name: derivedName,
-      email,
-      avatarUrl: `/marisol/avatars/${params.avatarPose || '01_brighter_ideas'}.png`,
-      batch: 'MLP41PT',
-      currentMood: params.mood || 'Radiant & Grateful',
-      currentMoodEmoji: params.moodEmoji || '💡',
-      statusNote: params.statusNote || 'Verified via Google Authenticator ♡',
-      lastUpdated: 'Just now',
-      isGoogleVerified: true,
-      loginMethod: 'google_authenticator',
-      authenticatorCode: code,
-    };
-
-    this.currentUser = user;
+  public updateDailyMood(moodLabel: string, moodEmoji: string, statusNote?: string) {
+    if (!this.currentUser) return;
+    this.currentUser.currentMood = moodLabel;
+    this.currentUser.currentMoodEmoji = moodEmoji;
+    if (statusNote !== undefined) {
+      this.currentUser.statusNote = statusNote;
+    }
+    this.currentUser.lastUpdated = 'Just now';
     this.saveUserToStorage();
-    this.syncClassmateList(user);
-    this.syncWithFirestore(user);
+    this.syncClassmateList(this.currentUser);
+    this.syncWithFirestore(this.currentUser);
     this.notify();
-    return user;
   }
 
-  public async signOut() {
-    if (auth) {
-      try {
+  public async signOut(): Promise<void> {
+    try {
+      if (auth) {
         await firebaseSignOut(auth);
-      } catch {}
+      }
+    } catch (err) {
+      console.warn('Sign out warning:', err);
     }
     this.currentUser = null;
     this.saveUserToStorage();
     this.notify();
   }
 
-  public updateDailyMood(mood: string, moodEmoji: string, statusNote?: string) {
-    if (this.currentUser) {
-      this.currentUser.currentMood = mood;
-      this.currentUser.currentMoodEmoji = moodEmoji;
-      if (statusNote) this.currentUser.statusNote = statusNote;
-      this.currentUser.lastUpdated = 'Just now';
-      this.saveUserToStorage();
-
-      const idx = this.classmates.findIndex(c => c.id === this.currentUser?.id);
-      if (idx >= 0) {
-        this.classmates[idx] = { ...this.currentUser };
-        this.saveClassmatesToStorage();
-      }
-
-      this.syncWithFirestore(this.currentUser);
-      this.notify();
-    }
-  }
-
   public subscribe(listener: () => void) {
     this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return () => this.listeners.delete(listener);
   }
 
   private notify() {
