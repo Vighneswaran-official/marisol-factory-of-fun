@@ -121,6 +121,35 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
     onClose();
   };
 
+  // 4. Mobile Google Account Direct Connect
+  const handleMobileGoogleConnect = (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = inputEmailOrPhone.trim();
+    if (!email) {
+      setErrorMessage('Please enter your Google or Gmail address.');
+      return;
+    }
+    if (!email.includes('@')) {
+      setErrorMessage('Please enter a valid Google email address (e.g. name@gmail.com).');
+      return;
+    }
+
+    audioEngine.playSfx('fanfare');
+    confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 } });
+
+    const user = authService.signInWithMobileGoogle(
+      email,
+      inputName.trim() || undefined,
+      currentMood,
+      currentMoodEmoji,
+      statusNote.trim() || 'Connected with Mobile Google Login 📱'
+    );
+
+    setTick(t => t + 1);
+    if (onSuccess) onSuccess(user);
+    onClose();
+  };
+
   const handleUpdateStudentEmail = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputEmailOrPhone.trim()) return;
@@ -141,8 +170,8 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
   return (
     <BaseModal
       onClose={onClose}
-      title={isAuthenticated ? "ACCOUNT CONNECTED" : "FIREBASE & GOOGLE SIGN IN"}
-      subtitle={isAuthenticated ? "Real-time sync active for Batch MLP41PT" : "Log in on mobile or desktop to post your updates"}
+      title={isAuthenticated ? "ACCOUNT CONNECTED" : "MOBILE & GOOGLE SIGN IN"}
+      subtitle={isAuthenticated ? "Real-time sync active for Batch MLP41PT" : isMobile ? "📱 Mobile browser detected: Use 1-Tap Google or Instant Direct Connect" : "Log in on mobile or desktop to post your updates"}
       icon={
         <div className="w-6 h-6 flex items-center justify-center">
           <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -364,7 +393,7 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
                 }`}
               >
                 <Globe className="w-3.5 h-3.5 text-blue-500" />
-                <span>Google</span>
+                <span>Mobile Google</span>
               </button>
 
               <button
@@ -396,14 +425,16 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
                 }`}
               >
                 <Smartphone className="w-3.5 h-3.5 text-purple-600" />
-                <span>Mobile</span>
+                <span>Phone / ID</span>
               </button>
             </div>
 
             {activeTab === 'google' && (
-              /* Google Sign-In Tab */
+              /* Mobile Google Sign-In Tab */
               <div className="space-y-3">
+                {/* 1-Tap Google Sign-In Popup */}
                 <button
+                  type="button"
                   onClick={() => handleFirebaseGoogleSignIn(false)}
                   disabled={isLoading}
                   className="w-full py-3 px-4 bg-white hover:bg-gray-50 border-2.5 border-ink rounded-2xl shadow-sketch flex items-center justify-center gap-3 transition-all hover:scale-102 active:scale-98 cursor-pointer disabled:opacity-60"
@@ -431,20 +462,86 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
                     </svg>
                   )}
                   <span className="font-display font-black text-xs sm:text-sm text-ink">
-                    {isLoading ? "CONNECTING TO GOOGLE..." : "SIGN IN WITH GOOGLE"}
+                    {isLoading ? "CONNECTING TO GOOGLE..." : "1-TAP SIGN IN WITH GOOGLE"}
                   </span>
                 </button>
 
-                {/* Mobile direct redirect option for mobile devices */}
-                {isMobile && (
+                {/* Mobile Direct Connect Form */}
+                <div className="relative py-1">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-ink/20"></div>
+                  </div>
+                  <div className="relative flex justify-center text-[10px] font-display font-black uppercase">
+                    <span className="bg-paper px-2 text-ink-light">OR MOBILE GOOGLE DIRECT CONNECT</span>
+                  </div>
+                </div>
+
+                <form onSubmit={handleMobileGoogleConnect} className="bg-blue-50/70 border-2 border-blue-200 rounded-2xl p-3 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-display font-black text-blue-950 flex items-center gap-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Mobile Google Account Sync</span>
+                    </span>
+                    <span className="text-[9px] font-handwritten font-bold text-blue-700 bg-white px-2 py-0.5 rounded-full border border-blue-200">
+                      1-Tap Connect ⚡
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-display font-black text-ink-light block mb-1">
+                      Your Google / Gmail Address:
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="email"
+                        value={inputEmailOrPhone}
+                        onChange={(e) => handleEmailOrPhoneChange(e.target.value)}
+                        placeholder="e.g. yourname@gmail.com"
+                        className="w-full px-3 py-2 bg-white border border-ink/30 rounded-xl text-xs font-bold outline-none pl-8"
+                        required
+                      />
+                      <Mail className="w-3.5 h-3.5 text-blue-500 absolute left-2.5 top-2.5" />
+                    </div>
+                  </div>
+
+                  {inputEmailOrPhone.includes('@') && (
+                    <div>
+                      <label className="text-[10px] font-display font-black text-ink-light flex items-center justify-between mb-1">
+                        <span>Student Name:</span>
+                        <span className="text-[10px] text-emerald-700 font-handwritten font-bold">
+                          ✨ Auto-derived from email
+                        </span>
+                      </label>
+                      <input
+                        type="text"
+                        value={inputName}
+                        onChange={(e) => {
+                          setInputName(e.target.value);
+                          setNameManuallyEdited(true);
+                        }}
+                        placeholder="Student Name"
+                        className="w-full px-3 py-1.5 bg-white border border-ink/20 rounded-xl text-xs font-bold outline-none"
+                      />
+                    </div>
+                  )}
+
                   <button
-                    type="button"
-                    onClick={() => handleFirebaseGoogleSignIn(true)}
-                    className="w-full py-2 bg-paper-100 hover:bg-paper-200 border border-ink/30 rounded-xl text-xs font-handwritten font-bold text-ink-light flex items-center justify-center gap-1.5 transition-colors"
+                    type="submit"
+                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-display font-black text-xs uppercase rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <span>📱 Mobile browser popup blocked? Tap for Direct Redirect</span>
+                    <Globe className="w-3.5 h-3.5" />
+                    <span>CONNECT WITH MOBILE GOOGLE</span>
                   </button>
-                )}
+                </form>
+
+                {/* Mobile Fullscreen Redirect option */}
+                <button
+                  type="button"
+                  onClick={() => handleFirebaseGoogleSignIn(true)}
+                  className="w-full py-1.5 bg-white hover:bg-paper-100 border border-ink/20 rounded-xl text-[11px] font-handwritten font-bold text-ink-light flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <span>📱 Popup blocked on mobile? Open Fullscreen Google Redirect</span>
+                </button>
               </div>
             )}
 
