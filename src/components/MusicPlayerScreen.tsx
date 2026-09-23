@@ -8,8 +8,7 @@ import {
 import { audioEngine } from '../services/synthAudioEngine';
 import { 
   Search, Play, Pause, SkipBack, SkipForward, 
-  Volume2, VolumeX, Sparkles, Music2, Disc3,
-  Radio, ArrowLeft, RefreshCw, Youtube, ExternalLink
+  Music2, Disc3, Radio, ArrowLeft, RefreshCw, Video, ExternalLink
 } from 'lucide-react';
 import type { ScreenState } from '../types/game';
 
@@ -126,7 +125,7 @@ export const MusicPlayerScreen: React.FC<MusicPlayerScreenProps> = ({ onNavigate
                 : 'text-stone-700 hover:text-stone-900'
             }`}
           >
-            <Youtube className="w-4 h-4" />
+            <Video className="w-4 h-4" />
             <span>Full Song Video (No 30s Limit)</span>
           </button>
 
