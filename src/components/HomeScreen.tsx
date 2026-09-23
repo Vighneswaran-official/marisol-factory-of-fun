@@ -3,8 +3,9 @@ import type { ScreenState } from '../types/game';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
 import { wellnessState, KRITIKA_MOODS, type KritikaMoodId } from '../services/wellnessState';
+import { RECIPES } from '../data/recipes';
+import { STICKERS } from '../data/stickers';
 import { Marisol } from './Marisol';
-import { LittleLoveNote } from './LittleLoveNote';
 import { SparkleStreak } from './SparkleStreak';
 import { 
   Play, 
@@ -13,7 +14,11 @@ import {
   Lock, 
   Camera, 
   Music,
-  Film
+  Film,
+  ChefHat,
+  ArrowRight,
+  RefreshCw,
+  Image as ImageIcon
 } from 'lucide-react';
 
 interface HomeScreenProps {
@@ -50,6 +55,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     wellnessState.setQueenMood(moodId);
   };
 
+  // Recipe of the day based on day of year
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
+  const recipeOfTheDay = RECIPES[dayOfYear % RECIPES.length];
+
+  // Daily Affirmation
+  const [currentAffirmation, setCurrentAffirmation] = useState(() => wellnessState.getDailyAffirmation());
+
+  const handleNextAffirmation = () => {
+    audioEngine.playSfx('click');
+    setCurrentAffirmation(wellnessState.drawNextLoveNote());
+  };
+
+  // Active Sticker
+  const currentSticker = STICKERS.find(s => s.alias === player.activeSticker) || STICKERS[0];
+
   // Dialogue adapted to queen's selected mood
   const getQueenDialogue = () => {
     switch (currentQueenMood) {
@@ -77,7 +97,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     <div className="min-h-screen bg-[#FFFDF7] p-3 sm:p-5 pb-28 text-ink">
       <div className="max-w-xl mx-auto space-y-4">
         
-        {/* TOP BAR: How is Kritika doing today? 💗 & Cozy Mode Button */}
+        {/* 1. LIVE VIBE & MOOD CHECK-IN WIDGET */}
         <div 
           className="border-2 border-pink-200/90 rounded-3xl p-4 shadow-sketch-sm space-y-3 transition-all duration-500"
           style={{ background: moodProfile.bgAtmosphere }}
@@ -121,7 +141,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           </div>
 
-          {/* 7 Mood Selector Chips: Happy, Tired, Stressed, Cozy, Excited, Low, Romantic */}
+          {/* 7 Mood Selector Chips */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-handwritten font-bold">
             {KRITIKA_MOODS.map(mood => {
               const isSelected = mood.id === currentQueenMood;
@@ -154,8 +174,74 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
+        {/* 2. DAILY FLAME & SPARKLE STREAK HEATMAP */}
+        <SparkleStreak />
 
-        {/* HERO CARD 2: Kritika Companion & Chef Score Hub */}
+        {/* 3. TODAY'S AFFIRMATION STICKY CARD */}
+        <div className="bg-[#FFFCEB] border-2.5 border-[#E8D48A] rounded-3xl p-4 shadow-sketch text-left relative overflow-hidden">
+          <div className="w-20 h-4 bg-amber-200/70 border border-amber-300 mx-auto -mt-4 rounded-xs mb-2 shadow-2xs" />
+          
+          <div className="flex items-center justify-between border-b border-amber-200/80 pb-2 mb-2">
+            <div className="flex items-center gap-1.5 font-display font-black text-xs text-amber-900 uppercase">
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <span>TODAY'S AFFIRMATION FOR KRITIKA</span>
+            </div>
+            <button
+              onClick={handleNextAffirmation}
+              className="p-1 rounded-lg text-amber-800 hover:bg-amber-100 transition-colors flex items-center gap-1 text-[11px] font-handwritten font-bold"
+              title="Shuffle Affirmation"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>New Note</span>
+            </button>
+          </div>
+
+          <p className="font-handwritten text-sm sm:text-base text-ink font-bold leading-relaxed">
+            "{currentAffirmation.quote}"
+          </p>
+          <div className="flex items-center justify-between pt-2 text-[11px] font-handwritten font-bold text-amber-800">
+            <span>{currentAffirmation.subtext}</span>
+            <span className="italic">— {currentAffirmation.from}</span>
+          </div>
+        </div>
+
+        {/* 4. RECIPE OF THE DAY CARD */}
+        <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-amber-50 border-2.5 border-emerald-400/80 rounded-3xl p-4 shadow-sketch flex items-center justify-between gap-3 text-left">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-white border-2 border-emerald-300 flex items-center justify-center text-2xl shadow-inner shrink-0">
+              {recipeOfTheDay.emoji}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="bg-emerald-600 text-white font-display text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase">
+                  RECIPE OF THE DAY
+                </span>
+                <span className="font-handwritten text-[11px] text-emerald-800 font-bold">
+                  {recipeOfTheDay.cuisine}
+                </span>
+              </div>
+              <h3 className="font-display font-black text-sm text-ink truncate mt-0.5">
+                {recipeOfTheDay.title.split('&')[0]}
+              </h3>
+              <p className="font-handwritten text-xs text-ink-light font-bold truncate">
+                Paired with {recipeOfTheDay.moviePairing.movie.split('(')[0]} 🎬
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              onNavigate('recipes');
+            }}
+            className="sketch-btn-gold px-3 py-2 text-xs font-black uppercase flex items-center gap-1 shadow-sketch-xs shrink-0 hover:scale-105 active:scale-95 transition-all"
+          >
+            <span>VAULT</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* 5. KRITIKA COMPANION & CHEF SCORE HUB */}
         <div className="bg-white border-3 border-pink-200/90 rounded-3xl p-5 shadow-sketch text-center space-y-3.5 relative overflow-hidden">
           
           {/* Active Mood Pill */}
@@ -206,13 +292,38 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
-        {/* LITTLE LOVE NOTE (Sticky Note Affirmation) */}
-        <LittleLoveNote />
+        {/* 6. ONE STICKER PREVIEW CARD (Direct preview on load) */}
+        <div 
+          onClick={() => {
+            audioEngine.playSfx('click');
+            onNavigate('stickers');
+          }}
+          className="bg-white border-2.5 border-purple-300 rounded-3xl p-3.5 shadow-sketch hover:border-purple-500 hover:scale-101 active:scale-98 transition-all flex items-center justify-between text-left cursor-pointer group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl border-2 border-ink overflow-hidden bg-purple-100 shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+              <img 
+                src={currentSticker.avatarUrl} 
+                alt={currentSticker.title} 
+                className="w-full h-full object-cover" 
+              />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-display font-black text-xs sm:text-sm text-ink">ACTIVE COMPANION STICKER</span>
+                <span className="bg-purple-100 text-purple-700 font-handwritten text-[10px] font-bold px-2 py-0.5 rounded-full border border-purple-300">
+                  {currentSticker.vibe}
+                </span>
+              </div>
+              <p className="font-handwritten text-xs text-purple-900 font-bold">
+                "{currentSticker.quote}" • Tap to view full sticker book ✨
+              </p>
+            </div>
+          </div>
+          <ImageIcon className="w-5 h-5 text-purple-400 group-hover:text-purple-600 transition-colors shrink-0" />
+        </div>
 
-        {/* SPARKLE STREAK (Consecutive Day Tracker) */}
-        <SparkleStreak />
-
-        {/* PRIMARY ACTION: COOKING & CINEMA TRIVIA */}
+        {/* 7. PRIMARY ACTION: COOKING & CINEMA TRIVIA */}
         <button
           onClick={() => {
             audioEngine.playSfx('click');
@@ -239,10 +350,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <Play className="w-7 h-7 fill-white shrink-0 ml-2" />
         </button>
 
-        {/* SECTION TILES: Bollywood Lounge & Food-Movie Pairings */}
+        {/* 8. SECTION TILES: Bollywood Lounge & Food-Movie Pairings */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           
-          {/* Card: Hindi Bollywood Songs (YouTube Connected) */}
+          {/* Card: Hindi Bollywood Songs */}
           <button
             onClick={() => {
               audioEngine.playSfx('click');
@@ -262,11 +373,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="font-display font-black text-sm uppercase">YOUTUBE JUKEBOX</span>
                   <span className="bg-red-500 text-white font-display text-[9px] font-black px-1.5 py-0.2 rounded-full border border-white/40">
-                    🔴 YT CONNECTED
+                    🔴 YT EMBED
                   </span>
                 </div>
                 <div className="font-handwritten text-xs text-rose-100 font-bold truncate">
-                  Stream Bollywood hits, search & pin songs! 🎵
+                  Curated Bollywood hits & self-love tunes! 🎵
                 </div>
               </div>
             </div>
@@ -283,15 +394,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-12 h-12 rounded-2xl border-2 border-white/40 bg-white/20 flex items-center justify-center text-2xl shrink-0 shadow-inner">
-                🎬
+                <ChefHat className="w-6 h-6 text-white" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1">
-                  <span className="font-display font-black text-sm uppercase">FOOD & MOVIES</span>
-                  <span className="bg-white/25 text-[9px] px-1.5 py-0.5 rounded-full font-handwritten">PAIRED</span>
+                  <span className="font-display font-black text-sm uppercase">RECIPE VAULT</span>
+                  <span className="bg-white/25 text-[9px] px-1.5 py-0.5 rounded-full font-handwritten">FILTER</span>
                 </div>
                 <div className="font-handwritten text-xs text-rose-100 font-bold truncate">
-                  Highway Chai, Rajma Chawal & cinema!
+                  Chai, Maggi, Truffle Fries & cuisine search!
                 </div>
               </div>
             </div>
@@ -299,9 +410,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </button>
         </div>
 
-        {/* DEDICATED WELLNESS SHORTCUTS: Secret Locket & Glow-Up Week */}
+        {/* 9. WELLNESS SHORTCUTS: Secret Locket & Glow-Up Week */}
         <div className="grid grid-cols-2 gap-3">
-          
           {/* Secret Locket */}
           <button
             onClick={() => {
@@ -336,12 +446,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               GLOW-UP WEEK 📸
             </span>
             <span className="font-handwritten text-[11px] text-purple-700 font-bold">
-              Polaroid Scrapbook
+              Polaroid Scrapbook & Export
             </span>
           </button>
         </div>
 
-        {/* DOWNLOAD ON MOBILE APP BANNER */}
+        {/* 10. DOWNLOAD ON MOBILE APP BANNER */}
         {onOpenInstallApp && (
           <button
             onClick={() => {

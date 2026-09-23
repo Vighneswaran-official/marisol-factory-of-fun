@@ -171,10 +171,13 @@ class WellnessState {
   ];
   private queenMood: KritikaMoodId = 'Happy';
   private loveNoteIndex: number = 0;
-  private streakDays: number = 3;
+  private streakDays: number = 1;
+  private lastActiveDate: string = '';
+  private activeDates: string[] = [];
 
   constructor() {
     this.load();
+    this.checkInDaily();
   }
 
   private notify() {
@@ -186,6 +189,49 @@ class WellnessState {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+
+  private getTodayStr(): string {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  public checkInDaily(): boolean {
+    const today = this.getTodayStr();
+    if (!this.activeDates.includes(today)) {
+      this.activeDates.push(today);
+      if (this.activeDates.length > 60) {
+        this.activeDates = this.activeDates.slice(-60);
+      }
+    }
+
+    if (this.lastActiveDate === today) {
+      this.save();
+      return false; // Already checked in today
+    }
+
+    if (!this.lastActiveDate) {
+      this.streakDays = 1;
+      this.lastActiveDate = today;
+    } else {
+      const lastDate = new Date(this.lastActiveDate + 'T00:00:00');
+      const currDate = new Date(today + 'T00:00:00');
+      const diffDays = Math.round((currDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) {
+        this.streakDays += 1;
+      } else if (diffDays > 1) {
+        this.streakDays = 1;
+      }
+      this.lastActiveDate = today;
+    }
+
+    this.save();
+    this.notify();
+    return true;
   }
 
   private load() {
@@ -205,7 +251,13 @@ class WellnessState {
       }
 
       const savedStreak = localStorage.getItem('kritika_sparkle_streak');
-      if (savedStreak) this.streakDays = parseInt(savedStreak, 10) || 3;
+      if (savedStreak) this.streakDays = parseInt(savedStreak, 10) || 1;
+
+      const savedLastDate = localStorage.getItem('kritika_last_active_date');
+      if (savedLastDate) this.lastActiveDate = savedLastDate;
+
+      const savedDates = localStorage.getItem('kritika_active_dates');
+      if (savedDates) this.activeDates = JSON.parse(savedDates);
     } catch {
       // ignore
     }
@@ -218,6 +270,8 @@ class WellnessState {
       localStorage.setItem('kritika_secret_notes', JSON.stringify(this.secretNotes));
       localStorage.setItem('kritika_queen_mood', this.queenMood);
       localStorage.setItem('kritika_sparkle_streak', this.streakDays.toString());
+      localStorage.setItem('kritika_last_active_date', this.lastActiveDate);
+      localStorage.setItem('kritika_active_dates', JSON.stringify(this.activeDates));
     } catch {
       // ignore
     }
@@ -301,11 +355,12 @@ class WellnessState {
 
   public setQueenMood(moodId: KritikaMoodId): void {
     this.queenMood = moodId;
+    this.checkInDaily();
     this.save();
     this.notify();
   }
 
-  // Love Notes
+  // Love Notes & Daily Affirmation
   public getCurrentLoveNote(): LoveNote {
     return LOVE_NOTES[this.loveNoteIndex % LOVE_NOTES.length];
   }
@@ -316,13 +371,49 @@ class WellnessState {
     return this.getCurrentLoveNote();
   }
 
-  // Sparkle Streak
+  public getDailyAffirmation(): LoveNote {
+    const today = this.getTodayStr();
+    let hash = 0;
+    for (let i = 0; i < today.length; i++) {
+      hash = (hash << 5) - hash + today.charCodeAt(i);
+      hash |= 0;
+    }
+    const idx = Math.abs(hash) % LOVE_NOTES.length;
+    return LOVE_NOTES[idx];
+  }
+
+  // Sparkle Streak & Heatmap
   public getSparkleStreak(): { streak: number, trail: boolean[] } {
     const trail = [true, true, true, false, false, false, false].map((_, idx) => idx < this.streakDays);
     return { streak: this.streakDays, trail };
   }
 
+  public getStreakHeatmap(): Array<{ date: string; dayLabel: string; active: boolean; isToday: boolean }> {
+    const days: Array<{ date: string; dayLabel: string; active: boolean; isToday: boolean }> = [];
+    const today = this.getTodayStr();
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const dayLabel = dayNames[d.getDay()];
+
+      days.push({
+        date: dateStr,
+        dayLabel,
+        active: this.activeDates.includes(dateStr),
+        isToday: dateStr === today
+      });
+    }
+    return days;
+  }
+
   public addSparkleStreak(): void {
+    this.checkInDaily();
     this.streakDays += 1;
     this.save();
     this.notify();
