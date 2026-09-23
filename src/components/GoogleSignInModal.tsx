@@ -4,7 +4,7 @@ import { authService, type StudentProfile } from '../services/authService';
 import { audioEngine } from '../services/synthAudioEngine';
 import { 
   CheckCircle2, LogOut, 
-  Loader2, AlertCircle, UserCheck, Sparkles
+  Loader2, AlertCircle, UserCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -23,20 +23,6 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
 
   // Quick Name State
   const [quickName, setQuickName] = useState('');
-
-  // 1-Tap Instant Connect (No domain block, works 100% on any device/APK)
-  const handleQuickStudentConnect = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const finalName = quickName.trim() || 'Batch 41 Student';
-
-    audioEngine.playSfx('fanfare');
-    confetti({ particleCount: 70, spread: 65, origin: { y: 0.6 } });
-
-    const user = authService.loginStudentProfile(finalName);
-    setTick(t => t + 1);
-    if (onSuccess) onSuccess(user);
-    onClose();
-  };
 
   const handleSignOut = async () => {
     audioEngine.playSfx('click');
