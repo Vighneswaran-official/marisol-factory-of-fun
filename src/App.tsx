@@ -24,6 +24,7 @@ import { CelebrationLocketModal } from './components/CelebrationLocketModal';
 import { LevelClearHeroModal } from './components/LevelClearHeroModal';
 import { InstallAppModal } from './components/InstallAppModal';
 import { GlowUpWeekModal } from './components/GlowUpWeekModal';
+import { GoogleSignInModal } from './components/GoogleSignInModal';
 import { BottomNavigationDock, type MainNavTab } from './components/BottomNavigationDock';
 import { RECIPES } from './data/recipes';
 import confetti from 'canvas-confetti';
@@ -54,6 +55,7 @@ export function App() {
   const [showCelebrationLocket, setShowCelebrationLocket] = useState(false);
   const [showGlowUpWeek, setShowGlowUpWeek] = useState(false);
   const [showInstallApp, setShowInstallApp] = useState(false);
+  const [showGoogleSignIn, setShowGoogleSignIn] = useState(false);
 
   const [selectedHindiSongId, setSelectedHindiSongId] = useState<string | undefined>(undefined);
   const [activeTargetRecipe, setActiveTargetRecipe] = useState<Recipe>(RECIPES[0]);
@@ -212,6 +214,7 @@ export function App() {
           currentScreen={currentScreen} 
           onNavigate={handleNavigate} 
           onOpenInstallApp={() => setShowInstallApp(true)}
+          onOpenGoogleSignIn={() => setShowGoogleSignIn(true)}
         />
       )}
 
@@ -425,6 +428,11 @@ export function App() {
         {/* Glow-Up Week Polaroid Scrapbook Modal */}
         {showGlowUpWeek && (
           <GlowUpWeekModal onClose={() => setShowGlowUpWeek(false)} />
+        )}
+
+        {/* Google Sign In & Student Presence Modal */}
+        {showGoogleSignIn && (
+          <GoogleSignInModal onClose={() => setShowGoogleSignIn(false)} />
         )}
 
         {/* Level Complete Secret Recipe Reveal Modal */}
