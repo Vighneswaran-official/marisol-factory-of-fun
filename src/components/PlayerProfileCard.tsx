@@ -6,7 +6,8 @@ import { audioEngine } from '../services/synthAudioEngine';
 import type { ScreenState } from '../types/game';
 import { 
   Flame, Award, Zap, HelpCircle, BookOpen, User, Sparkles, Check, 
-  GraduationCap, MessageSquareHeart, HeartHandshake, Camera, Music, Download 
+  GraduationCap, MessageSquareHeart, HeartHandshake, Camera, Music, Download,
+  ArrowLeft, Mail
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { authService } from '../services/authService';
@@ -37,7 +38,10 @@ export const PlayerProfileCard: React.FC<PlayerProfileCardProps> = ({
   const isAuthenticated = authService.isAuthenticated();
 
   React.useEffect(() => {
-    const unsub = authService.subscribe(() => setTick(t => t + 1));
+    const unsub = authService.subscribe(() => {
+      setPlayer(gameState.getPlayer());
+      setTick(t => t + 1);
+    });
     return () => { unsub(); };
   }, []);
 
@@ -54,7 +58,27 @@ export const PlayerProfileCard: React.FC<PlayerProfileCardProps> = ({
   return (
     <div className="min-h-screen bg-paper-50 p-3 sm:p-6 pb-28 text-ink">
       
-      <div className="max-w-xl mx-auto space-y-6">
+      <div className="max-w-xl mx-auto space-y-4 sm:space-y-6">
+
+        {/* Navigation Back Header */}
+        {onNavigate && (
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onNavigate('home');
+              }}
+              className="sketch-btn p-2 sm:px-3 bg-white flex items-center gap-1.5 shadow-sketch"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="font-display font-bold text-xs sm:text-sm">BACK TO HOME</span>
+            </button>
+            <div className="font-handwritten text-xs font-bold text-ink-light flex items-center gap-1">
+              <Mail className="w-3.5 h-3.5 text-purple-700" />
+              <span className="max-w-[160px] truncate">{currentUser?.email || 'Guest Mode'}</span>
+            </div>
+          </div>
+        )}
         
         {/* Main Illustrated Player Card */}
         <div className="bg-white border-3 border-ink rounded-3xl p-5 sm:p-6 shadow-sketch-xl space-y-6 relative overflow-hidden">
@@ -98,18 +122,18 @@ export const PlayerProfileCard: React.FC<PlayerProfileCardProps> = ({
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="font-display font-black text-xs text-ink">
-                    {isAuthenticated && currentUser ? currentUser.name : "Google Account Sync"}
+                    {isAuthenticated && currentUser ? currentUser.name : "Student Identity & Email"}
                   </span>
                   <span className={`text-[9px] font-display font-black px-1.5 py-0.2 rounded-full uppercase text-white ${
                     isAuthenticated ? 'bg-emerald-600' : 'bg-purple-600'
                   }`}>
-                    {isAuthenticated ? "VERIFIED" : "CONNECT"}
+                    {isAuthenticated ? "SYNCED" : "CONNECT"}
                   </span>
                 </div>
                 <p className="font-handwritten text-xs text-purple-900 font-bold truncate">
                   {isAuthenticated && currentUser
-                    ? `Current Mood: ${currentUser.currentMoodEmoji} ${currentUser.currentMood}`
-                    : "Connect to share daily moods & updates with Batch 41"}
+                    ? `${currentUser.email ? `${currentUser.email} • ` : ''}${currentUser.currentMoodEmoji} ${currentUser.currentMood}`
+                    : "Update your email to automatically sync your student name & batch wall presence"}
                 </p>
               </div>
             </div>

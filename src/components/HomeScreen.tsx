@@ -8,6 +8,7 @@ import { STICKERS } from '../data/stickers';
 import { Marisol } from './Marisol';
 import { SparkleStreak } from './SparkleStreak';
 import { batchWallService } from '../services/batchWallState';
+import { authService } from '../services/authService';
 import { 
   Play, 
   Sparkles, 
@@ -20,7 +21,8 @@ import {
   ArrowRight,
   RefreshCw,
   Image as ImageIcon,
-  MessageSquareHeart
+  MessageSquareHeart,
+  LogIn
 } from 'lucide-react';
 
 interface HomeScreenProps {
@@ -31,6 +33,7 @@ interface HomeScreenProps {
   onOpenSecretLocket: () => void;
   onOpenGlowUpWeek: () => void;
   onOpenInstallApp?: () => void;
+  onOpenGoogleSignIn?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -41,11 +44,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenSecretLocket,
   onOpenGlowUpWeek,
   onOpenInstallApp,
+  onOpenGoogleSignIn,
 }) => {
   const [, setTick] = useState(0);
   const player = gameState.getPlayer();
   const currentQueenMood = wellnessState.getQueenMood();
   const moodProfile = wellnessState.getMoodProfile();
+  const currentUser = authService.getCurrentUser();
+  const isAuthenticated = authService.isAuthenticated();
 
   useEffect(() => {
     const unsub = wellnessState.subscribe(() => setTick(t => t + 1));
@@ -245,11 +251,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
         {/* 4.5 STUDENT DAILY LIFE UPDATES & BATCH 41 WALL */}
         <div 
+          className="bg-gradient-to-r from-purple-50 via-pink-50 to-indigo-50 border-2.5 border-purple-300 rounded-3xl p-4 shadow-sketch hover:border-purple-500 transition-all cursor-pointer group space-y-2.5"
           onClick={() => {
             audioEngine.playSfx('click');
             onNavigate('batch_wall');
           }}
-          className="bg-gradient-to-r from-purple-50 via-pink-50 to-indigo-50 border-2.5 border-purple-300 rounded-3xl p-4 shadow-sketch hover:border-purple-500 hover:scale-101 active:scale-98 transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -266,7 +272,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] font-handwritten font-bold text-purple-800 truncate">
-                  Share what's happening in your day & see classmate notes ♡
+                  Real-time classmates' moods, notes & daily life stories ♡
                 </p>
               </div>
             </div>
@@ -278,12 +284,45 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </span>
           </div>
 
+          {/* Google Connection & Classmate Status Bar */}
+          <div className="flex items-center justify-between gap-2 bg-white/70 border border-purple-200/80 rounded-2xl px-3 py-1.5 text-xs">
+            {isAuthenticated && currentUser ? (
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-5 h-5 rounded-full overflow-hidden border border-purple-300 shrink-0">
+                  <img src={currentUser.avatarUrl} alt="User" className="w-full h-full object-cover" />
+                </div>
+                <span className="font-display font-bold text-purple-950 truncate text-[11px]">
+                  Connected as <span className="underline decoration-purple-400">{currentUser.name.split(' ')[0]}</span> ({currentUser.currentMoodEmoji} {currentUser.currentMood})
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between w-full">
+                <span className="font-handwritten font-bold text-purple-800 text-xs">
+                  Connect with Google to post your daily mood:
+                </span>
+                {onOpenGoogleSignIn && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      audioEngine.playSfx('click');
+                      onOpenGoogleSignIn();
+                    }}
+                    className="inline-flex items-center gap-1 bg-white hover:bg-purple-50 border border-purple-300 px-2 py-0.5 rounded-lg text-[10px] font-display font-black text-purple-900 shadow-2xs hover:scale-105 active:scale-95 transition-all"
+                  >
+                    <LogIn className="w-3 h-3 text-purple-600" />
+                    <span>SIGN IN</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Latest Post Snippet */}
           {(() => {
             const latestPost = batchWallService.getPosts()[0];
             if (!latestPost) return null;
             return (
-              <div className="bg-white/80 border border-purple-200 rounded-2xl p-2.5 flex items-center justify-between gap-2.5 shadow-2xs mt-2.5">
+              <div className="bg-white/90 border border-purple-200 rounded-2xl p-2.5 flex items-center justify-between gap-2.5 shadow-2xs">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-base shrink-0">{latestPost.moodEmoji}</span>
                   <div className="min-w-0 text-xs">

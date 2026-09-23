@@ -30,16 +30,34 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
 
-    <!-- Register PWA Service Worker for Offline & Install Capability -->
+    <!-- Register PWA Service Worker for Offline & Install Capability (Auto-Busted on Dev) -->
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then((reg) => {
-            console.log('[PWA] Service Worker registered successfully:', reg.scope);
-          }).catch((err) => {
-            console.log('[PWA] Service Worker registration failed:', err);
+        // On localhost dev, unregister any stale SW & purge caches so Vite HMR always reflects instantly
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            for (const registration of registrations) {
+              registration.unregister();
+              console.log('[Dev] Unregistered stale service worker:', registration.scope);
+            }
           });
-        });
+          if ('caches' in window) {
+            caches.keys().then((names) => {
+              for (const name of names) {
+                caches.delete(name);
+                console.log('[Dev] Cleared stale cache:', name);
+              }
+            });
+          }
+        } else {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').then((reg) => {
+              console.log('[PWA] Service Worker registered successfully:', reg.scope);
+            }).catch((err) => {
+              console.log('[PWA] Service Worker registration failed:', err);
+            });
+          });
+        }
       }
     </script>
   </body>

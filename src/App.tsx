@@ -26,6 +26,7 @@ import { InstallAppModal } from './components/InstallAppModal';
 import { GlowUpWeekModal } from './components/GlowUpWeekModal';
 import { GoogleSignInModal } from './components/GoogleSignInModal';
 import { BottomNavigationDock, type MainNavTab } from './components/BottomNavigationDock';
+import { FloatingVideoPlayer } from './components/FloatingVideoPlayer';
 import { RECIPES } from './data/recipes';
 import confetti from 'canvas-confetti';
 
@@ -68,6 +69,7 @@ export function App() {
     setCurrentScreen(screen);
     setPlayer(gameState.getPlayer());
     if (screen === 'home') setActiveNavTab('home');
+    else if (screen === 'batch_wall') setActiveNavTab('wall');
     else if (screen === 'quiz') setActiveNavTab('play');
     else if (screen === 'vault' || screen === 'recipes' || screen === 'stickers' || screen === 'passport') setActiveNavTab('vault');
     else if (screen === 'profile') setActiveNavTab('profile');
@@ -194,6 +196,8 @@ export function App() {
     setActiveNavTab(tab);
     if (tab === 'home') {
       setCurrentScreen('home');
+    } else if (tab === 'wall') {
+      setCurrentScreen('batch_wall');
     } else if (tab === 'play') {
       handleStartCulinaryTrivia();
     } else if (tab === 'comfort') {
@@ -233,6 +237,7 @@ export function App() {
             onOpenSecretLocket={() => setShowSecretLocket(true)}
             onOpenGlowUpWeek={() => setShowGlowUpWeek(true)}
             onOpenInstallApp={() => setShowInstallApp(true)}
+            onOpenGoogleSignIn={() => setShowGoogleSignIn(true)}
           />
         )}
 
@@ -464,6 +469,9 @@ export function App() {
           onTabSelect={handleBottomTabSelect}
         />
       )}
+
+      {/* Background / Minimized Floating Video Player (Picture-in-Picture) */}
+      <FloatingVideoPlayer />
     </div>
   );
 }

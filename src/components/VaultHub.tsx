@@ -3,7 +3,7 @@ import type { ScreenState, Recipe } from '../types/game';
 import { RecipeVault } from './RecipeVault';
 import { StickerCollection } from './StickerCollection';
 import { KnowledgePassport } from './KnowledgePassport';
-import { Utensils, Sparkles, BookOpen } from 'lucide-react';
+import { Utensils, Sparkles, BookOpen, ArrowLeft } from 'lucide-react';
 import { audioEngine } from '../services/synthAudioEngine';
 import { gameState } from '../services/gameState';
 import { RECIPES } from '../data/recipes';
@@ -30,7 +30,21 @@ export const VaultHub: React.FC<VaultHubProps> = ({
     <div className="min-h-screen bg-[#FAF7F0] pb-24 text-ink">
       {/* Top Floating Vault Category Switcher */}
       <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b-2 border-ink/20 shadow-xs py-2.5 px-3 sm:px-6">
-        <div className="max-w-xl mx-auto flex items-center justify-between gap-1.5 bg-paper-100 p-1.5 rounded-2xl border-2 border-ink/40 shadow-inner">
+        <div className="max-w-xl mx-auto flex items-center gap-2">
+          {/* Back to Home Button */}
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              onNavigate('home');
+            }}
+            className="sketch-btn p-2 sm:px-3 bg-white flex items-center gap-1 shadow-sketch text-xs font-display font-bold shrink-0 hover:bg-paper-100"
+            title="Return to Home Screen"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">HOME</span>
+          </button>
+
+          <div className="flex-1 flex items-center justify-between gap-1.5 bg-paper-100 p-1.5 rounded-2xl border-2 border-ink/40 shadow-inner min-w-0">
           <button
             onClick={() => {
               audioEngine.playSfx('click');
@@ -77,6 +91,7 @@ export const VaultHub: React.FC<VaultHubProps> = ({
           </button>
         </div>
       </div>
+    </div>
 
       {/* Render Active Sub-Vault Screen */}
       <div className="animate-fade-in">

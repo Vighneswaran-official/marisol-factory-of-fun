@@ -1,7 +1,7 @@
 import React from 'react';
 import { audioEngine } from '../services/synthAudioEngine';
 
-export type MainNavTab = 'home' | 'play' | 'comfort' | 'vault' | 'profile';
+export type MainNavTab = 'home' | 'wall' | 'play' | 'comfort' | 'vault' | 'profile';
 
 interface BottomNavigationDockProps {
   activeTab: MainNavTab;
@@ -11,6 +11,7 @@ interface BottomNavigationDockProps {
 export const BottomNavigationDock: React.FC<BottomNavigationDockProps> = ({ activeTab, onTabSelect }) => {
   const tabs: Array<{ id: MainNavTab; label: string; emoji: string }> = [
     { id: 'home', label: 'Home', emoji: '🏠' },
+    { id: 'wall', label: 'Batch Wall', emoji: '💬' },
     { id: 'play', label: 'Play', emoji: '🍳' },
     { id: 'comfort', label: 'Comfort', emoji: '🌸' },
     { id: 'vault', label: 'Vault', emoji: '📖' },

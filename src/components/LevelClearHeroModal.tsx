@@ -3,8 +3,9 @@ import confetti from 'canvas-confetti';
 import { audioEngine } from '../services/synthAudioEngine';
 import { gameState } from '../services/gameState';
 import { BaseModal } from './BaseModal';
-import { Sparkles, Volume2, VolumeX, Play, Pause, ArrowRight, Trophy } from 'lucide-react';
+import { Sparkles, Volume2, VolumeX, Play, Pause, ArrowRight, Trophy, Minimize2 } from 'lucide-react';
 import heroBannerVideoSrc from '../assets/Hero Banner video.mp4';
+import { videoPlaybackService } from '../services/videoPlaybackService';
 
 interface LevelClearHeroModalProps {
   onClose: () => void;
@@ -83,6 +84,19 @@ export const LevelClearHeroModal: React.FC<LevelClearHeroModalProps> = ({
     }
   };
 
+  const handleMinimize = () => {
+    audioEngine.playSfx('pop');
+    videoPlaybackService.minimizeVideo({
+      type: 'mp4',
+      src: heroBannerVideoSrc,
+      title: 'Level Clear Celebration 👑',
+      subtitle: 'Playing in background',
+      isMuted,
+      currentTime: videoRef.current?.currentTime || 0,
+    });
+    onClose();
+  };
+
   return (
     <BaseModal
       onClose={onClose}
@@ -137,13 +151,25 @@ export const LevelClearHeroModal: React.FC<LevelClearHeroModalProps> = ({
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleReplay}
-              className="text-xs font-handwritten font-bold text-pink-200 hover:text-white px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 transition-all"
-            >
-              Watch Again 🔄
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleMinimize}
+                className="text-xs font-handwritten font-bold text-white px-2.5 py-1 rounded-lg bg-pink-600/80 hover:bg-pink-600 border border-pink-400 flex items-center gap-1 transition-all"
+                title="Minimize video to floating window"
+              >
+                <Minimize2 className="w-3.5 h-3.5" />
+                <span>Minimize 🗗</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleReplay}
+                className="text-xs font-handwritten font-bold text-pink-200 hover:text-white px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 transition-all"
+              >
+                Watch Again 🔄
+              </button>
+            </div>
           </div>
         </div>
 
@@ -170,18 +196,29 @@ export const LevelClearHeroModal: React.FC<LevelClearHeroModalProps> = ({
           </div>
         </div>
 
-        {/* PRIMARY CONTINUE ACTION */}
-        <button
-          onClick={() => {
-            audioEngine.playSfx('fanfare');
-            onClose();
-          }}
-          className="sketch-btn-primary w-full py-3.5 text-base sm:text-lg font-black uppercase flex items-center justify-center gap-2 shadow-sketch hover:scale-102 active:scale-98 transition-all border-3 border-ink"
-        >
-          <Trophy className="w-5 h-5 text-amber-300" />
-          <span>REVEAL SECRET RECIPE REWARD</span>
-          <ArrowRight className="w-5 h-5" />
-        </button>
+        {/* PRIMARY CONTINUE & MINIMIZE ACTIONS */}
+        <div className="space-y-2">
+          <button
+            onClick={() => {
+              audioEngine.playSfx('fanfare');
+              onClose();
+            }}
+            className="sketch-btn-primary w-full py-3.5 text-base sm:text-lg font-black uppercase flex items-center justify-center gap-2 shadow-sketch hover:scale-102 active:scale-98 transition-all border-3 border-ink"
+          >
+            <Trophy className="w-5 h-5 text-amber-300" />
+            <span>REVEAL SECRET RECIPE REWARD</span>
+            <ArrowRight className="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleMinimize}
+            className="w-full py-2 bg-purple-50 hover:bg-purple-100 border-2 border-dashed border-purple-300 rounded-xl font-handwritten text-xs font-bold text-purple-900 flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <Minimize2 className="w-4 h-4 text-purple-700" />
+            <span>Minimize video to corner & explore app in background</span>
+          </button>
+        </div>
       </div>
     </BaseModal>
   );

@@ -3,7 +3,8 @@ import { audioEngine } from '../services/synthAudioEngine';
 import { wellnessState } from '../services/wellnessState';
 import type { HindiSong } from '../data/hindiSongs';
 import { BaseModal } from './BaseModal';
-import { ExternalLink, SkipForward, SkipBack, Heart, Search, Pin, Plus, Copy, Check, Play } from 'lucide-react';
+import { ExternalLink, SkipForward, SkipBack, Heart, Search, Pin, Plus, Copy, Check, Play, Minimize2 } from 'lucide-react';
+import { videoPlaybackService } from '../services/videoPlaybackService';
 
 interface MusicJukeboxModalProps {
   onClose: () => void;
@@ -278,6 +279,25 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
                   title="Next Song"
                 >
                   <SkipForward className="w-4 h-4 fill-white" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('pop');
+                    videoPlaybackService.minimizeVideo({
+                      type: 'youtube',
+                      src: selectedSong.youtubeId,
+                      title: selectedSong.title,
+                      subtitle: selectedSong.movie,
+                    });
+                    onClose();
+                  }}
+                  className="px-2.5 h-8 rounded-xl bg-pink-600 hover:bg-pink-700 border border-pink-400/50 flex items-center gap-1 text-white text-xs font-display font-black transition-all hover:scale-102 active:scale-95 shadow-xs"
+                  title="Minimize YouTube video to corner"
+                >
+                  <Minimize2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Minimize 🗗</span>
                 </button>
 
                 <a

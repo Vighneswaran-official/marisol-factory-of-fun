@@ -1,8 +1,10 @@
 // Shared Batch Wall State Service for MLP41PT Batch Students with Firebase Firestore
-import { db, collection, addDoc, onSnapshot, query, orderBy, limit, doc, setDoc } from './firebase';
+import { db, collection, addDoc, onSnapshot, query, orderBy, limit, doc, setDoc, deleteDoc } from './firebase';
 
 export interface BatchUpdatePost {
   id: string;
+  userId?: string;
+  userEmail?: string;
   studentName: string;
   batch: string; // "MLP41PT"
   avatarPose: string; // alias or avatar URL
@@ -15,74 +17,8 @@ export interface BatchUpdatePost {
   reactions: Record<string, number>; // stickerAlias -> count
 }
 
-const STORAGE_KEY = 'marisol_batch_updates_v1';
-const QUEUE_KEY = 'marisol_batch_offline_queue_v1';
-
-// Initial preloaded nostalgic memories from MLP41PT batch mates
-const DEFAULT_POSTS: BatchUpdatePost[] = [
-  {
-    id: 'post_01',
-    studentName: 'Kritika (The Queen)',
-    batch: 'MLP41PT',
-    avatarPose: 'brighter_ideas',
-    mood: 'Radiant & Grateful',
-    moodEmoji: '💡',
-    text: 'So proud of all of us in Batch 41! Every late-night study call and chai break made this journey magical. Main apni favourite hoon! ♡',
-    timestamp: 'Just now',
-    createdAt: Date.now() - 1000 * 60 * 5,
-    reactions: {
-      '01_brighter_ideas': 14,
-      '02_happier_days': 19,
-      '05_chai_happiness': 27,
-    }
-  },
-  {
-    id: 'post_02',
-    studentName: 'Aarav Patel',
-    batch: 'MLP41PT',
-    avatarPose: 'chai_happiness',
-    mood: 'Caffeinated & Victorious',
-    moodEmoji: '☕',
-    text: 'Surviving the final submissions with 14 cups of cutting chai. Batch 41 legends forever! Who remembers the samosa treat?!',
-    timestamp: '2 hours ago',
-    createdAt: Date.now() - 1000 * 60 * 120,
-    reactions: {
-      '05_chai_happiness': 32,
-      '06_silly_vibe': 18,
-    }
-  },
-  {
-    id: 'post_03',
-    studentName: 'Pooja Sharma',
-    batch: 'MLP41PT',
-    avatarPose: 'happier_days',
-    mood: 'Nostalgic & Cheerful',
-    moodEmoji: '☀️',
-    text: 'Remember when our code crashed 5 minutes before presentation and we all laughed instead of crying? That was peak MLP41PT energy!',
-    timestamp: 'Yesterday',
-    createdAt: Date.now() - 1000 * 60 * 60 * 24,
-    reactions: {
-      '02_happier_days': 24,
-      '03_wink_conquer': 15,
-      '04_overthinking': 11,
-    }
-  },
-  {
-    id: 'post_04',
-    studentName: 'Rohan Deshmukh',
-    batch: 'MLP41PT',
-    avatarPose: 'overthinking',
-    mood: 'Deep Thinking & Relieved',
-    moodEmoji: '💻',
-    text: 'Still overthinking whether that variable was properly scoped, but hey, we made it! Miss you guys already!',
-    timestamp: '2 days ago',
-    createdAt: Date.now() - 1000 * 60 * 60 * 48,
-    reactions: {
-      '04_overthinking': 29,
-      '07_big_dreams': 12,
-    }
-  }
-];
+const STORAGE_KEY = 'marisol_batch_updates_v2';
+const QUEUE_KEY = 'marisol_batch_offline_queue_v2';
 
 class BatchWallService {
   private posts: BatchUpdatePost[] = [];
@@ -92,12 +28,20 @@ class BatchWallService {
   private lastSyncToast: string | null = null;
 
   constructor() {
+    this.cleanLegacyStorage();
     this.loadFromStorage();
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => this.handleOnline());
       window.addEventListener('offline', () => this.handleOffline());
     }
     this.initFirestoreSync();
+  }
+
+  // Purge unwanted old mock posts from v1 storage
+  private cleanLegacyStorage() {
+    try {
+      localStorage.removeItem('marisol_batch_updates_v1');
+    } catch {}
   }
 
   private initFirestoreSync() {
@@ -112,17 +56,15 @@ class BatchWallService {
           const remotePosts: BatchUpdatePost[] = [];
           snapshot.forEach((docSnap) => {
             const data = docSnap.data() as BatchUpdatePost;
-            remotePosts.push({ ...data, id: docSnap.id });
+            // Exclude any unwanted legacy demo post IDs
+            if (!['post_01', 'post_02', 'post_03', 'post_04'].includes(docSnap.id)) {
+              remotePosts.push({ ...data, id: docSnap.id });
+            }
           });
-          if (remotePosts.length > 0) {
-            // Merge remote posts with default posts
-            const map = new Map<string, BatchUpdatePost>();
-            DEFAULT_POSTS.forEach(p => map.set(p.id, p));
-            remotePosts.forEach(p => map.set(p.id, p));
-            this.posts = Array.from(map.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-            this.saveToStorage();
-            this.notify();
-          }
+
+          this.posts = remotePosts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          this.saveToStorage();
+          this.notify();
         }, (err) => {
           console.warn('Firestore onSnapshot error, using local posts:', err);
         });
@@ -136,9 +78,11 @@ class BatchWallService {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        this.posts = JSON.parse(stored);
+        const parsed: BatchUpdatePost[] = JSON.parse(stored);
+        // Clean out any unwanted legacy demo posts
+        this.posts = parsed.filter(p => !['post_01', 'post_02', 'post_03', 'post_04'].includes(p.id));
       } else {
-        this.posts = DEFAULT_POSTS;
+        this.posts = [];
         this.saveToStorage();
       }
 
@@ -147,7 +91,7 @@ class BatchWallService {
         this.offlineQueue = JSON.parse(queue);
       }
     } catch {
-      this.posts = DEFAULT_POSTS;
+      this.posts = [];
     }
   }
 
@@ -166,7 +110,6 @@ class BatchWallService {
   private handleOnline() {
     this.isOnline = true;
     if (this.offlineQueue.length > 0) {
-      // Flush queued posts to the main feed & Firestore
       const count = this.offlineQueue.length;
       this.offlineQueue.forEach(p => {
         this.posts.unshift(p);
@@ -175,7 +118,7 @@ class BatchWallService {
       this.offlineQueue = [];
       this.saveToStorage();
       this.saveQueueToStorage();
-      this.lastSyncToast = `Back online! Synced ${count} queued update${count > 1 ? 's' : ''} to Batch Wall 📡`;
+      this.lastSyncToast = `Back online! Synced ${count} update${count > 1 ? 's' : ''} to Batch Wall 📡`;
     } else {
       this.lastSyncToast = 'Back online! Connected to Batch 41 Wall 📡';
     }
@@ -197,7 +140,10 @@ class BatchWallService {
     }
   }
 
-  public getPosts(): BatchUpdatePost[] {
+  public getPosts(onlyCurrentUser?: boolean, currentUserId?: string): BatchUpdatePost[] {
+    if (onlyCurrentUser && currentUserId) {
+      return this.posts.filter(p => p.userId === currentUserId);
+    }
     return [...this.posts];
   }
 
@@ -219,15 +165,19 @@ class BatchWallService {
   }
 
   public addPost(postData: {
+    userId?: string;
+    userEmail?: string;
     studentName: string;
     avatarPose: string;
     mood: string;
     moodEmoji: string;
     text: string;
     imageUrl?: string;
-  }): { queued: boolean } {
+  }): { queued: boolean; post: BatchUpdatePost } {
     const newPost: BatchUpdatePost = {
       id: `post_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      userId: postData.userId,
+      userEmail: postData.userEmail,
       batch: 'MLP41PT',
       studentName: postData.studentName.trim() || 'MLP41PT Student',
       avatarPose: postData.avatarPose,
@@ -241,20 +191,33 @@ class BatchWallService {
     };
 
     if (!this.isOnline) {
-      // Queue offline
       this.offlineQueue.unshift(newPost);
       this.saveQueueToStorage();
       this.lastSyncToast = 'Offline: update queued, will sync automatically when back online 📡';
       this.notify();
-      return { queued: true };
+      return { queued: true, post: newPost };
     } else {
-      // Post live
       this.posts.unshift(newPost);
       this.saveToStorage();
       this.syncPostToFirestore(newPost);
       this.notify();
-      return { queued: false };
+      return { queued: false, post: newPost };
     }
+  }
+
+  public async deletePost(postId: string) {
+    this.posts = this.posts.filter(p => p.id !== postId);
+    this.saveToStorage();
+
+    if (db) {
+      try {
+        await deleteDoc(doc(db, 'batch_updates', postId));
+      } catch (err) {
+        console.warn('Failed to delete post from Firestore:', err);
+      }
+    }
+
+    this.notify();
   }
 
   public reactToPost(postId: string, stickerAliasOrId: string) {
@@ -268,7 +231,6 @@ class BatchWallService {
     post.reactions[stickerAliasOrId] = (post.reactions[stickerAliasOrId] || 0) + 1;
     this.saveToStorage();
 
-    // Sync reaction to Firestore if available
     if (db) {
       try {
         setDoc(doc(db, 'batch_updates', postId), { reactions: post.reactions }, { merge: true });

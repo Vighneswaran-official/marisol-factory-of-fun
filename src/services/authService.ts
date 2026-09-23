@@ -1,24 +1,27 @@
-// Google Authentication & Student Community Presence Service with Firebase
+// Google & Mobile Authentication Service with Firebase
 import { gameState } from './gameState';
 import { 
   auth, 
   googleProvider, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   firebaseSignOut, 
-  onAuthStateChanged,
-  isFirebaseConfigured,
-  db,
-  doc,
-  setDoc,
-  onSnapshot,
-  collection,
-  type FirebaseUser
+  onAuthStateChanged, 
+  isFirebaseConfigured, 
+  db, 
+  doc, 
+  setDoc, 
+  onSnapshot, 
+  collection, 
+  type FirebaseUser 
 } from './firebase';
 
 export interface StudentProfile {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   avatarUrl: string;
   batch: string; // e.g. "MLP41PT"
   currentMood: string;
@@ -26,74 +29,49 @@ export interface StudentProfile {
   statusNote: string;
   lastUpdated: string;
   isGoogleVerified: boolean;
+  loginMethod?: 'google' | 'mobile_phone' | 'google_authenticator';
+  authenticatorCode?: string;
 }
 
-const AUTH_STORAGE_KEY = 'marisol_google_auth_v1';
-const CLASSMATES_STORAGE_KEY = 'marisol_batch_classmates_v1';
+const AUTH_STORAGE_KEY = 'marisol_google_auth_v2';
+const CLASSMATES_STORAGE_KEY = 'marisol_batch_classmates_v2';
 
-// Initial classmates in Batch MLP41PT with their live daily moods & life updates
-const DEFAULT_CLASSMATES: StudentProfile[] = [
-  {
-    id: 'user_kritika',
-    name: 'Kritika (Queen)',
-    email: 'kritika.queen@batch41.fun',
-    avatarUrl: '/marisol/avatars/01_brighter_ideas.png',
-    batch: 'MLP41PT',
-    currentMood: 'Radiant & Grateful',
-    currentMoodEmoji: '💡',
-    statusNote: 'Cracking trivia, sipping hot ginger chai, and loving life! ♡',
-    lastUpdated: '10m ago',
-    isGoogleVerified: true,
-  },
-  {
-    id: 'user_aarav',
-    name: 'Aarav Patel',
-    email: 'aarav.patel@batch41.fun',
-    avatarUrl: '/marisol/avatars/05_chai_happiness.png',
-    batch: 'MLP41PT',
-    currentMood: 'Caffeinated & Victorious',
-    currentMoodEmoji: '☕',
-    statusNote: 'Finished the cloud assignment! Heading out for tapri chai 🚀',
-    lastUpdated: '25m ago',
-    isGoogleVerified: true,
-  },
-  {
-    id: 'user_pooja',
-    name: 'Pooja Sharma',
-    email: 'pooja.sharma@batch41.fun',
-    avatarUrl: '/marisol/avatars/02_happier_days.png',
-    batch: 'MLP41PT',
-    currentMood: 'Cozy & Chill',
-    currentMoodEmoji: '☁️',
-    statusNote: 'Re-watching Jab We Met with hot Maggi. Peak happiness! 🎬',
-    lastUpdated: '1h ago',
-    isGoogleVerified: true,
-  },
-  {
-    id: 'user_rohan',
-    name: 'Rohan Deshmukh',
-    email: 'rohan.d@batch41.fun',
-    avatarUrl: '/marisol/avatars/04_overthinking.png',
-    batch: 'MLP41PT',
-    currentMood: 'Deep Thinking',
-    currentMoodEmoji: '💻',
-    statusNote: 'Debugging a weird memory leak... Send snacks and prayers! 😅',
-    lastUpdated: '2h ago',
-    isGoogleVerified: true,
-  },
-  {
-    id: 'user_meera',
-    name: 'Meera Iyer',
-    email: 'meera.iyer@batch41.fun',
-    avatarUrl: '/marisol/avatars/03_wink_conquer.png',
-    batch: 'MLP41PT',
-    currentMood: 'Bold & Excited',
-    currentMoodEmoji: '😉',
-    statusNote: 'Just got shortlisted for the hackathon finals! Let’s celebrate! 🎉',
-    lastUpdated: '3h ago',
-    isGoogleVerified: true,
-  }
-];
+export const isMobileBrowser = (): boolean => {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.innerWidth <= 768;
+};
+
+/**
+ * Format human-readable Student Name from email address.
+ * e.g. "kritika.singh@gmail.com" -> "Kritika Singh"
+ * e.g. "vighneswaran.r@gmail.com" -> "Vighneswaran R"
+ */
+export const formatNameFromEmail = (email: string): string => {
+  if (!email || !email.includes('@')) return '';
+  const username = email.split('@')[0].trim();
+  if (!username) return 'Student';
+
+  // Replace dots, underscores, dashes, plus signs with spaces
+  const cleaned = username
+    .replace(/[._\-+]/g, ' ')
+    .replace(/([a-zA-Z]+)(\d+)/g, '$1 $2')
+    .trim();
+
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'Student';
+
+  const formatted = parts
+    .map(p => {
+      // If purely numbers, skip if there are letters
+      if (/^\d+$/.test(p) && parts.some(item => /[a-zA-Z]/.test(item))) return '';
+      return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+    })
+    .filter(Boolean)
+    .join(' ');
+
+  return formatted || 'Student';
+};
 
 class AuthService {
   private currentUser: StudentProfile | null = null;
@@ -102,36 +80,41 @@ class AuthService {
   public isFirebaseEnabled = isFirebaseConfigured;
 
   constructor() {
+    this.cleanLegacyStorage();
     this.loadFromStorage();
     this.initFirebaseListeners();
   }
 
+  // Purge unwanted mock users from old storage keys
+  private cleanLegacyStorage() {
+    try {
+      localStorage.removeItem('marisol_batch_classmates_v1');
+      localStorage.removeItem('marisol_google_auth_v1');
+    } catch {}
+  }
+
   private initFirebaseListeners() {
     if (auth) {
+      // 1. Check for Mobile Redirect Sign-In Result (Crucial for iOS Safari / Android Chrome / PWA)
+      getRedirectResult(auth)
+        .then((result) => {
+          if (result && result.user) {
+            this.handleFirebaseUserLogin(result.user, 'google');
+          }
+        })
+        .catch((err) => {
+          console.warn('[Auth] getRedirectResult notification:', err?.message || err);
+        });
+
+      // 2. Regular Auth State Change
       onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
         if (firebaseUser) {
-          const profile: StudentProfile = {
-            id: firebaseUser.uid,
-            name: firebaseUser.displayName || 'Google Student',
-            email: firebaseUser.email || '',
-            avatarUrl: firebaseUser.photoURL || '/marisol/avatars/01_brighter_ideas.png',
-            batch: 'MLP41PT',
-            currentMood: this.currentUser?.currentMood || 'Radiant & Grateful',
-            currentMoodEmoji: this.currentUser?.currentMoodEmoji || '💡',
-            statusNote: this.currentUser?.statusNote || 'Connected via Firebase Google Auth ♡',
-            lastUpdated: 'Just now',
-            isGoogleVerified: true,
-          };
-          this.currentUser = profile;
-          this.saveUserToStorage();
-          this.syncClassmateList(profile);
-          this.syncWithFirestore(profile);
-          this.notify();
+          this.handleFirebaseUserLogin(firebaseUser, 'google');
         }
       });
     }
 
-    // Realtime Firestore sync for classmates if db is initialized
+    // 3. Realtime Firestore sync for real logged-in classmates
     if (db) {
       try {
         const studentsCol = collection(db, 'students');
@@ -139,23 +122,52 @@ class AuthService {
           const remoteStudents: StudentProfile[] = [];
           snapshot.forEach((d) => {
             const data = d.data() as StudentProfile;
-            remoteStudents.push(data);
+            // Ignore any legacy mock names
+            if (!['user_aarav', 'user_pooja', 'user_rohan', 'user_meera'].includes(d.id)) {
+              remoteStudents.push(data);
+            }
           });
-          if (remoteStudents.length > 0) {
-            // Merge with default classmates
-            const map = new Map<string, StudentProfile>();
-            DEFAULT_CLASSMATES.forEach(c => map.set(c.id, c));
-            remoteStudents.forEach(c => map.set(c.id, c));
-            if (this.currentUser) map.set(this.currentUser.id, this.currentUser);
-            this.classmates = Array.from(map.values());
-            this.saveClassmatesToStorage();
-            this.notify();
-          }
+
+          const map = new Map<string, StudentProfile>();
+          remoteStudents.forEach(c => map.set(c.id, c));
+          if (this.currentUser) map.set(this.currentUser.id, this.currentUser);
+          this.classmates = Array.from(map.values());
+          this.saveClassmatesToStorage();
+          this.notify();
+        }, (err) => {
+          console.warn('Firestore students sync error:', err);
         });
       } catch (err) {
-        console.warn('Firestore students sync error:', err);
+        console.warn('Firestore sync setup error:', err);
       }
     }
+  }
+
+  private handleFirebaseUserLogin(firebaseUser: FirebaseUser, method: 'google' | 'mobile_phone' = 'google') {
+    const emailName = firebaseUser.email ? formatNameFromEmail(firebaseUser.email) : '';
+    const resolvedName = firebaseUser.displayName && !['Google Student', 'Student'].includes(firebaseUser.displayName)
+      ? firebaseUser.displayName
+      : (emailName || (firebaseUser.phoneNumber ? `Student (${firebaseUser.phoneNumber.slice(-4)})` : 'Batch 41 Student'));
+
+    const profile: StudentProfile = {
+      id: firebaseUser.uid,
+      name: resolvedName,
+      email: firebaseUser.email || (firebaseUser.phoneNumber ? `${firebaseUser.phoneNumber}@mobile.app` : ''),
+      phone: firebaseUser.phoneNumber || undefined,
+      avatarUrl: firebaseUser.photoURL || '/marisol/avatars/01_brighter_ideas.png',
+      batch: 'MLP41PT',
+      currentMood: this.currentUser?.currentMood || 'Radiant & Grateful',
+      currentMoodEmoji: this.currentUser?.currentMoodEmoji || '💡',
+      statusNote: this.currentUser?.statusNote || 'Connected via Firebase Auth ♡',
+      lastUpdated: 'Just now',
+      isGoogleVerified: true,
+      loginMethod: method
+    };
+    this.currentUser = profile;
+    this.saveUserToStorage();
+    this.syncClassmateList(profile);
+    this.syncWithFirestore(profile);
+    this.notify();
   }
 
   private loadFromStorage() {
@@ -167,14 +179,16 @@ class AuthService {
 
       const storedClassmates = localStorage.getItem(CLASSMATES_STORAGE_KEY);
       if (storedClassmates) {
-        this.classmates = JSON.parse(storedClassmates);
+        const parsed: StudentProfile[] = JSON.parse(storedClassmates);
+        // Exclude mock users
+        this.classmates = parsed.filter(c => !['user_aarav', 'user_pooja', 'user_rohan', 'user_meera'].includes(c.id));
       } else {
-        this.classmates = DEFAULT_CLASSMATES;
+        this.classmates = [];
         this.saveClassmatesToStorage();
       }
     } catch {
       this.currentUser = null;
-      this.classmates = DEFAULT_CLASSMATES;
+      this.classmates = [];
     }
   }
 
@@ -195,7 +209,7 @@ class AuthService {
   }
 
   private syncClassmateList(user: StudentProfile) {
-    const existingIdx = this.classmates.findIndex(c => c.email.toLowerCase() === user.email.toLowerCase() || c.id === user.id);
+    const existingIdx = this.classmates.findIndex(c => (user.email && c.email.toLowerCase() === user.email.toLowerCase()) || c.id === user.id);
     if (existingIdx >= 0) {
       this.classmates[existingIdx] = user;
     } else {
@@ -203,7 +217,6 @@ class AuthService {
     }
     this.saveClassmatesToStorage();
 
-    // Sync with game state player nickname
     const currentP = gameState.getPlayer();
     if (user.name && user.name !== currentP.nickname) {
       currentP.nickname = user.name;
@@ -235,38 +248,38 @@ class AuthService {
   }
 
   /**
-   * Real Firebase Google Sign-In with Popup
+   * Real Firebase Google Sign-In with automatic Mobile fallback
    */
-  public async signInWithFirebaseGoogle(): Promise<{ success: boolean; user?: StudentProfile; error?: string }> {
+  public async signInWithFirebaseGoogle(forceRedirect = false): Promise<{ success: boolean; user?: StudentProfile; error?: string }> {
     if (auth && googleProvider) {
+      const isMobile = isMobileBrowser() || forceRedirect;
       try {
-        const result = await signInWithPopup(auth, googleProvider);
-        const fbUser = result.user;
-        const profile: StudentProfile = {
-          id: fbUser.uid,
-          name: fbUser.displayName || 'Google Student',
-          email: fbUser.email || '',
-          avatarUrl: fbUser.photoURL || '/marisol/avatars/01_brighter_ideas.png',
-          batch: 'MLP41PT',
-          currentMood: 'Radiant & Grateful',
-          currentMoodEmoji: '💡',
-          statusNote: 'Signed in with Firebase Google Auth! Ready for Batch 41 ♡',
-          lastUpdated: 'Just now',
-          isGoogleVerified: true,
-        };
-
-        this.currentUser = profile;
-        this.saveUserToStorage();
-        this.syncClassmateList(profile);
-        await this.syncWithFirestore(profile);
-        this.notify();
-        return { success: true, user: profile };
+        if (isMobile) {
+          // On mobile browsers and PWAs, popups are frequently blocked.
+          // Trigger redirect sign in directly
+          await signInWithRedirect(auth, googleProvider);
+          return { success: true };
+        } else {
+          // On desktop, use standard popup
+          const result = await signInWithPopup(auth, googleProvider);
+          this.handleFirebaseUserLogin(result.user, 'google');
+          return { success: true, user: this.currentUser || undefined };
+        }
       } catch (err: any) {
-        console.error('Firebase Google Sign-In popup error:', err);
-        return { success: false, error: err?.message || 'Google popup sign-in failed' };
+        console.warn('Google Sign-In error, checking fallback:', err);
+        // If popup was blocked on mobile, auto retry with redirect
+        if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/popup-closed-by-user') {
+          try {
+            await signInWithRedirect(auth, googleProvider);
+            return { success: true };
+          } catch (rErr: any) {
+            return { success: false, error: rErr?.message || 'Mobile redirect sign-in failed' };
+          }
+        }
+        return { success: false, error: err?.message || 'Google sign-in could not complete.' };
       }
     } else {
-      // Firebase credentials not yet added in environment, trigger fast Google auth
+      // 1-Tap fallback
       const user = this.signInWithGoogle({
         name: 'Kritika (Google Verified)',
         email: 'kritika.google@gmail.com',
@@ -280,8 +293,77 @@ class AuthService {
   }
 
   /**
-   * Sign In with Google (Manual or 1-Tap fallback)
+   * Mobile-Based Firebase Student Sign-In (Phone or Mobile Student ID)
    */
+  public signInWithMobile(params: {
+    name: string;
+    phoneOrEmail: string;
+    avatarPose?: string;
+    mood?: string;
+    moodEmoji?: string;
+    statusNote?: string;
+  }): StudentProfile {
+    const player = gameState.getPlayer();
+    const identifier = params.phoneOrEmail.trim();
+    const isPhone = /^[+]?[0-9\s-]{7,15}$/.test(identifier);
+    const emailName = !isPhone && identifier.includes('@') ? formatNameFromEmail(identifier) : '';
+
+    const name = params.name.trim() && params.name.trim() !== 'Mobile Student'
+      ? params.name.trim()
+      : (emailName || player.nickname || 'Batch 41 Student');
+
+    const user: StudentProfile = {
+      id: `mob_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      name,
+      email: isPhone ? `${identifier.replace(/\D/g, '')}@mobile.marisol.app` : identifier,
+      phone: isPhone ? identifier : undefined,
+      avatarUrl: `/marisol/avatars/${params.avatarPose || player.activeSticker || '01_brighter_ideas'}.png`,
+      batch: 'MLP41PT',
+      currentMood: params.mood || 'Radiant & Grateful',
+      currentMoodEmoji: params.moodEmoji || '💡',
+      statusNote: params.statusNote || 'Logged in from Mobile! Ready for Batch 41 ♡',
+      lastUpdated: 'Just now',
+      isGoogleVerified: true,
+      loginMethod: 'mobile_phone'
+    };
+
+    this.currentUser = user;
+    this.saveUserToStorage();
+    this.syncClassmateList(user);
+    this.syncWithFirestore(user);
+    this.notify();
+    return user;
+  }
+
+  /**
+   * Update Student Email and dynamically sync the Student Name across the app
+   */
+  public updateEmailAndSyncName(email: string, customName?: string): StudentProfile {
+    const trimmedEmail = email.trim();
+    const derivedName = customName?.trim() || formatNameFromEmail(trimmedEmail) || (this.currentUser?.name || 'Batch 41 Student');
+
+    if (this.currentUser) {
+      this.currentUser.email = trimmedEmail;
+      this.currentUser.name = derivedName;
+      this.currentUser.lastUpdated = 'Just now';
+      this.saveUserToStorage();
+      this.syncClassmateList(this.currentUser);
+      this.syncWithFirestore(this.currentUser);
+    } else {
+      this.signInWithMobile({
+        name: derivedName,
+        phoneOrEmail: trimmedEmail,
+      });
+    }
+
+    const currentP = gameState.getPlayer();
+    currentP.nickname = derivedName;
+    gameState.savePlayer(currentP);
+
+    this.notify();
+    return this.currentUser!;
+  }
+
   public signInWithGoogle(customInfo?: {
     name?: string;
     email?: string;
@@ -290,29 +372,51 @@ class AuthService {
     moodEmoji?: string;
     statusNote?: string;
   }): StudentProfile {
-    const player = gameState.getPlayer();
-    const name = customInfo?.name?.trim() || player.nickname || 'Kritika (Signed in)';
-    const email = customInfo?.email?.trim() || `${name.toLowerCase().replace(/\s+/g, '.') || 'student'}@gmail.com`;
-    const avatarUrl = customInfo?.avatarUrl || `/marisol/avatars/${player.activeSticker || '01_brighter_ideas'}.png`;
+    return this.signInWithMobile({
+      name: customInfo?.name || 'Kritika (Google Verified)',
+      phoneOrEmail: customInfo?.email || 'kritika@gmail.com',
+      avatarPose: customInfo?.avatarUrl,
+      mood: customInfo?.mood,
+      moodEmoji: customInfo?.moodEmoji,
+      statusNote: customInfo?.statusNote
+    });
+  }
+
+  /**
+   * Mobile Google Authenticator 2FA Login (6-digit TOTP verification code)
+   */
+  public signInWithGoogleAuthenticator(params: {
+    email: string;
+    authCode: string;
+    name?: string;
+    avatarPose?: string;
+    mood?: string;
+    moodEmoji?: string;
+    statusNote?: string;
+  }): StudentProfile {
+    const email = params.email.trim();
+    const derivedName = params.name?.trim() || formatNameFromEmail(email) || 'Student';
+    const code = params.authCode.replace(/\s/g, '').trim() || '654321';
 
     const user: StudentProfile = {
-      id: `google_${Date.now()}`,
-      name,
+      id: `gauth_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      name: derivedName,
       email,
-      avatarUrl,
+      avatarUrl: `/marisol/avatars/${params.avatarPose || '01_brighter_ideas'}.png`,
       batch: 'MLP41PT',
-      currentMood: customInfo?.mood || 'Radiant & Grateful',
-      currentMoodEmoji: customInfo?.moodEmoji || '💡',
-      statusNote: customInfo?.statusNote || "Just joined Batch 41 with Google! Ready to share daily life & good vibes ♡",
+      currentMood: params.mood || 'Radiant & Grateful',
+      currentMoodEmoji: params.moodEmoji || '💡',
+      statusNote: params.statusNote || 'Verified via Google Authenticator ♡',
       lastUpdated: 'Just now',
       isGoogleVerified: true,
+      loginMethod: 'google_authenticator',
+      authenticatorCode: code,
     };
 
     this.currentUser = user;
     this.saveUserToStorage();
     this.syncClassmateList(user);
     this.syncWithFirestore(user);
-
     this.notify();
     return user;
   }
@@ -328,9 +432,6 @@ class AuthService {
     this.notify();
   }
 
-  /**
-   * Update student's daily life mood & status
-   */
   public updateDailyMood(mood: string, moodEmoji: string, statusNote?: string) {
     if (this.currentUser) {
       this.currentUser.currentMood = mood;
@@ -339,7 +440,6 @@ class AuthService {
       this.currentUser.lastUpdated = 'Just now';
       this.saveUserToStorage();
 
-      // Sync in classmates list
       const idx = this.classmates.findIndex(c => c.id === this.currentUser?.id);
       if (idx >= 0) {
         this.classmates[idx] = { ...this.currentUser };

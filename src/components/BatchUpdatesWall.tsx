@@ -6,8 +6,9 @@ import { STICKERS } from '../data/stickers';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
 import { 
-  ArrowLeft, Plus, MessageSquareHeart, Sparkles, Image as ImageIcon, 
-  Send, X, Search, CheckCircle2, UserCheck, Heart 
+  ArrowLeft, Plus, Sparkles, Image as ImageIcon, 
+  Send, X, Search, CheckCircle2, UserCheck, Heart, Trash2, 
+  MessageCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { BaseModal } from './BaseModal';
@@ -25,11 +26,15 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
 
   const [showNewPostModal, setShowNewPostModal] = useState(false);
   const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [selectedClassmateDetail, setSelectedClassmateDetail] = useState<StudentProfile | null>(null);
+
+  // Tabs & Filters
+  const [feedScope, setFeedScope] = useState<'all' | 'mine' | 'search'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMoodFilter, setSelectedMoodFilter] = useState('All');
 
   // New Post Form State
-  const [studentName, setStudentName] = useState(currentUser?.name || player.nickname || 'Kritika');
+  const [studentName, setStudentName] = useState(currentUser?.name || player.nickname || 'Student');
   const [selectedPose, setSelectedPose] = useState(player.activeSticker || 'brighter_ideas');
   const [selectedMood, setSelectedMood] = useState(currentUser?.currentMood || 'Radiant & Grateful');
   const [selectedMoodEmoji, setSelectedMoodEmoji] = useState(currentUser?.currentMoodEmoji || '💡');
@@ -48,19 +53,29 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
     };
   }, []);
 
-  // Sync default name when Google user changes
+  // Sync default name when user profile changes
   useEffect(() => {
     if (currentUser?.name) {
       setStudentName(currentUser.name);
+      if (currentUser.currentMood) {
+        setSelectedMood(currentUser.currentMood);
+        setSelectedMoodEmoji(currentUser.currentMoodEmoji || '💡');
+      }
     }
   }, [currentUser]);
 
-  const posts = batchWallService.getPosts();
+  const allPosts = batchWallService.getPosts();
   const network = batchWallService.getNetworkStatus();
   const classmates = authService.getClassmates();
 
-  // Filtered posts
-  const filteredPosts = posts.filter(post => {
+  // Filtered posts based on active tab & filters
+  const filteredPosts = allPosts.filter(post => {
+    if (feedScope === 'mine') {
+      if (currentUser?.id) {
+        if (post.userId && post.userId !== currentUser.id) return false;
+        if (!post.userId && post.studentName.toLowerCase() !== currentUser.name.toLowerCase()) return false;
+      }
+    }
     if (selectedMoodFilter !== 'All' && post.mood !== selectedMoodFilter) {
       return false;
     }
@@ -73,8 +88,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
     );
   });
 
-  // Extract all unique moods for filter
-  const uniqueMoods = ['All', ...Array.from(new Set(posts.map(p => p.mood)))];
+  const uniqueMoods = ['All', ...Array.from(new Set(allPosts.map(p => p.mood)))];
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -95,7 +109,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
     confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
 
     batchWallService.addPost({
-      studentName: studentName.trim() || currentUser?.name || 'Kritika',
+      userId: currentUser?.id,
+      userEmail: currentUser?.email,
+      studentName: studentName.trim() || currentUser?.name || 'Student',
       avatarPose: selectedPose,
       mood: selectedMood,
       moodEmoji: selectedMoodEmoji,
@@ -103,7 +119,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
       imageUrl: imagePreview || undefined,
     });
 
-    // Also update Google user's daily status note
     if (isAuthenticated) {
       authService.updateDailyMood(selectedMood, selectedMoodEmoji, postText.trim().slice(0, 80));
     }
@@ -123,17 +138,20 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
     audioEngine.playSfx('pop');
     confetti({ particleCount: 40, spread: 60, origin: { y: 0.7 } });
     batchWallService.addPost({
-      studentName: currentUser?.name || 'Kritika',
-      avatarPose: player.activeSticker || '01_brighter_ideas',
+      userId: currentUser?.id,
+      userEmail: currentUser?.email,
+      studentName: currentUser?.name || player.nickname || 'Batch Student',
+      avatarPose: player.activeSticker || 'brighter_ideas',
       mood: 'Radiant & Grateful',
       moodEmoji: '💖',
-      text: `Sending a big warm hug & cheer to ${classmate.name}! Keep shining queen! ✨`,
+      text: `Sending a big warm cheer to ${classmate.name}! Keep glowing! ✨`,
     });
+    setSelectedClassmateDetail(null);
   };
 
   return (
     <div className="min-h-screen bg-[#FFFDF7] p-3 sm:p-6 pb-28 text-ink">
-      <div className="max-w-2xl mx-auto space-y-5">
+      <div className="max-w-2xl mx-auto space-y-4">
 
         {/* Sync Toast Notification */}
         {network.syncToast && (
@@ -151,223 +169,260 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
           </div>
         )}
 
-        {/* Top Header Bar */}
-        <div className="flex items-center justify-between gap-2">
+        {/* 1. TOP HEADER & BACK NAVIGATION (Decluttered & Clean) */}
+        <div className="flex items-center justify-between gap-2 border-b-2 border-ink/10 pb-3">
           <button
             onClick={() => {
               audioEngine.playSfx('click');
               onNavigate('home');
             }}
-            className="sketch-btn p-2.5 sm:p-3 bg-white flex items-center gap-1.5 shadow-sketch"
+            className="sketch-btn py-2 px-3 bg-white flex items-center gap-1.5 shadow-sketch hover:bg-paper-100 transition-all text-xs sm:text-sm font-display font-bold"
+            title="Return to Home Screen"
           >
-            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="font-display font-bold text-xs sm:text-sm hidden sm:inline">HOME</span>
+            <ArrowLeft className="w-4 h-4" />
+            <span>BACK</span>
           </button>
 
-          <div className="text-center">
-            <div className="inline-flex items-center gap-1 font-handwritten text-purple-700 font-bold text-xs sm:text-sm">
-              <MessageSquareHeart className="w-4 h-4" /> BATCH MLP41PT COMMUNITY
+          <div className="text-center min-w-0">
+            <div className="flex items-center justify-center gap-1 text-[11px] font-display font-black uppercase text-purple-700 tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>BATCH MLP41PT LOUNGE</span>
             </div>
-            <h1 className="font-display text-xl sm:text-3xl font-black tracking-tight">
-              SHARED BATCH WALL 🎓
+            <h1 className="font-display text-lg sm:text-2xl font-black tracking-tight text-ink truncate">
+              COMMUNITY CHAT & WALL 💬
             </h1>
           </div>
 
-          {/* Google Sign In status pill */}
+          {/* User Profile / Sign In Pill */}
           <button
             onClick={() => {
               audioEngine.playSfx('click');
               setShowGoogleModal(true);
             }}
-            className="flex items-center gap-1.5 bg-white hover:bg-purple-50 border-2 border-ink px-2.5 py-1 rounded-full text-xs font-handwritten font-bold shadow-sketch transition-all"
-            title="Google Account & Batch Sync"
+            className="flex items-center gap-1.5 bg-white hover:bg-purple-50 border-2 border-ink px-2.5 py-1.5 rounded-2xl text-xs font-display font-black shadow-sketch transition-all shrink-0"
+            title="Account & Realtime Sync"
           >
             {isAuthenticated && currentUser ? (
-              <span className="text-emerald-700 flex items-center gap-1 font-display font-black text-[11px]">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="max-w-[70px] truncate">{currentUser.name.split(' ')[0]}</span>
+              <span className="text-emerald-700 flex items-center gap-1.5 text-xs">
+                <div className="w-5 h-5 rounded-full overflow-hidden border border-ink/30 shrink-0">
+                  <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-full h-full object-cover" />
+                </div>
+                <span className="max-w-[75px] truncate hidden sm:inline">{currentUser.name.split(' ')[0]}</span>
               </span>
             ) : (
-              <span className="text-purple-700 flex items-center gap-1 font-display font-black text-[11px]">
-                <UserCheck className="w-3.5 h-3.5" />
+              <span className="text-purple-700 flex items-center gap-1 text-xs">
+                <UserCheck className="w-4 h-4" />
                 <span>SIGN IN</span>
               </span>
             )}
           </button>
         </div>
 
-        {/* 1. GOOGLE SIGN IN / ACTIVE STUDENT PRESENCE BANNER */}
-        <div className="bg-gradient-to-r from-purple-50 via-pink-50 to-indigo-50 border-2.5 border-purple-300 rounded-3xl p-4 shadow-sketch flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="w-12 h-12 rounded-2xl border-2 border-ink overflow-hidden bg-white shadow-xs shrink-0 flex items-center justify-center">
-              {isAuthenticated && currentUser ? (
-                <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-full h-full object-cover" />
-              ) : (
-                <svg className="w-6 h-6" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                </svg>
-              )}
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-display font-black text-xs sm:text-sm text-purple-950">
-                  {isAuthenticated && currentUser ? `Signed in as ${currentUser.name}` : "Sign in with Google"}
-                </span>
-                <span className="bg-purple-600 text-white font-display text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase">
-                  {isAuthenticated ? "GOOGLE VERIFIED" : "BATCH 41"}
-                </span>
-              </div>
-              <p className="font-handwritten text-xs text-purple-800 font-bold truncate">
-                {isAuthenticated && currentUser 
-                  ? `Your daily mood: ${currentUser.currentMoodEmoji} ${currentUser.currentMood}`
-                  : "See real-time classmate daily life updates & moods!"}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <button
-              onClick={() => {
-                audioEngine.playSfx('click');
-                setShowGoogleModal(true);
-              }}
-              className="sketch-btn px-3 py-1.5 text-xs font-black uppercase bg-white border border-purple-300 shadow-sketch-xs hover:bg-purple-100"
-            >
-              {isAuthenticated ? "EDIT MOOD" : "GOOGLE SIGN IN"}
-            </button>
-            <button
-              onClick={() => {
-                audioEngine.playSfx('click');
-                setShowNewPostModal(true);
-              }}
-              className="sketch-btn-primary px-3 py-1.5 text-xs font-black uppercase flex items-center gap-1 shadow-sketch-xs"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>POST NOTE</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 2. CLASSMATE DAILY MOOD & LIFE UPDATES RADAR */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="font-display font-black text-xs uppercase tracking-wider text-purple-950 flex items-center gap-1.5">
+        {/* 2. DECLUTTERED LIVE MOOD RADAR: INSTAGRAM/SLACK-STYLE STATUS STORY RINGS */}
+        <div className="bg-white border-2 border-ink/20 rounded-2xl p-3 shadow-xs space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-display font-black text-purple-950 flex items-center gap-1.5 uppercase tracking-wide">
               <span>🌟</span>
-              <span>CLASSMATE DAILY MOOD RADAR ({classmates.length} ACTIVE)</span>
-            </h3>
-            <span className="font-handwritten text-xs text-purple-700 font-bold">
-              Tap to send quick cheer ♡
+              <span>Classmate Moods ({classmates.length} Active)</span>
+            </span>
+            <span className="font-handwritten text-xs text-purple-700 font-bold hidden sm:inline">
+              Tap any friend to send a warm cheer ♡
             </span>
           </div>
 
-          {/* Horizontal Scrollable Classmate Cards */}
-          <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
+          <div className="flex items-center gap-3 overflow-x-auto pb-1 pt-1 scrollbar-none">
+            {/* Current user quick mood changer */}
+            <div
+              onClick={() => setShowGoogleModal(true)}
+              className="flex flex-col items-center gap-1 cursor-pointer shrink-0 group"
+              title="Update your daily mood and status note"
+            >
+              <div className="relative w-12 h-12 rounded-full border-2 border-dashed border-purple-500 bg-purple-50 flex items-center justify-center text-purple-700 group-hover:scale-105 transition-transform shadow-xs">
+                <Plus className="w-5 h-5" />
+                <span className="absolute -bottom-1 -right-1 text-xs bg-white rounded-full border border-ink/20 p-0.5 shadow-2xs">
+                  {currentUser?.currentMoodEmoji || '💡'}
+                </span>
+              </div>
+              <span className="font-display font-bold text-[10px] text-purple-900 truncate max-w-[56px] text-center">
+                Your Mood
+              </span>
+            </div>
+
+            {/* Real Classmate Status Story Rings */}
             {classmates.map(cm => (
               <div
                 key={cm.id}
-                onClick={() => handleSendCheerToClassmate(cm)}
-                className="bg-white border-2 border-purple-200 hover:border-purple-500 rounded-2xl p-3 min-w-[200px] max-w-[220px] shrink-0 shadow-sketch-sm hover:shadow-sketch transition-all cursor-pointer group"
+                onClick={() => setSelectedClassmateDetail(cm)}
+                className="flex flex-col items-center gap-1 cursor-pointer shrink-0 group"
+                title={`${cm.name}: "${cm.statusNote}" - Tap to cheer!`}
               >
-                <div className="flex items-center gap-2.5 mb-1.5">
-                  <div className="w-9 h-9 rounded-xl border border-ink/30 overflow-hidden bg-purple-50 shrink-0 group-hover:scale-105 transition-transform">
+                <div className="relative w-12 h-12 rounded-full p-0.5 bg-gradient-to-tr from-pink-500 via-purple-500 to-amber-400 group-hover:scale-105 transition-transform shadow-xs">
+                  <div className="w-full h-full rounded-full overflow-hidden bg-white border border-white">
                     <img src={cm.avatarUrl} alt={cm.name} className="w-full h-full object-cover" />
                   </div>
-                  <div className="min-w-0">
-                    <div className="font-display font-black text-xs text-ink truncate leading-tight">
-                      {cm.name}
-                    </div>
-                    <span className="font-handwritten text-[10px] text-ink-light font-bold">
-                      {cm.lastUpdated}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Mood Tag */}
-                <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-[10px] font-handwritten font-bold text-amber-900 mb-1.5">
-                  <span>{cm.currentMoodEmoji}</span>
-                  <span className="truncate">{cm.currentMood}</span>
-                </div>
-
-                {/* Status Note */}
-                <p className="font-sans text-[11px] text-ink-light line-clamp-2 leading-tight">
-                  "{cm.statusNote}"
-                </p>
-
-                <div className="pt-2 mt-1 border-t border-dashed border-ink/10 flex items-center justify-between text-[10px] font-handwritten text-pink-600 font-bold">
-                  <span className="flex items-center gap-1">
-                    <Heart className="w-3 h-3 fill-pink-500 text-pink-500" /> Cheer
+                  <span className="absolute -bottom-1 -right-1 text-xs bg-white rounded-full border border-ink/20 p-0.5 shadow-2xs">
+                    {cm.currentMoodEmoji || '✨'}
                   </span>
-                  <span className="group-hover:translate-x-0.5 transition-transform">➔</span>
                 </div>
+                <span className="font-display font-bold text-[10px] text-ink truncate max-w-[56px] text-center">
+                  {cm.name.split(' ')[0]}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* 3. Search & Mood Filter Bar */}
-        <div className="bg-white border-2 border-ink rounded-2xl p-3 shadow-sketch space-y-2.5">
-          <div className="relative flex items-center">
-            <Search className="absolute left-3 w-4 h-4 text-ink-light pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by classmate name or keyword..."
-              className="w-full pl-9 pr-8 py-2 bg-paper-50 border border-ink/40 rounded-xl text-xs font-medium outline-none"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 p-0.5 text-ink-light hover:text-ink"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+        {/* 3. SEGMENTED TABS & SEARCH BAR (Decluttered Navigation) */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-1.5 bg-paper-100 p-1 rounded-2xl border-2 border-ink shadow-inner">
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setFeedScope('all');
+              }}
+              className={`flex-1 py-1.5 px-2 rounded-xl font-display font-black text-xs transition-all flex items-center justify-center gap-1.5 ${
+                feedScope === 'all'
+                  ? 'bg-purple-700 text-white shadow-sketch-xs scale-102'
+                  : 'text-ink-light hover:text-ink'
+              }`}
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>All Notes ({allPosts.length})</span>
+            </button>
+
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setFeedScope('mine');
+              }}
+              className={`flex-1 py-1.5 px-2 rounded-xl font-display font-black text-xs transition-all flex items-center justify-center gap-1.5 ${
+                feedScope === 'mine'
+                  ? 'bg-purple-700 text-white shadow-sketch-xs scale-102'
+                  : 'text-ink-light hover:text-ink'
+              }`}
+            >
+              <span>👑 My Notes</span>
+            </button>
+
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setFeedScope(feedScope === 'search' ? 'all' : 'search');
+              }}
+              className={`py-1.5 px-3 rounded-xl font-display font-black text-xs transition-all flex items-center justify-center gap-1 ${
+                feedScope === 'search' || searchQuery
+                  ? 'bg-pink-600 text-white shadow-sketch-xs'
+                  : 'text-ink-light hover:text-ink'
+              }`}
+              title="Search and filter notes"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Search</span>
+            </button>
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {uniqueMoods.map(mood => (
-              <button
-                key={mood}
-                onClick={() => {
-                  audioEngine.playSfx('click');
-                  setSelectedMoodFilter(mood);
-                }}
-                className={`px-2.5 py-0.5 rounded-full text-xs font-handwritten font-bold whitespace-nowrap transition-all ${
-                  selectedMoodFilter === mood
-                    ? 'bg-purple-700 text-white shadow-sketch-xs'
-                    : 'bg-paper-100 text-ink-light hover:bg-paper-200'
-                }`}
-              >
-                {mood}
-              </button>
-            ))}
-          </div>
+          {/* Collapsible / Active Search & Mood Filter Bar */}
+          {(feedScope === 'search' || searchQuery) && (
+            <div className="bg-white border-2 border-ink rounded-2xl p-3 shadow-sketch space-y-2.5 animate-scale-up">
+              <div className="relative flex items-center">
+                <Search className="absolute left-3 w-4 h-4 text-ink-light pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by student name, mood, or memory..."
+                  className="w-full pl-9 pr-8 py-2 bg-paper-50 border border-ink/40 rounded-xl text-xs font-bold outline-none"
+                  autoFocus
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 p-1 text-ink-light hover:text-ink rounded-full"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {uniqueMoods.length > 1 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {uniqueMoods.map(mood => (
+                    <button
+                      key={mood}
+                      onClick={() => {
+                        audioEngine.playSfx('click');
+                        setSelectedMoodFilter(mood);
+                      }}
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-handwritten font-bold whitespace-nowrap transition-all ${
+                        selectedMoodFilter === mood
+                          ? 'bg-purple-700 text-white shadow-sketch-xs'
+                          : 'bg-paper-100 text-ink-light hover:bg-paper-200'
+                      }`}
+                    >
+                      {mood}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* 4. Posts Feed */}
+        {/* 4. QUICK POST COMPOSER DOCK (Clean, modern social feed style) */}
+        <div className="bg-gradient-to-r from-purple-50 via-pink-50 to-indigo-50 border-2 border-purple-300 rounded-2xl p-3 shadow-sketch-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl border border-ink overflow-hidden bg-white shadow-2xs shrink-0 flex items-center justify-center">
+              {currentUser?.avatarUrl ? (
+                <img src={currentUser.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-base">✍️</span>
+              )}
+            </div>
+            <p className="font-handwritten text-xs sm:text-sm text-purple-950 font-bold truncate">
+              {currentUser?.name ? `Share an update as ${currentUser.name}...` : 'Share a note with Batch 41...'}
+            </p>
+          </div>
+
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              setShowNewPostModal(true);
+            }}
+            className="sketch-btn-primary px-3 py-1.5 text-xs font-black uppercase flex items-center gap-1 shadow-sketch-xs shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>POST NOTE</span>
+          </button>
+        </div>
+
+        {/* 5. POSTS FEED */}
         {filteredPosts.length === 0 ? (
-          <div className="bg-white border-3 border-dashed border-ink/30 rounded-3xl p-8 text-center space-y-3 shadow-sketch">
+          <div className="bg-white border-2 border-dashed border-ink/30 rounded-3xl p-8 text-center space-y-3 shadow-sketch">
             <div className="text-4xl animate-bounce-gentle">💌✨</div>
-            <h3 className="font-display font-black text-lg text-ink">No updates found</h3>
+            <h3 className="font-display font-black text-lg text-ink">
+              {feedScope === 'mine' ? 'No personal posts yet' : 'No posts found'}
+            </h3>
             <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
-              Be the first to share a warm memory or update from Batch MLP41PT!
+              {feedScope === 'mine'
+                ? "Tap '+ Post Note' above to publish your first daily update or photo!"
+                : "Try a different search keyword or share a new note with Batch 41!"}
             </p>
             <button
               onClick={() => setShowNewPostModal(true)}
-              className="sketch-btn px-4 py-2 text-xs font-black uppercase bg-purple-50 border-2 border-ink shadow-sketch"
+              className="sketch-btn-primary px-4 py-2 text-xs font-black uppercase shadow-sketch"
             >
-              Post First Memory
+              Post Note Now
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3.5">
             {filteredPosts.map(post => {
               const sticker = STICKERS.find(s => s.alias === post.avatarPose) || STICKERS[0];
-              const reactionEntries = Object.entries(post.reactions || {}).filter(([_, count]) => count > 0);
+              const reactionEntries = Object.entries(post.reactions || {}).filter(([, count]) => count > 0);
+              const isAuthor = Boolean(
+                (currentUser?.id && post.userId === currentUser.id) ||
+                (currentUser?.name && post.studentName.toLowerCase() === currentUser.name.toLowerCase())
+              );
 
               return (
                 <div
@@ -377,7 +432,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                   {/* Post Header */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-2xl border-2 border-ink overflow-hidden bg-purple-50 shadow-xs shrink-0">
+                      <div className="w-10 h-10 rounded-2xl border-2 border-ink overflow-hidden bg-purple-50 shadow-xs shrink-0">
                         <img
                           src={sticker.avatarUrl}
                           alt={post.studentName}
@@ -399,10 +454,28 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                       </div>
                     </div>
 
-                    {/* Mood Chip */}
-                    <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-300 px-2.5 py-0.5 rounded-full text-xs font-handwritten font-bold text-amber-900 shrink-0">
-                      <span>{post.moodEmoji}</span>
-                      <span className="hidden sm:inline">{post.mood}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Mood Chip */}
+                      <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-300 px-2.5 py-0.5 rounded-full text-xs font-handwritten font-bold text-amber-900">
+                        <span>{post.moodEmoji}</span>
+                        <span className="hidden sm:inline">{post.mood}</span>
+                      </div>
+
+                      {/* Author Delete Action */}
+                      {isAuthor && (
+                        <button
+                          onClick={() => {
+                            audioEngine.playSfx('click');
+                            if (window.confirm('Delete this post from the wall?')) {
+                              batchWallService.deletePost(post.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg border border-rose-300 text-rose-600 hover:bg-rose-50 transition-colors"
+                          title="Delete your post"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -474,23 +547,58 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
           </div>
         )}
 
-        {/* Modal: New Batch Update */}
+        {/* Modal: Classmate Live Status Card & Cheer Popover */}
+        {selectedClassmateDetail && (
+          <BaseModal
+            onClose={() => setSelectedClassmateDetail(null)}
+            title={selectedClassmateDetail.name}
+            subtitle={`Batch ${selectedClassmateDetail.batch} Member`}
+            icon={<div className="w-8 h-8 rounded-full overflow-hidden border border-ink"><img src={selectedClassmateDetail.avatarUrl} alt="" className="w-full h-full object-cover" /></div>}
+            maxWidth="max-w-sm"
+          >
+            <div className="space-y-4 text-center">
+              <div className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-300 px-3 py-1 rounded-full text-xs font-handwritten font-bold text-amber-900">
+                <span>{selectedClassmateDetail.currentMoodEmoji}</span>
+                <span>{selectedClassmateDetail.currentMood}</span>
+              </div>
+
+              <div className="bg-paper-50 p-3.5 rounded-2xl border border-ink/20">
+                <p className="font-handwritten text-sm text-ink italic">
+                  "{selectedClassmateDetail.statusNote || 'Excited for batch trivia! ♡'}"
+                </p>
+                <div className="text-[10px] font-sans text-ink-light font-bold mt-2">
+                  Active {selectedClassmateDetail.lastUpdated}
+                </div>
+              </div>
+
+              <button
+                onClick={() => handleSendCheerToClassmate(selectedClassmateDetail)}
+                className="sketch-btn-primary w-full py-2.5 text-xs font-black uppercase flex items-center justify-center gap-1.5 shadow-sketch"
+              >
+                <Heart className="w-4 h-4 fill-white" />
+                <span>Send Warm Cheer to {selectedClassmateDetail.name.split(' ')[0]}</span>
+              </button>
+            </div>
+          </BaseModal>
+        )}
+
+        {/* Modal: New Batch Update Note */}
         {showNewPostModal && (
           <BaseModal
             onClose={() => setShowNewPostModal(false)}
-            title="NEW BATCH 41 UPDATE"
+            title="NEW BATCH 41 NOTE"
             subtitle="Share a memory, shoutout, or status note ♡"
             icon={<span>💌</span>}
             maxWidth="max-w-md"
           >
             <form onSubmit={handleCreatePost} className="space-y-4 text-left">
-              {/* Name */}
+              {/* Student Name */}
               <div className="space-y-1">
                 <label className="font-display font-black text-xs uppercase text-ink flex items-center justify-between">
-                  <span>Your Name:</span>
+                  <span>Student Name:</span>
                   {isAuthenticated && (
                     <span className="text-emerald-700 font-handwritten text-[11px] font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> Signed in with Google
+                      <CheckCircle2 className="w-3 h-3" /> Synced from Email
                     </span>
                   )}
                 </label>
@@ -507,7 +615,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
               {/* Avatar / Companion Pose */}
               <div className="space-y-1.5">
                 <label className="font-display font-black text-xs uppercase text-ink">
-                  Select Your Avatar Pose:
+                  Select Your Companion Pose:
                 </label>
                 <div className="grid grid-cols-6 gap-1.5 max-h-28 overflow-y-auto p-1 bg-paper-50 rounded-xl border border-ink/20">
                   {STICKERS.map(s => {
@@ -515,32 +623,37 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                     return (
                       <button
                         type="button"
-                        key={s.id}
+                        key={s.alias}
                         onClick={() => setSelectedPose(s.alias)}
-                        className={`p-1 rounded-xl border flex flex-col items-center justify-center transition-all ${
-                          isSelected ? 'bg-doodleGold border-2 border-ink shadow-xs scale-105' : 'bg-white border-ink/20 hover:border-ink'
+                        className={`p-1 rounded-lg border flex flex-col items-center justify-center transition-all ${
+                          isSelected
+                            ? 'bg-purple-100 border-2 border-purple-700 shadow-xs scale-105'
+                            : 'bg-white border-ink/20 hover:bg-paper-100'
                         }`}
+                        title={s.title}
                       >
-                        <span className="text-base">{s.badgeEmoji}</span>
+                        <span className="text-lg">{s.badgeEmoji}</span>
+                        <span className="text-[8px] font-bold truncate max-w-[40px]">{s.badgeEmoji}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Mood */}
+              {/* Mood Selection */}
               <div className="space-y-1">
                 <label className="font-display font-black text-xs uppercase text-ink">
-                  How are you feeling right now?
+                  How Are You Feeling Right Now?
                 </label>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-paper-50 rounded-xl border border-ink/20">
                   {[
                     { label: 'Radiant & Grateful', emoji: '💡' },
                     { label: 'Caffeinated & Victorious', emoji: '☕' },
-                    { label: 'Deep Thinking', emoji: '💻' },
                     { label: 'Cozy & Chill', emoji: '☁️' },
-                    { label: 'Silly & Happy', emoji: '😜' },
-                    { label: 'Big Dreams', emoji: '✈️' },
+                    { label: 'Deep Thinking', emoji: '💻' },
+                    { label: 'Bold & Excited', emoji: '😉' },
+                    { label: 'Peaceful & Content', emoji: '🍃' },
+                    { label: 'Cheeky & Fun', emoji: '🌸' },
                   ].map(m => (
                     <button
                       type="button"
@@ -552,7 +665,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                       className={`px-2.5 py-1 rounded-full text-xs font-handwritten font-bold border transition-all ${
                         selectedMood === m.label
                           ? 'bg-ink text-white border-ink shadow-xs'
-                          : 'bg-paper-100 border-ink/20 text-ink'
+                          : 'bg-white border-ink/20 text-ink'
                       }`}
                     >
                       {m.emoji} {m.label}
@@ -561,52 +674,50 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 </div>
               </div>
 
-              {/* Text Note */}
+              {/* Message Content */}
               <div className="space-y-1">
                 <label className="font-display font-black text-xs uppercase text-ink">
-                  Memory or Short Message:
+                  Your Note / Memory:
                 </label>
                 <textarea
                   value={postText}
                   onChange={(e) => setPostText(e.target.value)}
-                  placeholder="Drop a note, joke, or unforgettable memory with Batch 41..."
+                  placeholder="Share a story, cheer for a batchmate, or ask a question..."
                   rows={3}
-                  className="w-full p-3 bg-paper-50 border-2 border-ink rounded-2xl text-xs font-medium outline-none resize-none"
+                  className="w-full px-3 py-2 bg-paper-50 border-2 border-ink rounded-xl text-xs font-medium outline-none resize-none"
                   required
                 />
               </div>
 
-              {/* Photo Upload */}
+              {/* Optional Photo Attachment */}
               <div className="space-y-1">
                 <label className="font-display font-black text-xs uppercase text-ink flex items-center justify-between">
-                  <span>Attach Photo (Optional):</span>
+                  <span className="flex items-center gap-1">
+                    <ImageIcon className="w-3.5 h-3.5 text-purple-700" />
+                    <span>Attach Photo (Optional):</span>
+                  </span>
                   {imagePreview && (
                     <button
                       type="button"
                       onClick={() => setImagePreview(null)}
-                      className="text-coral-500 font-handwritten font-bold hover:underline"
+                      className="text-rose-600 font-handwritten text-xs font-bold"
                     >
                       Remove
                     </button>
                   )}
                 </label>
+
                 {imagePreview ? (
-                  <div className="h-28 rounded-2xl border-2 border-ink overflow-hidden bg-paper-50">
+                  <div className="relative rounded-xl border-2 border-ink overflow-hidden max-h-36">
                     <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
                   </div>
                 ) : (
-                  <label className="border-2 border-dashed border-ink/40 rounded-2xl p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-paper-100 transition-colors">
-                    <ImageIcon className="w-4 h-4 text-ink-light" />
-                    <span className="font-handwritten text-xs font-bold text-ink-light">
-                      Upload polaroid or snapshot
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="w-full text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-2 file:border-ink file:bg-white file:font-display file:font-black file:text-xs hover:file:bg-paper-100"
+                  />
                 )}
               </div>
 
@@ -617,18 +728,20 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                   className="sketch-btn-primary w-full py-3 text-xs sm:text-sm font-black uppercase flex items-center justify-center gap-2 shadow-sketch"
                 >
                   <Send className="w-4 h-4" />
-                  <span>{network.isOnline ? 'PUBLISH TO BATCH WALL' : 'QUEUE OFFLINE (WILL SYNC)'}</span>
+                  <span>Post to Batch 41 Wall</span>
                 </button>
               </div>
             </form>
           </BaseModal>
         )}
 
-        {/* Modal: Google Sign In */}
+        {/* Modal: Google / Email Profile */}
         {showGoogleModal && (
-          <GoogleSignInModal
-            onClose={() => setShowGoogleModal(false)}
-            onSuccess={() => setShowGoogleModal(false)}
+          <GoogleSignInModal 
+            onClose={() => setShowGoogleModal(false)} 
+            onSuccess={(u) => {
+              setStudentName(u.name);
+            }}
           />
         )}
 

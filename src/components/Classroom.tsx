@@ -4,7 +4,7 @@ import { audioEngine } from '../services/synthAudioEngine';
 import type { TeacherProfile } from '../types/game';
 import { Marisol } from './Marisol';
 import confetti from 'canvas-confetti';
-import { Users, Trophy, Copy, Check, Sparkles, Star, ArrowRight, Save, Lock, GraduationCap } from 'lucide-react';
+import { Users, Trophy, Copy, Check, Sparkles, Star, ArrowRight, Save, Lock, GraduationCap, ArrowLeft } from 'lucide-react';
 
 export type ClassroomModeType = 'student' | 'secret' | 'teacher';
 
@@ -90,13 +90,27 @@ export const Classroom: React.FC<ClassroomProps> = ({
 
         {/* Classroom Navigation Mode Switcher */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b-2 border-ink/20 pb-4">
-          <div className="text-center sm:text-left">
-            <div className="inline-block bg-white border-2 border-ink px-3 py-1 rounded-full shadow-sketch font-handwritten text-xs font-bold text-coral-500 uppercase tracking-wider">
-              🏫 Classroom Hub
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onNavigateHome();
+              }}
+              className="sketch-btn p-2 sm:px-3 bg-white flex items-center gap-1.5 shadow-sketch text-xs font-display font-bold shrink-0 hover:bg-paper-100"
+              title="Return to Home"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">HOME</span>
+            </button>
+
+            <div className="text-left">
+              <div className="inline-block bg-white border-2 border-ink px-2.5 py-0.5 rounded-full shadow-sketch font-handwritten text-[11px] font-bold text-coral-500 uppercase tracking-wider">
+                🏫 Classroom Hub
+              </div>
+              <h1 className="font-display font-black text-xl sm:text-3xl text-plum-700 tracking-tight mt-0.5">
+                MARISOL'S CLASSROOM
+              </h1>
             </div>
-            <h1 className="font-display font-black text-2xl sm:text-4xl text-plum-700 tracking-tight mt-1">
-              MARISOL'S CLASSROOM
-            </h1>
           </div>
 
           <div className="flex items-center gap-1.5 bg-white border-2.5 border-ink rounded-full p-1.5 shadow-sketch">
