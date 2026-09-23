@@ -200,24 +200,50 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
           /* Sign-In Options View */
           <div className="space-y-4">
             
-            {/* 1. 1-TAP QUICK CONNECT (Guaranteed 100% working on any device) */}
-            <div className="bg-gradient-to-r from-purple-50 via-pink-50 to-amber-50 border border-purple-200 rounded-2xl p-4 space-y-2.5 shadow-xs">
+            {/* 1. UNIVERSAL 1-TAP CONNECT (Works 100% on ANY Device, Phone, Tablet, Laptop, APK) */}
+            <div className="bg-gradient-to-r from-purple-50 via-pink-50 to-amber-50 border border-purple-200 rounded-2xl p-4 space-y-3 shadow-xs">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 font-display font-black text-purple-950 text-xs uppercase">
                   <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                  <span>1-Tap Instant Connect</span>
+                  <span>Universal Instant Connect (Any Device)</span>
                 </div>
                 <span className="text-[10px] font-handwritten font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full">
-                  Fastest ⚡
+                  All Devices 📱💻
                 </span>
               </div>
 
-              <form onSubmit={handleQuickStudentConnect} className="space-y-2">
+              {/* Quick Profile Chips */}
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { name: 'Kritika Verma', label: '👑 Kritika (Queen)', bg: 'bg-rose-100 text-rose-800 border-rose-300' },
+                  { name: 'Vighneswaran', label: '🎓 Vighneswaran', bg: 'bg-blue-100 text-blue-800 border-blue-300' },
+                  { name: 'Batch 41 Student', label: '🌸 Batch Student', bg: 'bg-amber-100 text-amber-800 border-amber-300' },
+                ].map(profile => (
+                  <button
+                    key={profile.name}
+                    type="button"
+                    onClick={() => {
+                      setQuickName(profile.name);
+                      const finalUser = authService.loginStudentProfile(profile.name);
+                      audioEngine.playSfx('fanfare');
+                      confetti({ particleCount: 70, spread: 65, origin: { y: 0.6 } });
+                      setTick(t => t + 1);
+                      if (onSuccess) onSuccess(finalUser);
+                      onClose();
+                    }}
+                    className={`px-2.5 py-1 rounded-xl text-xs font-display font-black border transition-all hover:scale-103 active:scale-97 cursor-pointer ${profile.bg}`}
+                  >
+                    {profile.label}
+                  </button>
+                ))}
+              </div>
+
+              <form onSubmit={handleQuickStudentConnect} className="space-y-2 pt-1">
                 <input
                   type="text"
                   value={quickName}
                   onChange={(e) => setQuickName(e.target.value)}
-                  placeholder="Enter your name (e.g. Kritika, Aarav, Priyanshu...)"
+                  placeholder="Or enter your custom name..."
                   className="w-full px-3 py-2 bg-white border border-purple-200 rounded-xl text-xs font-semibold outline-none focus:border-purple-500 transition-colors"
                 />
                 <button
@@ -225,7 +251,7 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
                   className="w-full py-2.5 bg-gradient-to-r from-purple-700 via-pink-600 to-rose-600 text-white font-display font-black text-xs uppercase rounded-xl shadow-xs hover:opacity-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <UserCheck className="w-4 h-4" />
-                  <span>Connect with 1-Tap</span>
+                  <span>Connect Profile Instantly</span>
                 </button>
               </form>
             </div>
