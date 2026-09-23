@@ -5,10 +5,12 @@ import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
 import { ArrowLeft, Sparkles, Check } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { BaseModal } from './BaseModal';
 
 interface StickerCollectionProps {
-  onNavigate: (screen: ScreenState) => void;
+  onNavigate?: (screen: ScreenState) => void;
   onSelectMood?: (stickerAlias: string) => void;
+  hideHomeButton?: boolean;
 }
 
 // Where each sticker is featured in the game
@@ -70,7 +72,11 @@ const STICKER_GAME_ROLES: Record<string, { role: string; zone: string; desc: str
   }
 };
 
-export const StickerCollection: React.FC<StickerCollectionProps> = ({ onNavigate, onSelectMood }) => {
+export const StickerCollection: React.FC<StickerCollectionProps> = ({ 
+  onNavigate, 
+  onSelectMood,
+  hideHomeButton = false
+}) => {
   const [activeSticker, setActiveSticker] = useState<string>(gameState.getActiveSticker());
   const [selectedModalSticker, setSelectedModalSticker] = useState<StickerData | null>(null);
   const [filter, setFilter] = useState<'all' | 'study' | 'fun' | 'adventure'>('all');
@@ -105,33 +111,35 @@ export const StickerCollection: React.FC<StickerCollectionProps> = ({ onNavigate
   });
 
   return (
-    <div className="min-h-screen bg-[#FAF7F0] p-4 sm:p-6 pb-28 text-ink">
+    <div className="min-h-screen bg-[#FAF7F0] p-3 sm:p-6 pb-28 text-ink">
       <div className="max-w-4xl mx-auto space-y-6">
 
         {/* Top Header Bar */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onNavigate('home');
-            }}
-            className="sketch-btn p-3 bg-white flex items-center gap-2 shadow-sketch"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="font-display font-bold text-sm hidden sm:inline">BACK HOME</span>
-          </button>
+        <div className="flex items-center justify-between gap-2">
+          {!hideHomeButton && onNavigate ? (
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onNavigate('home');
+              }}
+              className="sketch-btn p-2.5 sm:p-3 bg-white flex items-center gap-1.5 sm:gap-2 shadow-sketch"
+            >
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="font-display font-bold text-xs sm:text-sm hidden sm:inline">BACK HOME</span>
+            </button>
+          ) : <div className="w-9" />}
 
           <div className="text-center">
-            <div className="font-handwritten text-coral-500 font-bold text-sm sm:text-base flex items-center justify-center gap-1">
+            <div className="font-handwritten text-coral-500 font-bold text-xs sm:text-base flex items-center justify-center gap-1">
               <Sparkles className="w-4 h-4" /> 11 HAND-DRAWN MOOD STICKERS
             </div>
-            <h1 className="font-display text-2xl sm:text-3xl font-black tracking-tight">
+            <h1 className="font-display text-xl sm:text-3xl font-black tracking-tight">
               KRITIKA'S STICKER VAULT ♡
             </h1>
           </div>
 
-          <div className="bg-white border-2 border-ink px-3 py-1.5 rounded-full font-handwritten text-sm font-bold shadow-sketch">
-            <span className="text-coral-500">11</span> / 11 COLLECTED
+          <div className="bg-white border-2 border-ink px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-handwritten text-xs sm:text-sm font-bold shadow-sketch">
+            <span className="text-coral-500 font-black">11</span> / 11 COLLECTED
           </div>
         </div>
 
@@ -139,14 +147,12 @@ export const StickerCollection: React.FC<StickerCollectionProps> = ({ onNavigate
         {(() => {
           const active = STICKERS.find(s => s.alias === activeSticker) || STICKERS[0];
           const role = STICKER_GAME_ROLES[active.alias];
-          return (
-            <div className="bg-white border-3 border-ink rounded-3xl p-4 sm:p-6 shadow-sketch-xl relative overflow-hidden flex flex-col sm:flex-row items-center gap-5">
-              {/* Tape Accent */}
-              <div className="absolute -top-3 left-10 w-24 h-6 bg-doodleGold/40 border border-ink/40 -rotate-3 z-10" />
 
-              {/* Active Sticker Visual */}
-              <div className="relative group shrink-0">
-                <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl border-2.5 border-ink bg-[#FAF7F0] overflow-hidden shadow-sketch p-1 flex items-center justify-center">
+          return (
+            <div className="bg-gradient-to-r from-amber-50 via-rose-50 to-pink-50 border-3 border-ink rounded-3xl p-5 shadow-sketch-lg flex flex-col sm:flex-row items-center gap-5">
+              {/* Sticker Thumbnail */}
+              <div className="relative shrink-0">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-2.5 border-ink bg-white p-2 shadow-sketch flex items-center justify-center">
                   <img
                     src={active.stickerUrl}
                     alt={active.title}
@@ -236,146 +242,142 @@ export const StickerCollection: React.FC<StickerCollectionProps> = ({ onNavigate
           </div>
         </div>
 
-        {/* The 11 Stickers Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredStickers.map((sticker) => {
-            const isEquipped = sticker.alias === activeSticker;
-            const role = STICKER_GAME_ROLES[sticker.alias];
+        {/* Empty State when no stickers match */}
+        {filteredStickers.length === 0 ? (
+          <div className="bg-white border-3 border-dashed border-ink/30 rounded-3xl p-8 sm:p-12 text-center space-y-3.5 shadow-sketch">
+            <div className="text-4xl animate-bounce-gentle">🎨✨</div>
+            <h3 className="font-display font-black text-lg sm:text-xl text-ink">
+              No stickers found in this category
+            </h3>
+            <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold max-w-md mx-auto">
+              Try switching back to 'All 11 Stickers' to browse the complete companion collection!
+            </p>
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setFilter('all');
+              }}
+              className="sketch-btn px-4 py-2 text-xs font-display font-black uppercase bg-pink-50 border-2 border-ink shadow-sketch hover:bg-pink-100"
+            >
+              Show All Stickers
+            </button>
+          </div>
+        ) : (
+          /* The 11 Stickers Grid */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredStickers.map((sticker) => {
+              const isEquipped = sticker.alias === activeSticker;
+              const role = STICKER_GAME_ROLES[sticker.alias];
 
-            return (
-              <div
-                key={sticker.id}
-                onClick={() => handleInspect(sticker)}
-                className={`
-                  bg-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch-lg
-                  hover:shadow-sketch-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer
-                  flex flex-col justify-between relative group
-                  ${isEquipped ? 'ring-3 ring-doodleGold ring-offset-2' : ''}
-                `}
-              >
-                {/* Sticker Index Badge */}
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-handwritten font-bold text-xs bg-paper-100 border border-ink/20 px-2 py-0.5 rounded-full text-ink-light">
-                    STICKER #{sticker.index}
-                  </span>
-                  <span className="text-lg">{sticker.badgeEmoji}</span>
-                </div>
+              return (
+                <div
+                  key={sticker.id}
+                  onClick={() => handleInspect(sticker)}
+                  className={`
+                    bg-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch-lg
+                    hover:shadow-sketch-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer
+                    flex flex-col justify-between relative group
+                    ${isEquipped ? 'ring-3 ring-doodleGold ring-offset-2' : ''}
+                  `}
+                >
+                  {/* Sticker Index Badge */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-handwritten font-bold text-xs bg-paper-100 border border-ink/20 px-2 py-0.5 rounded-full text-ink-light">
+                      STICKER #{sticker.index}
+                    </span>
+                    <span className="text-lg">{sticker.badgeEmoji}</span>
+                  </div>
 
-                {/* Main Visual Display based on View Mode */}
-                <div className="my-2 flex items-center justify-center min-h-[220px]">
-                  {viewMode === 'stickers' && (
-                    <div className="w-full max-w-[240px] rounded-2xl border-2 border-ink/40 bg-[#FAF7F0] p-2 shadow-inner group-hover:scale-102 transition-transform">
-                      <img
-                        src={sticker.stickerUrl}
-                        alt={sticker.title}
-                        className="w-full h-auto object-contain rounded-xl"
-                        loading="lazy"
-                      />
-                    </div>
-                  )}
-
-                  {viewMode === 'cards' && (
-                    <div className="w-full max-w-[220px] bg-white border-2 border-ink rounded-2xl p-2 shadow-sketch text-center group-hover:rotate-1 transition-transform">
-                      <div className="w-full rounded-xl overflow-hidden border border-ink bg-[#FAF7F0] mb-2">
+                  {/* Main Visual Display based on View Mode */}
+                  <div className="my-2 flex items-center justify-center min-h-[220px]">
+                    {viewMode === 'stickers' && (
+                      <div className="w-full max-w-[240px] rounded-2xl border-2 border-ink/40 bg-[#FAF7F0] p-2 shadow-inner group-hover:scale-102 transition-transform">
                         <img
                           src={sticker.stickerUrl}
                           alt={sticker.title}
-                          className="w-full h-auto object-cover"
+                          className="w-full h-auto object-contain drop-shadow-md rounded-xl"
                           loading="lazy"
                         />
                       </div>
-                      <span className="font-handwritten text-xs font-bold text-ink block truncate">
-                        {sticker.quote}
-                      </span>
-                    </div>
-                  )}
+                    )}
 
-                  {viewMode === 'avatars' && (
-                    <div className="w-36 h-36 rounded-full border-3 border-ink overflow-hidden shadow-sketch-lg bg-[#FAF7F0] group-hover:scale-105 transition-transform">
-                      <img
-                        src={sticker.avatarUrl}
-                        alt={sticker.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    </div>
-                  )}
-                </div>
+                    {viewMode === 'cards' && (
+                      <div className="w-full max-w-[220px] bg-white border-2 border-ink rounded-2xl p-3 shadow-sketch-sm group-hover:rotate-1 transition-transform">
+                        <div className="aspect-square rounded-xl overflow-hidden border border-ink/20 bg-paper-50 mb-2">
+                          <img
+                            src={sticker.poseUrl}
+                            alt={sticker.title}
+                            className="w-full h-full object-contain p-1"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className="text-center">
+                          <div className="font-handwritten text-xs font-bold text-ink truncate">
+                            "{sticker.quote}"
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-                {/* Sticker Details & Quote */}
-                <div className="space-y-3 pt-2">
-                  <div className="text-center">
-                    <h3 className="font-display font-black text-base text-ink leading-snug">
-                      {sticker.quote}
-                    </h3>
-                    <div className="font-handwritten text-xs text-coral-600 font-bold mt-1">
-                      {role?.zone}
-                    </div>
+                    {viewMode === 'avatars' && (
+                      <div className="w-32 h-32 rounded-full border-3 border-ink overflow-hidden bg-purple-100 shadow-sketch group-hover:scale-105 transition-transform flex items-center justify-center">
+                        <img
+                          src={sticker.avatarUrl}
+                          alt={sticker.title}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
                   </div>
 
-                  {/* Actions Row */}
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      onClick={(e) => handleEquip(sticker, e)}
-                      className={`
-                        w-full py-2.5 px-3 rounded-xl font-display font-bold text-xs uppercase
-                        border-2 border-ink flex items-center justify-center gap-1.5 transition-all
-                        ${
+                  {/* Sticker Info & Equip Action */}
+                  <div className="space-y-3 pt-3 border-t-1.5 border-dashed border-ink/20">
+                    <div>
+                      <h3 className="font-display font-black text-base text-ink leading-tight">
+                        {sticker.title}
+                      </h3>
+                      <p className="font-handwritten text-xs text-coral-600 font-bold mt-0.5">
+                        {role?.role || sticker.vibe}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => handleEquip(sticker, e)}
+                        className={`flex-1 py-2 px-3 rounded-xl font-display text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all ${
                           isEquipped
-                            ? 'bg-doodleGold text-ink shadow-inner font-black'
-                            : 'bg-paper-100 hover:bg-ink hover:text-white shadow-sketch-sm'
-                        }
-                      `}
-                    >
-                      {isEquipped ? (
-                        <>
-                          <Check className="w-4 h-4 stroke-[3]" />
-                          <span>EQUIPPED</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4" />
-                          <span>EQUIP MOOD</span>
-                        </>
-                      )}
-                    </button>
+                            ? 'bg-doodleGold text-ink border-2 border-ink shadow-sketch-xs'
+                            : 'bg-paper-100 hover:bg-paper-200 border-1.5 border-ink text-ink'
+                        }`}
+                      >
+                        {isEquipped ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>EQUIPPED</span>
+                          </>
+                        ) : (
+                          <span>SET AS ACTIVE</span>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
-        {/* Modal: Full Sticker Inspection */}
+        {/* Modal: Full Sticker Inspection using BaseModal */}
         {selectedModalSticker && (
-          <div 
-            className="fixed inset-0 z-50 bg-ink/70 backdrop-blur-xs flex items-center justify-center p-4"
-            onClick={() => setSelectedModalSticker(null)}
+          <BaseModal 
+            onClose={() => setSelectedModalSticker(null)}
+            title={`STICKER #${selectedModalSticker.index}`}
+            subtitle={selectedModalSticker.vibe}
+            icon={<span>{selectedModalSticker.badgeEmoji}</span>}
+            maxWidth="max-w-md"
           >
-            <div 
-              className="bg-[#FAF7F0] border-3 border-ink rounded-3xl max-w-md w-full p-6 shadow-sketch-2xl space-y-4 relative animate-scale-up"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between border-b-2 border-ink/20 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">{selectedModalSticker.badgeEmoji}</span>
-                  <div>
-                    <h3 className="font-display font-black text-lg">
-                      STICKER #{selectedModalSticker.index}
-                    </h3>
-                    <span className="font-handwritten text-xs text-ink-light">
-                      {selectedModalSticker.vibe}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setSelectedModalSticker(null)}
-                  className="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200"
-                >
-                  ✕
-                </button>
-              </div>
-
+            <div className="space-y-4 text-center">
               {/* Large Sticker View */}
               <div className="bg-white rounded-2xl border-2.5 border-ink p-3 shadow-sketch flex items-center justify-center">
                 <img
@@ -399,17 +401,20 @@ export const StickerCollection: React.FC<StickerCollectionProps> = ({ onNavigate
               </div>
 
               {/* Modal Buttons */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 pt-1">
                 <button
-                  onClick={() => handleEquip(selectedModalSticker)}
-                  className="sketch-btn-primary flex-1 py-3 text-sm font-black uppercase flex items-center justify-center gap-2"
+                  onClick={() => {
+                    handleEquip(selectedModalSticker);
+                    setSelectedModalSticker(null);
+                  }}
+                  className="sketch-btn-primary flex-1 py-3 text-sm font-black uppercase flex items-center justify-center gap-2 shadow-sketch"
                 >
                   <Check className="w-4 h-4" />
                   <span>EQUIP AS COMPANION</span>
                 </button>
               </div>
             </div>
-          </div>
+          </BaseModal>
         )}
 
       </div>

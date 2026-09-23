@@ -10,14 +10,13 @@ import { GameMap } from './components/GameMap';
 import { QuestionCard } from './components/QuestionCard';
 import { MovieDetectiveCard } from './components/MovieDetectiveCard';
 import { LearningCard } from './components/LearningCard';
-import { KnowledgePassport } from './components/KnowledgePassport';
 import { DailyChallenge } from './components/DailyChallenge';
 import { PlayerProfileCard } from './components/PlayerProfileCard';
 import { Classroom } from './components/Classroom';
-import { StickerCollection } from './components/StickerCollection';
 import { MoodSelectorModal } from './components/MoodSelectorModal';
 import { RecipeModal } from './components/RecipeModal';
-import { RecipeVault } from './components/RecipeVault';
+import { VaultHub } from './components/VaultHub';
+import { BatchUpdatesWall } from './components/BatchUpdatesWall';
 import { MusicJukeboxModal } from './components/MusicJukeboxModal';
 import { ComfortCornerModal } from './components/ComfortCornerModal';
 import { SecretLocketModal } from './components/SecretLocketModal';
@@ -67,7 +66,9 @@ export function App() {
     setCurrentScreen(screen);
     setPlayer(gameState.getPlayer());
     if (screen === 'home') setActiveNavTab('home');
-    if (screen === 'quiz') setActiveNavTab('quiz');
+    else if (screen === 'quiz') setActiveNavTab('play');
+    else if (screen === 'vault' || screen === 'recipes' || screen === 'stickers' || screen === 'passport') setActiveNavTab('vault');
+    else if (screen === 'profile') setActiveNavTab('profile');
   };
 
   // Launch Mood-first Quiz Flow
@@ -90,7 +91,7 @@ export function App() {
     setPlayer(gameState.getPlayer());
 
     setCurrentScreen('quiz');
-    setActiveNavTab('quiz');
+    setActiveNavTab('play');
   };
 
   const startZoneQuiz = (zone: Zone) => {
@@ -102,7 +103,7 @@ export function App() {
     setRoundSandwiches(0);
     setShowLearningCard(false);
     setCurrentScreen('quiz');
-    setActiveNavTab('quiz');
+    setActiveNavTab('play');
     audioEngine.startMusic('quiz');
   };
 
@@ -116,7 +117,7 @@ export function App() {
     gameState.clearCollectedIngredients();
     setPlayer(gameState.getPlayer());
     setCurrentScreen('quiz');
-    setActiveNavTab('quiz');
+    setActiveNavTab('play');
     audioEngine.startMusic('quiz');
   };
 
@@ -191,12 +192,14 @@ export function App() {
     setActiveNavTab(tab);
     if (tab === 'home') {
       setCurrentScreen('home');
-    } else if (tab === 'lounge') {
-      setShowMusicJukebox(true);
-    } else if (tab === 'quiz') {
+    } else if (tab === 'play') {
       handleStartCulinaryTrivia();
-    } else if (tab === 'locket') {
-      setShowSecretLocket(true);
+    } else if (tab === 'comfort') {
+      setShowComfortCorner(true);
+    } else if (tab === 'vault') {
+      setCurrentScreen('vault');
+    } else if (tab === 'profile') {
+      setCurrentScreen('profile');
     }
   };
 
@@ -265,10 +268,6 @@ export function App() {
         )}
 
 
-        {currentScreen === 'passport' && (
-          <KnowledgePassport />
-        )}
-
         {currentScreen === 'daily' && (
           <DailyChallenge onComplete={() => {
             setShowLevelClearHero(true);
@@ -277,7 +276,13 @@ export function App() {
         )}
 
         {currentScreen === 'profile' && (
-          <PlayerProfileCard />
+          <PlayerProfileCard
+            onNavigate={handleNavigate}
+            onOpenSecretLocket={() => setShowSecretLocket(true)}
+            onOpenGlowUpWeek={() => setShowGlowUpWeek(true)}
+            onOpenMusicJukebox={() => setShowMusicJukebox(true)}
+            onOpenInstallApp={() => setShowInstallApp(true)}
+          />
         )}
 
         {currentScreen === 'classroom' && (
@@ -304,17 +309,44 @@ export function App() {
           />
         )}
 
-        {currentScreen === 'stickers' && (
-          <StickerCollection
+        {currentScreen === 'vault' && (
+          <VaultHub
             onNavigate={handleNavigate}
+            onCookRecipe={startCookingRecipeDirect}
             onSelectMood={(_alias) => setPlayer(gameState.getPlayer())}
           />
         )}
 
         {currentScreen === 'recipes' && (
-          <RecipeVault
+          <VaultHub
+            initialTab="recipes"
             onNavigate={handleNavigate}
             onCookRecipe={startCookingRecipeDirect}
+            onSelectMood={(_alias) => setPlayer(gameState.getPlayer())}
+          />
+        )}
+
+        {currentScreen === 'stickers' && (
+          <VaultHub
+            initialTab="stickers"
+            onNavigate={handleNavigate}
+            onCookRecipe={startCookingRecipeDirect}
+            onSelectMood={(_alias) => setPlayer(gameState.getPlayer())}
+          />
+        )}
+
+        {currentScreen === 'passport' && (
+          <VaultHub
+            initialTab="passport"
+            onNavigate={handleNavigate}
+            onCookRecipe={startCookingRecipeDirect}
+            onSelectMood={(_alias) => setPlayer(gameState.getPlayer())}
+          />
+        )}
+
+        {currentScreen === 'batch_wall' && (
+          <BatchUpdatesWall
+            onNavigate={handleNavigate}
           />
         )}
 

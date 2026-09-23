@@ -208,6 +208,8 @@ export type ScreenState =
   | 'teacher_custom'
   | 'secret_classroom'
   | 'stickers'
-  | 'recipes';
+  | 'recipes'
+  | 'vault'
+  | 'batch_wall';
 
 
