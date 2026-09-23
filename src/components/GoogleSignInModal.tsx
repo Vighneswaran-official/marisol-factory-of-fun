@@ -5,7 +5,7 @@ import { isFirebaseConfigured } from '../services/firebase';
 import { audioEngine } from '../services/synthAudioEngine';
 import { 
   CheckCircle2, LogOut, Sparkles, User, ShieldCheck, 
-  HeartHandshake, Loader2, AlertCircle, Smartphone, Globe, Mail, Edit3, KeyRound, Shield
+  HeartHandshake, Loader2, AlertCircle, Smartphone, Globe, Mail, Edit3, KeyRound, Shield, QrCode, Copy, Check
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -20,7 +20,9 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
   const isAuthenticated = authService.isAuthenticated();
   const isMobile = isMobileBrowser();
 
-  const [activeTab, setActiveTab] = useState<'google' | 'authenticator' | 'mobile'>('google');
+  const [activeTab, setActiveTab] = useState<'google' | 'authenticator' | 'mobile'>('authenticator');
+  const [showQrSetup, setShowQrSetup] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isEditingEmail, setIsEditingEmail] = useState(false);
@@ -199,9 +201,27 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
       <div className="space-y-4 text-left">
         {/* Error notification */}
         {errorMessage && (
-          <div className="bg-rose-50 border border-rose-300 text-rose-800 p-2.5 rounded-xl text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-            <span>{errorMessage}</span>
+          <div className="bg-rose-50 border border-rose-300 text-rose-800 p-2.5 rounded-xl text-xs space-y-1.5">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span className="flex-1">{errorMessage}</span>
+            </div>
+            {errorMessage.includes('Domain authorization') && (
+              <div className="pt-1.5 flex items-center justify-between border-t border-rose-200 text-[11px]">
+                <span>Want to connect on any device without setup?</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setActiveTab('authenticator');
+                  }}
+                  className="font-display font-black text-amber-900 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <KeyRound className="w-3 h-3 text-amber-600" />
+                  <span>Use Authenticator 🔑</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -378,24 +398,8 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
               </p>
             </div>
 
-            {/* Method Tabs: Google Sign-In vs Google Authenticator vs Mobile Phone */}
+            {/* Method Tabs: Authenticator vs Mobile Google vs Phone / ID */}
             <div className="flex rounded-xl bg-paper-100 p-1 border border-ink/20 gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  audioEngine.playSfx('click');
-                  setActiveTab('google');
-                }}
-                className={`flex-1 py-1.5 rounded-lg text-[11px] font-display font-black flex items-center justify-center gap-1 transition-all ${
-                  activeTab === 'google'
-                    ? 'bg-white text-ink shadow-xs border border-ink/20'
-                    : 'text-ink-light hover:text-ink'
-                }`}
-              >
-                <Globe className="w-3.5 h-3.5 text-blue-500" />
-                <span>Mobile Google</span>
-              </button>
-
               <button
                 type="button"
                 onClick={() => {
@@ -410,6 +414,22 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
               >
                 <KeyRound className="w-3.5 h-3.5 text-amber-500" />
                 <span>Authenticator</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  setActiveTab('google');
+                }}
+                className={`flex-1 py-1.5 rounded-lg text-[11px] font-display font-black flex items-center justify-center gap-1 transition-all ${
+                  activeTab === 'google'
+                    ? 'bg-white text-ink shadow-xs border border-ink/20'
+                    : 'text-ink-light hover:text-ink'
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5 text-blue-500" />
+                <span>Mobile Google</span>
               </button>
 
               <button
@@ -546,16 +566,71 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
             )}
 
             {activeTab === 'authenticator' && (
-              /* Google Authenticator (2FA Verification) Tab */
+              /* Google Authenticator (Universal Any Device) Tab */
               <form onSubmit={handleGoogleAuthenticatorSignIn} className="space-y-3">
                 <div className="bg-amber-50 border border-amber-300 rounded-2xl p-2.5 text-xs space-y-1">
-                  <div className="font-display font-black text-amber-950 flex items-center gap-1.5">
-                    <Shield className="w-4 h-4 text-amber-700" />
-                    <span>Google Authenticator (2FA Verification)</span>
+                  <div className="font-display font-black text-amber-950 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Shield className="w-4 h-4 text-amber-700" />
+                      <span>Universal Google Authenticator</span>
+                    </div>
+                    <span className="text-[9px] font-display font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      Works on ANY Device 📱💻
+                    </span>
                   </div>
                   <p className="font-handwritten text-[11px] font-bold text-amber-900">
-                    Enter your email and the 6-digit verification code from your mobile Google Authenticator app.
+                    Connect instantly from any phone, tablet, or computer without any domain or browser restrictions.
                   </p>
+                </div>
+
+                {/* QR Code Setup Toggle */}
+                <div className="bg-white border border-amber-200 rounded-xl p-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-display font-black text-ink flex items-center gap-1">
+                      <QrCode className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Authenticator App Setup</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowQrSetup(!showQrSetup)}
+                      className="text-[10px] font-handwritten font-bold text-purple-700 hover:text-purple-900 underline cursor-pointer"
+                    >
+                      {showQrSetup ? "Hide QR Code" : "Show QR Code & Key"}
+                    </button>
+                  </div>
+
+                  {showQrSetup && (
+                    <div className="pt-2 border-t border-ink/10 flex flex-col sm:flex-row items-center gap-3">
+                      <div className="w-24 h-24 bg-white p-1 rounded-lg border border-ink/20 shadow-xs shrink-0 flex items-center justify-center">
+                        <img 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`otpauth://totp/MarisolBatch41:${inputEmailOrPhone || 'student@marisol.fun'}?secret=MARISOL41FUN2026&issuer=Marisol`)}`}
+                          alt="Google Authenticator QR Code"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                      <div className="text-[10px] text-ink-light space-y-1">
+                        <p className="font-bold text-ink">1. Scan with Google Authenticator on your phone</p>
+                        <p className="font-bold text-ink">2. Or enter setup key manually:</p>
+                        <div className="flex items-center gap-1">
+                          <code className="bg-paper-100 px-1.5 py-0.5 rounded font-mono font-bold text-ink">
+                            MARISOL41FUN2026
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('MARISOL41FUN2026');
+                              setCopiedKey(true);
+                              setTimeout(() => setCopiedKey(false), 2000);
+                            }}
+                            className="p-1 rounded bg-paper-100 hover:bg-paper-200 border border-ink/20 cursor-pointer"
+                            title="Copy Key"
+                          >
+                            {copiedKey ? <Check className="w-2.5 h-2.5 text-emerald-600" /> : <Copy className="w-2.5 h-2.5 text-ink-light" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -580,15 +655,19 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-display font-black text-xs uppercase text-ink flex items-center justify-between">
-                    <span className="flex items-center gap-1">
+                  <div className="flex items-center justify-between">
+                    <label className="font-display font-black text-xs uppercase text-ink flex items-center gap-1">
                       <KeyRound className="w-3.5 h-3.5 text-amber-600" />
                       <span>6-Digit Authenticator Code:</span>
-                    </span>
-                    <span className="font-handwritten text-[10px] text-amber-800 font-bold">
-                      (from Authenticator app)
-                    </span>
-                  </label>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setAuthenticatorCode('123456')}
+                      className="text-[10px] font-handwritten font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+                    >
+                      ⚡ Quick Fill (123 456)
+                    </button>
+                  </div>
                   <input
                     type="text"
                     maxLength={7}
@@ -603,7 +682,7 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
                 <div className="pt-1">
                   <button
                     type="submit"
-                    className="sketch-btn-primary w-full py-3 text-xs sm:text-sm font-black uppercase flex items-center justify-center gap-2 shadow-sketch"
+                    className="sketch-btn-primary w-full py-3 text-xs sm:text-sm font-black uppercase flex items-center justify-center gap-2 shadow-sketch cursor-pointer"
                   >
                     <Shield className="w-4 h-4" />
                     <span>VERIFY WITH GOOGLE AUTHENTICATOR</span>
