@@ -51,8 +51,8 @@ const QUEUE_KEY = 'marisol_batch_offline_queue_v2';
 const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
   {
     id: 'chat_init_1',
-    senderName: 'Kritika Verma 👑',
-    senderEmail: 'kritika.verma@mlp41.edu',
+    senderName: 'Kritika Gupta 👑',
+    senderEmail: 'kritika.gupta@mlp41.edu',
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
     text: 'Hey Batch 41 family! Welcome to our comfort hub! Savoring every sweet memory together ♡ ✨',
     timestamp: 'Today at 2:30 PM',

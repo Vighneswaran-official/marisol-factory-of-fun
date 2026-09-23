@@ -232,7 +232,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <div className="space-y-0.5 max-w-[75%]">
                 <span className="bg-rose-500 text-white font-display text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-xs">
                   <Sparkles className="w-2.5 h-2.5 fill-white" />
-                  <span>KRITIKA VERMA 👑</span>
+                  <span>KRITIKA GUPTA 👑</span>
                 </span>
                 <h2 className="font-display font-black text-white text-base sm:text-xl drop-shadow-md">
                   Queen of Factory of Fun
