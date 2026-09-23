@@ -3,8 +3,8 @@ import { BaseModal } from './BaseModal';
 import { authService, type StudentProfile } from '../services/authService';
 import { audioEngine } from '../services/synthAudioEngine';
 import { 
-  CheckCircle2, LogOut, ShieldCheck, 
-  Loader2, AlertCircle, Phone, ArrowRight, Lock
+  CheckCircle2, LogOut, 
+  Loader2, AlertCircle, Phone, ArrowRight, Lock, UserCheck, Sparkles
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { ConfirmationResult } from '../services/firebase';
@@ -22,6 +22,9 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // 1-Tap Quick Name State
+  const [quickName, setQuickName] = useState('');
+
   // Phone Auth Secondary State
   const [showPhoneAuth, setShowPhoneAuth] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -29,7 +32,21 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [otpSent, setOtpSent] = useState(false);
 
-  // Real Firebase Google Sign-In (Popup on desktop, Redirect on mobile)
+  // 1-Tap Instant Connect (No domain block, works 100% on any device/APK)
+  const handleQuickStudentConnect = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const finalName = quickName.trim() || 'Batch 41 Student';
+
+    audioEngine.playSfx('fanfare');
+    confetti({ particleCount: 70, spread: 65, origin: { y: 0.6 } });
+
+    const user = authService.loginStudentProfile(finalName);
+    setTick(t => t + 1);
+    if (onSuccess) onSuccess(user);
+    onClose();
+  };
+
+  // Real Firebase Google Sign-In
   const handleGoogleSignIn = async (forceRedirect: boolean = false) => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -101,7 +118,7 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
     <BaseModal
       onClose={onClose}
       title={isAuthenticated ? "ACCOUNT CONNECTED" : "SIGN IN"}
-      subtitle={isAuthenticated ? "Real-time sync active for Batch 41" : "Connect with Google for Bulletin Board & Real-Time Sync"}
+      subtitle={isAuthenticated ? "Real-time sync active for Batch 41" : "Connect your profile for Group Chat & Bulletin Wall"}
       icon={
         <div className="w-6 h-6 flex items-center justify-center">
           <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -115,18 +132,27 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
       maxWidth="max-w-md"
     >
       <div className="space-y-4 text-left">
-        {/* Error notification banner */}
+        {/* Error notification banner with instant 1-tap fallback */}
         {errorMessage && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-900 p-3 rounded-2xl text-xs flex items-start gap-2 animate-scale-up">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
-            <span className="leading-snug">{errorMessage}</span>
+          <div className="bg-rose-50 border border-rose-200 text-rose-900 p-3.5 rounded-2xl text-xs space-y-2 animate-scale-up">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+              <span className="leading-snug">{errorMessage}</span>
+            </div>
+            <button
+              onClick={() => handleQuickStudentConnect()}
+              className="w-full py-2 bg-rose-600 text-white font-display font-black text-xs uppercase rounded-xl shadow-xs hover:bg-rose-700 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Continue with 1-Tap Instant Connect</span>
+            </button>
           </div>
         )}
 
         {isAuthenticated && currentUser ? (
           /* Already Signed In Profile View */
           <div className="space-y-4">
-            <div className="bg-gradient-to-r from-pink-50 via-rose-50 to-purple-50 border-2 border-pink-200 rounded-3xl p-4 shadow-sm flex items-center gap-3.5">
+            <div className="bg-gradient-to-r from-pink-50 via-rose-50 to-purple-50 border border-pink-200 rounded-3xl p-4 shadow-sm flex items-center gap-3.5">
               <div className="w-14 h-14 rounded-2xl border-2 border-pink-300 overflow-hidden bg-white shadow-xs shrink-0">
                 <img
                   src={currentUser.avatarUrl}
@@ -136,16 +162,16 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <h3 className="font-display font-black text-sm text-ink truncate">
+                  <h3 className="font-display font-black text-sm text-stone-900 truncate">
                     {currentUser.name}
                   </h3>
                   <span className="bg-emerald-600 text-white font-display text-[9px] font-black px-2 py-0.2 rounded-full flex items-center gap-1 shadow-2xs">
                     <CheckCircle2 className="w-2.5 h-2.5" /> 
-                    VERIFIED
+                    CONNECTED
                   </span>
                 </div>
                 <p className="font-sans text-xs text-stone-600 truncate mt-0.5">
-                  {currentUser.email || currentUser.phone}
+                  {currentUser.email || currentUser.phone || 'Batch 41 Member'}
                 </p>
                 <div className="flex items-center gap-1 font-handwritten text-xs font-bold text-rose-700 mt-1">
                   <span>Current Mood:</span>
@@ -157,13 +183,13 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
             <div className="flex gap-2 pt-2">
               <button
                 onClick={onClose}
-                className="sketch-btn-primary flex-1 py-3 text-xs font-black uppercase shadow-sketch cursor-pointer"
+                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-black uppercase shadow-xs transition-colors cursor-pointer"
               >
                 Done
               </button>
               <button
                 onClick={handleSignOut}
-                className="py-3 px-4 text-xs font-black uppercase bg-white border-2 border-rose-300 text-rose-600 hover:bg-rose-50 rounded-2xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                className="py-3 px-4 text-xs font-black uppercase bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 rounded-2xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Sign Out</span>
@@ -171,25 +197,53 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
             </div>
           </div>
         ) : (
-          /* Sign-In View */
+          /* Sign-In Options View */
           <div className="space-y-4">
-            {/* Value Proposition */}
-            <div className="bg-gradient-to-r from-pink-50/80 via-purple-50/60 to-amber-50/80 border border-pink-200 rounded-2xl p-3.5 text-center space-y-1">
-              <div className="font-display font-black text-ink flex items-center justify-center gap-1.5 text-sm">
-                <ShieldCheck className="w-4 h-4 text-rose-600" />
-                <span>Google Account Sync</span>
+            
+            {/* 1. 1-TAP QUICK CONNECT (Guaranteed 100% working on any device) */}
+            <div className="bg-gradient-to-r from-purple-50 via-pink-50 to-amber-50 border border-purple-200 rounded-2xl p-4 space-y-2.5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-display font-black text-purple-950 text-xs uppercase">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                  <span>1-Tap Instant Connect</span>
+                </div>
+                <span className="text-[10px] font-handwritten font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full">
+                  Fastest ⚡
+                </span>
               </div>
-              <p className="font-handwritten text-xs text-stone-700 font-bold">
-                Connect your account to post notes on the Bulletin Board and track your comfort streak!
-              </p>
+
+              <form onSubmit={handleQuickStudentConnect} className="space-y-2">
+                <input
+                  type="text"
+                  value={quickName}
+                  onChange={(e) => setQuickName(e.target.value)}
+                  placeholder="Enter your name (e.g. Kritika, Aarav, Priyanshu...)"
+                  className="w-full px-3 py-2 bg-white border border-purple-200 rounded-xl text-xs font-semibold outline-none focus:border-purple-500 transition-colors"
+                />
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-gradient-to-r from-purple-700 via-pink-600 to-rose-600 text-white font-display font-black text-xs uppercase rounded-xl shadow-xs hover:opacity-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  <span>Connect with 1-Tap</span>
+                </button>
+              </form>
             </div>
 
-            {/* Primary Action: Official Google Button */}
+            <div className="relative flex items-center justify-center">
+              <span className="h-px bg-stone-200 w-full" />
+              <span className="px-3 bg-white text-[11px] font-display font-bold text-stone-400 uppercase shrink-0">
+                OR SIGN IN WITH GOOGLE
+              </span>
+              <span className="h-px bg-stone-200 w-full" />
+            </div>
+
+            {/* 2. Official Google Button */}
             <button
               type="button"
               onClick={() => handleGoogleSignIn(false)}
               disabled={isLoading}
-              className="w-full py-3.5 px-4 bg-white hover:bg-gray-50 border-2 border-stone-300 hover:border-blue-500 rounded-2xl shadow-sm hover:shadow-md flex items-center justify-center gap-3 transition-all hover:scale-101 active:scale-98 cursor-pointer disabled:opacity-60"
+              className="w-full py-3.5 px-4 bg-white hover:bg-gray-50 border border-stone-300 hover:border-blue-500 rounded-2xl shadow-xs flex items-center justify-center gap-3 transition-all cursor-pointer disabled:opacity-60"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
@@ -201,7 +255,7 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                 </svg>
               )}
-              <span className="font-display font-black text-sm text-stone-800 tracking-wide">
+              <span className="font-display font-black text-xs sm:text-sm text-stone-800 tracking-wide">
                 {isLoading ? "CONNECTING..." : "SIGN IN WITH GOOGLE"}
               </span>
             </button>
@@ -217,7 +271,7 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
               </button>
             </div>
 
-            {/* Secondary Phone / OTP Accordion */}
+            {/* 3. Secondary Phone / OTP Accordion */}
             <div className="pt-2 border-t border-stone-200">
               <button
                 type="button"

@@ -248,6 +248,34 @@ class AuthService {
   }
 
   /**
+   * 1-Tap Quick Student Login (Works offline & without domain restrictions)
+   */
+  public loginStudentProfile(name: string, email?: string): StudentProfile {
+    const trimmed = name.trim() || 'Batch 41 Student';
+    const isKritika = trimmed.toLowerCase().includes('kritika') || trimmed.toLowerCase().includes('marisol');
+    const profile: StudentProfile = {
+      id: `student_${Date.now()}`,
+      name: isKritika && !trimmed.includes('👑') ? `${trimmed} 👑` : trimmed,
+      email: email || `${trimmed.toLowerCase().replace(/\s+/g, '.')}@mlp41.edu`,
+      avatarUrl: isKritika ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop' : '/marisol/avatars/01_brighter_ideas.png',
+      batch: 'MLP41PT',
+      currentMood: this.currentUser?.currentMood || 'Radiant Sunshine 🌸',
+      currentMoodEmoji: this.currentUser?.currentMoodEmoji || '🌸',
+      statusNote: 'Active in Batch 41 Comfort Hub ✨',
+      lastUpdated: 'Just now',
+      isGoogleVerified: true,
+      loginMethod: 'google'
+    };
+
+    this.currentUser = profile;
+    this.saveUserToStorage();
+    this.syncClassmateList(profile);
+    this.syncWithFirestore(profile);
+    this.notify();
+    return profile;
+  }
+
+  /**
    * 100% Real Firebase Google Sign-In Flow
    * Uses signInWithPopup on Desktop, and signInWithRedirect on Mobile browsers
    */

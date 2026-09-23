@@ -31,11 +31,56 @@ export interface BatchUpdatePost {
   category?: 'tribute' | 'question' | 'cheer' | 'general';
 }
 
+export interface GroupChatMessage {
+  id: string;
+  senderId?: string;
+  senderName: string;
+  senderEmail?: string;
+  avatarUrl?: string;
+  text: string;
+  timestamp: string;
+  createdAt: number;
+  isKritika?: boolean;
+  reactionEmoji?: string;
+}
+
 const STORAGE_KEY = 'marisol_batch_updates_v2';
+const CHAT_STORAGE_KEY = 'marisol_group_chat_messages_v2';
 const QUEUE_KEY = 'marisol_batch_offline_queue_v2';
+
+const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
+  {
+    id: 'chat_init_1',
+    senderName: 'Kritika Verma 👑',
+    senderEmail: 'kritika.verma@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+    text: 'Hey Batch 41 family! Welcome to our comfort hub! Savoring every sweet memory together ♡ ✨',
+    timestamp: 'Today at 2:30 PM',
+    createdAt: Date.now() - 3600000 * 4,
+    isKritika: true,
+    reactionEmoji: '💖'
+  },
+  {
+    id: 'chat_init_2',
+    senderName: 'Priyanshu Sharma',
+    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
+    text: 'Kritika queen!! The music player and food quiz are pure vibes! 🧀🍕',
+    timestamp: 'Today at 3:15 PM',
+    createdAt: Date.now() - 3600000 * 2
+  },
+  {
+    id: 'chat_init_3',
+    senderName: 'Ananya Deshmukh',
+    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
+    text: 'Who wants to do the Chai Enthusiast movie quiz round together tonight? ☕🎬',
+    timestamp: 'Today at 3:45 PM',
+    createdAt: Date.now() - 3600000
+  }
+];
 
 class BatchWallService {
   private posts: BatchUpdatePost[] = [];
+  private chatMessages: GroupChatMessage[] = [];
   private offlineQueue: BatchUpdatePost[] = [];
   private listeners: Set<() => void> = new Set();
   private isOnline: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -70,7 +115,6 @@ class BatchWallService {
           const remotePosts: BatchUpdatePost[] = [];
           snapshot.forEach((docSnap) => {
             const data = docSnap.data() as BatchUpdatePost;
-            // Exclude any unwanted legacy demo post IDs
             if (!['post_01', 'post_02', 'post_03', 'post_04'].includes(docSnap.id)) {
               remotePosts.push({ ...data, id: docSnap.id });
             }
@@ -82,6 +126,27 @@ class BatchWallService {
         }, (err) => {
           console.warn('Firestore onSnapshot error, using local posts:', err);
         });
+
+        // Group Chat Firestore Listener
+        const chatQuery = query(
+          collection(db, 'group_chat_messages'),
+          orderBy('createdAt', 'asc'),
+          limit(75)
+        );
+        onSnapshot(chatQuery, (snapshot) => {
+          if (!snapshot.empty) {
+            const remoteChat: GroupChatMessage[] = [];
+            snapshot.forEach((docSnap) => {
+              remoteChat.push({ ...(docSnap.data() as GroupChatMessage), id: docSnap.id });
+            });
+            this.chatMessages = remoteChat;
+            this.saveChatToStorage();
+            this.notify();
+          }
+        }, (err) => {
+          console.warn('Firestore chat listener error:', err);
+        });
+
       } catch (err) {
         console.warn('Firestore sync setup error:', err);
       }
@@ -93,11 +158,18 @@ class BatchWallService {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed: BatchUpdatePost[] = JSON.parse(stored);
-        // Clean out any unwanted legacy demo posts
         this.posts = parsed.filter(p => !['post_01', 'post_02', 'post_03', 'post_04'].includes(p.id));
       } else {
         this.posts = [];
         this.saveToStorage();
+      }
+
+      const storedChat = localStorage.getItem(CHAT_STORAGE_KEY);
+      if (storedChat) {
+        this.chatMessages = JSON.parse(storedChat);
+      } else {
+        this.chatMessages = [...DEFAULT_GROUP_CHAT_MESSAGES];
+        this.saveChatToStorage();
       }
 
       const queue = localStorage.getItem(QUEUE_KEY);
@@ -106,12 +178,19 @@ class BatchWallService {
       }
     } catch {
       this.posts = [];
+      this.chatMessages = [...DEFAULT_GROUP_CHAT_MESSAGES];
     }
   }
 
   private saveToStorage() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.posts));
+    } catch {}
+  }
+
+  private saveChatToStorage() {
+    try {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(this.chatMessages));
     } catch {}
   }
 
@@ -159,6 +238,10 @@ class BatchWallService {
       return this.posts.filter(p => p.userId === currentUserId);
     }
     return [...this.posts];
+  }
+
+  public getChatMessages(): GroupChatMessage[] {
+    return [...this.chatMessages];
   }
 
   public getOfflineQueue(): BatchUpdatePost[] {
@@ -217,6 +300,46 @@ class BatchWallService {
       this.notify();
       return { queued: false, post: newPost };
     }
+  }
+
+  public async sendGroupChatMessage(data: {
+    senderId?: string;
+    senderName: string;
+    senderEmail?: string;
+    avatarUrl?: string;
+    text: string;
+  }): Promise<GroupChatMessage> {
+    const name = data.senderName.trim() || 'Batch 41 Student';
+    const email = data.senderEmail || '';
+    const isKritika = name.toLowerCase().includes('kritika') || 
+                      email.toLowerCase().includes('kritika') ||
+                      name.toLowerCase().includes('marisol');
+
+    const msg: GroupChatMessage = {
+      id: `chat_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      senderId: data.senderId,
+      senderName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
+      senderEmail: data.senderEmail,
+      avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+      text: data.text.trim(),
+      timestamp: 'Just now',
+      createdAt: Date.now(),
+      isKritika
+    };
+
+    this.chatMessages.push(msg);
+    this.saveChatToStorage();
+
+    if (db) {
+      try {
+        await addDoc(collection(db, 'group_chat_messages'), msg);
+      } catch (err) {
+        console.warn('Failed to sync chat message to Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return msg;
   }
 
   public async deletePost(postId: string) {

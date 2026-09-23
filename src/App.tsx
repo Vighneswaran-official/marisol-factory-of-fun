@@ -7,6 +7,8 @@ import { HomeScreen } from './components/HomeScreen';
 import { QuestionCard } from './components/QuestionCard';
 import { LearningCard } from './components/LearningCard';
 import { BatchUpdatesWall } from './components/BatchUpdatesWall';
+import { MusicPlayerScreen } from './components/MusicPlayerScreen';
+import { FloatingMusicBar } from './components/FloatingMusicBar';
 import { GoogleSignInModal } from './components/GoogleSignInModal';
 import { MoodHistoryModal } from './components/MoodHistoryModal';
 import { ComfortShelfModal } from './components/ComfortShelfModal';
@@ -17,6 +19,7 @@ import {
   KRITIKA_STICKER_MOODS,
   type MoodProfileSetting 
 } from './services/moodQuizService';
+import { nonRepeatingQuizEngine } from './data/foodMovieQuestions1000';
 import { ArrowLeft, RefreshCw, Trophy, Clock, Film } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -37,7 +40,6 @@ export function App() {
   const [roundScore, setRoundScore] = useState(0);
   const [showLearningCard, setShowLearningCard] = useState(false);
   const [lastAnswer, setLastAnswer] = useState<{ option: string; isCorrect: boolean } | null>(null);
-  const [playedIds, setPlayedIds] = useState<string[]>([]);
   const [quizFinished, setQuizFinished] = useState(false);
 
   // Active Mood Details
@@ -52,6 +54,8 @@ export function App() {
     if (screen === 'home') {
       setActiveNavTab('home');
       setQuizFinished(false);
+    } else if (screen === 'music') {
+      setActiveNavTab('music');
     } else if (screen === 'batch_wall') {
       setActiveNavTab('wall');
       setQuizFinished(false);
@@ -65,6 +69,8 @@ export function App() {
     setActiveNavTab(tab);
     if (tab === 'home') {
       handleNavigate('home');
+    } else if (tab === 'music') {
+      handleNavigate('music');
     } else if (tab === 'quiz') {
       handleStartMoodQuiz(activeMoodId);
     } else if (tab === 'wall') {
@@ -72,11 +78,11 @@ export function App() {
     }
   };
 
-  // Launch Quiz Tailored to Girl's Selected Mood
+  // Launch Quiz Tailored to Food & Movies (1000+ Non-Repeating Library)
   const handleStartMoodQuiz = (moodId: string) => {
     setActiveMoodId(moodId);
     audioEngine.playSfx('fanfare');
-    const moodQuestions = getQuestionsForMood(moodId, 5, playedIds);
+    const moodQuestions = getQuestionsForMood(moodId, 5);
     setQuizQuestions(moodQuestions);
     setCurrentQIndex(0);
     setRoundScore(0);
@@ -108,7 +114,6 @@ export function App() {
     setPlayer(gameState.getPlayer());
 
     setLastAnswer({ option: selectedOption, isCorrect });
-    setPlayedIds(prev => [...prev, currentQ.id]);
     setShowLearningCard(true);
   };
 
@@ -124,8 +129,10 @@ export function App() {
     }
   };
 
+  const quizStats = nonRepeatingQuizEngine.getStats();
+
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-ink font-sans antialiased selection:bg-pink-200">
+    <div className="min-h-screen bg-[#FAF8F5] text-stone-900 font-sans antialiased selection:bg-pink-200">
       {/* Top Navbar */}
       <Navbar
         currentScreen={currentScreen}
@@ -149,7 +156,12 @@ export function App() {
           />
         )}
 
-        {/* 2. MOOD-ADAPTED QUIZ GAME SCREEN */}
+        {/* 2. ONLINE MUSIC PLAYER STREAMER SCREEN */}
+        {currentScreen === 'music' && (
+          <MusicPlayerScreen onNavigate={handleNavigate} />
+        )}
+
+        {/* 3. 1,000+ FOOD & MOVIE QUIZ GAME SCREEN */}
         {currentScreen === 'quiz' && (
           <div className="max-w-xl mx-auto p-4 sm:p-6 pb-28 space-y-4">
             {/* Quiz Top Action Bar */}
@@ -164,7 +176,7 @@ export function App() {
 
               <div className="text-center">
                 <span className="font-display font-black text-xs uppercase text-rose-600 tracking-wider">
-                  #{currentMoodSetting.scaleNumber} {currentMoodSetting.emoji} {currentMoodSetting.label} Quiz
+                  #{currentMoodSetting.scaleNumber} {currentMoodSetting.emoji} Food & Movie Quiz
                 </span>
                 <h2 className="font-display font-black text-lg text-stone-900">
                   Question {currentQIndex + 1} of {quizQuestions.length}
@@ -175,6 +187,16 @@ export function App() {
                 <span>🔥 Streak:</span>
                 <span>{player.streak}</span>
               </div>
+            </div>
+
+            {/* Zero-Repeat Progress Pill */}
+            <div className="bg-stone-100 border border-stone-200 rounded-xl p-2 px-3 flex items-center justify-between text-xs text-stone-600">
+              <span className="font-medium">
+                🎯 1000+ Questions Library ({quizStats.remainingCount} Unplayed Remaining)
+              </span>
+              <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                Zero Repeats
+              </span>
             </div>
 
             {/* Quiz Card or Finish View */}
@@ -269,14 +291,19 @@ export function App() {
           </div>
         )}
 
-        {/* 3. BULLETIN CHAT (Batch Updates Wall) */}
+        {/* 4. BULLETIN CHAT & GROUP ROOM (Batch Updates Wall) */}
         {currentScreen === 'batch_wall' && (
           <BatchUpdatesWall onNavigate={handleNavigate} />
         )}
 
       </main>
 
-      {/* Floating Bottom Navigation Dock (Home & Video | Mood Quiz | Bulletin Chat) */}
+      {/* Floating Mini Music Player Bar (Active when browsing other screens) */}
+      {currentScreen !== 'music' && (
+        <FloatingMusicBar onOpenMusicScreen={() => handleNavigate('music')} />
+      )}
+
+      {/* Floating Bottom Navigation Dock (Home | Music | 1000+ Quiz | Chat & Wall) */}
       <BottomNavigationDock
         activeTab={activeNavTab}
         onTabSelect={handleBottomTabSelect}

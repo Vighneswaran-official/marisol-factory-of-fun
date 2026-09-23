@@ -210,6 +210,9 @@ export type ScreenState =
   | 'stickers'
   | 'recipes'
   | 'vault'
-  | 'batch_wall';
+  | 'batch_wall'
+  | 'music'
+  | 'group_chat';
+
 
 
