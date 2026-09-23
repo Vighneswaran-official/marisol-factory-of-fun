@@ -4,10 +4,9 @@ import { authService, type StudentProfile } from '../services/authService';
 import { audioEngine } from '../services/synthAudioEngine';
 import { 
   CheckCircle2, LogOut, 
-  Loader2, AlertCircle, Phone, ArrowRight, Lock, UserCheck, Sparkles
+  Loader2, AlertCircle, UserCheck, Sparkles
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import type { ConfirmationResult } from '../services/firebase';
 
 interface GoogleSignInModalProps {
   onClose: () => void;
@@ -22,15 +21,8 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // 1-Tap Quick Name State
+  // Quick Name State
   const [quickName, setQuickName] = useState('');
-
-  // Phone Auth Secondary State
-  const [showPhoneAuth, setShowPhoneAuth] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [otpCode, setOtpCode] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
-  const [otpSent, setOtpSent] = useState(false);
 
   // 1-Tap Instant Connect (No domain block, works 100% on any device/APK)
   const handleQuickStudentConnect = (e?: React.FormEvent) => {
@@ -44,68 +36,6 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
     setTick(t => t + 1);
     if (onSuccess) onSuccess(user);
     onClose();
-  };
-
-  // Real Firebase Google Sign-In
-  const handleGoogleSignIn = async (forceRedirect: boolean = false) => {
-    setIsLoading(true);
-    setErrorMessage(null);
-    audioEngine.playSfx('click');
-
-    const res = await authService.signInWithFirebaseGoogle(forceRedirect);
-    setIsLoading(false);
-
-    if (res.success) {
-      if (res.user) {
-        audioEngine.playSfx('fanfare');
-        confetti({ particleCount: 75, spread: 70, origin: { y: 0.6 } });
-        setTick(t => t + 1);
-        if (onSuccess) onSuccess(res.user);
-        onClose();
-      }
-    } else {
-      setErrorMessage(res.error || 'Google sign-in could not complete. Please try again.');
-    }
-  };
-
-  // Send Phone OTP
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phoneNumber.trim()) return;
-    setIsLoading(true);
-    setErrorMessage(null);
-
-    const res = await authService.sendPhoneOtp(phoneNumber.trim(), 'recaptcha-container');
-    setIsLoading(false);
-
-    if (res.success && res.confirmationResult) {
-      setConfirmationResult(res.confirmationResult);
-      setOtpSent(true);
-      audioEngine.playSfx('pop');
-    } else {
-      setErrorMessage(res.error || 'Failed to send OTP. Check phone number format (+91...).');
-    }
-  };
-
-  // Verify Phone OTP
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!confirmationResult || !otpCode.trim()) return;
-    setIsLoading(true);
-    setErrorMessage(null);
-
-    const res = await authService.confirmPhoneOtp(confirmationResult, otpCode.trim());
-    setIsLoading(false);
-
-    if (res.success && res.user) {
-      audioEngine.playSfx('fanfare');
-      confetti({ particleCount: 75, spread: 70, origin: { y: 0.6 } });
-      setTick(t => t + 1);
-      if (onSuccess) onSuccess(res.user);
-      onClose();
-    } else {
-      setErrorMessage(res.error || 'Invalid 6-digit code. Please try again.');
-    }
   };
 
   const handleSignOut = async () => {
