@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "926415718546",
+    "project_id": "kritika-61cc2",
+    "storage_bucket": "kritika-61cc2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:926415718546:android:e286bd2aa54bf7b98d7e4b",
+        "android_client_info": {
+          "package_name": "kritika.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "926415718546-epnkuehv8q551lec75oqcp5jrj37ivfl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4dIfV_Xv7sE_sx4wHE6n66QGWw9HZf-A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "926415718546-epnkuehv8q551lec75oqcp5jrj37ivfl.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
