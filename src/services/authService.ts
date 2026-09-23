@@ -247,25 +247,91 @@ class AuthService {
     return this.classmates;
   }
 
+  public getSavedAccounts(): StudentProfile[] {
+    const list = [...this.classmates];
+    if (this.currentUser && !list.some(a => a.id === this.currentUser?.id)) {
+      list.unshift(this.currentUser);
+    }
+    // Ensure default core profiles exist
+    if (!list.some(a => a.name.toLowerCase().includes('kritika'))) {
+      list.unshift({
+        id: 'user_kritika_main',
+        name: 'Kritika Verma 👑',
+        email: 'kritika.verma@gmail.com',
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+        batch: 'MLP41PT',
+        currentMood: 'Radiant Sunshine 🌸',
+        currentMoodEmoji: '🌸',
+        statusNote: 'Queen of Factory of Fun ♡',
+        lastUpdated: 'Just now',
+        isGoogleVerified: true,
+        loginMethod: 'google'
+      });
+    }
+    if (!list.some(a => a.name.toLowerCase().includes('vighneswaran'))) {
+      list.push({
+        id: 'user_vighneswaran_main',
+        name: 'Vighneswaran',
+        email: 'vighneswaran@gmail.com',
+        avatarUrl: '/marisol/avatars/01_brighter_ideas.png',
+        batch: 'MLP41PT',
+        currentMood: 'Chai Enthusiast ☕',
+        currentMoodEmoji: '☕',
+        statusNote: 'Batch 41 Admin',
+        lastUpdated: 'Just now',
+        isGoogleVerified: true,
+        loginMethod: 'google'
+      });
+    }
+    return list;
+  }
+
+  public switchAccount(userId: string): StudentProfile | null {
+    const accounts = this.getSavedAccounts();
+    const target = accounts.find(a => a.id === userId);
+    if (target) {
+      this.currentUser = target;
+      this.saveUserToStorage();
+      this.notify();
+      return target;
+    }
+    return null;
+  }
+
+  public removeAccount(userId: string) {
+    this.classmates = this.classmates.filter(c => c.id !== userId);
+    this.saveClassmatesToStorage();
+    if (this.currentUser?.id === userId) {
+      this.currentUser = this.classmates[0] || null;
+      this.saveUserToStorage();
+    }
+    this.notify();
+  }
+
   public formatEmailName(email: string): string {
     return formatNameFromEmail(email);
   }
 
   /**
-   * 1-Tap Quick Student Login (Works offline & without domain restrictions)
+   * Multi-User: Add or Login Student / Google Profile
    */
   public loginStudentProfile(name: string, email?: string): StudentProfile {
     const trimmed = name.trim() || 'Batch 41 Student';
     const isKritika = trimmed.toLowerCase().includes('kritika') || trimmed.toLowerCase().includes('marisol');
-    const profile: StudentProfile = {
+    const existing = this.classmates.find(c => 
+      (email && c.email.toLowerCase() === email.toLowerCase()) || 
+      c.name.toLowerCase() === trimmed.toLowerCase()
+    );
+
+    const profile: StudentProfile = existing || {
       id: `student_${Date.now()}`,
       name: isKritika && !trimmed.includes('👑') ? `${trimmed} 👑` : trimmed,
-      email: email || `${trimmed.toLowerCase().replace(/\s+/g, '.')}@mlp41.edu`,
+      email: email || `${trimmed.toLowerCase().replace(/\s+/g, '.')}@gmail.com`,
       avatarUrl: isKritika ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop' : '/marisol/avatars/01_brighter_ideas.png',
       batch: 'MLP41PT',
       currentMood: this.currentUser?.currentMood || 'Radiant Sunshine 🌸',
       currentMoodEmoji: this.currentUser?.currentMoodEmoji || '🌸',
-      statusNote: 'Active in Batch 41 Comfort Hub ✨',
+      statusNote: isKritika ? 'Queen of Factory of Fun ♡' : 'Active in Batch 41 Comfort Hub ✨',
       lastUpdated: 'Just now',
       isGoogleVerified: true,
       loginMethod: 'google'
