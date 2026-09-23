@@ -10,7 +10,7 @@ import {
 import { moodHistoryManager } from '../services/moodRotationService';
 import { 
   Play, Pause, Volume2, VolumeX, Sparkles, 
-  MessageCircle, UserCheck, CheckCircle2,
+  MessageCircle,
   Clock, Film, Heart, Calendar, Lock, Check
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -19,7 +19,6 @@ import heroBannerVideoSrc from '../assets/Hero Banner video.mp4';
 interface HomeScreenProps {
   onNavigate: (screen: ScreenState) => void;
   onStartMoodQuiz: (moodId: string) => void;
-  onOpenGoogleSignIn?: () => void;
   onOpenMoodHistory?: () => void;
   onOpenComfortShelf?: () => void;
   activeMoodId: string;
@@ -29,7 +28,6 @@ interface HomeScreenProps {
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigate,
   onStartMoodQuiz,
-  onOpenGoogleSignIn,
   onOpenMoodHistory,
   onOpenComfortShelf,
   activeMoodId,
@@ -43,7 +41,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     });
   }, []);
 
-  const currentUser = authService.getCurrentUser();
   const isAuthenticated = authService.isAuthenticated();
 
   // Video Player State
@@ -166,7 +163,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 audioEngine.playSfx('click');
                 onOpenMoodHistory?.();
               }}
-              className="p-2 rounded-2xl bg-white hover:bg-rose-50 border border-stone-200 text-stone-700 hover:text-rose-600 transition-all shadow-xs cursor-pointer"
+              className="p-2 sm:p-2.5 rounded-2xl bg-white hover:bg-rose-50 border border-stone-200 text-stone-700 hover:text-rose-600 transition-all shadow-xs cursor-pointer"
               title="14-Day Mood Calendar & Heatmap"
             >
               <Calendar className="w-4 h-4 text-rose-500" />
@@ -178,33 +175,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 audioEngine.playSfx('click');
                 onOpenComfortShelf?.();
               }}
-              className="p-2 rounded-2xl bg-white hover:bg-pink-50 border border-stone-200 text-stone-700 hover:text-pink-600 transition-all shadow-xs cursor-pointer"
+              className="p-2 sm:p-2.5 rounded-2xl bg-white hover:bg-pink-50 border border-stone-200 text-stone-700 hover:text-pink-600 transition-all shadow-xs cursor-pointer"
               title="Comfort Shelf (Saved Macaronis & Notes)"
             >
               <Heart className="w-4 h-4 text-pink-500 fill-pink-500" />
-            </button>
-
-            {/* Google Connect Account */}
-            <button
-              onClick={() => {
-                audioEngine.playSfx('click');
-                onOpenGoogleSignIn?.();
-              }}
-              className="flex items-center gap-1.5 bg-white hover:bg-stone-50 border border-stone-300 px-3 py-1.5 rounded-2xl text-xs font-display font-black shadow-xs transition-all cursor-pointer shrink-0"
-              title="Account & Real-Time Sync"
-            >
-              {isAuthenticated && currentUser ? (
-                <span className="text-emerald-700 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="max-w-[75px] truncate">{currentUser.name.split(' ')[0]}</span>
-                </span>
-              ) : (
-                <span className="text-blue-700 flex items-center gap-1">
-                  <UserCheck className="w-4 h-4" />
-                  <span className="hidden sm:inline">GOOGLE CONNECT</span>
-                  <span className="sm:hidden">LOGIN</span>
-                </span>
-              )}
             </button>
           </div>
         </div>

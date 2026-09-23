@@ -117,29 +117,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
               <span>{player.streak}</span>
             </div>
 
-            {/* Account Profile / Login Button */}
-            {onOpenGoogleSignIn && (
-              <button
-                onClick={() => {
-                  audioEngine.playSfx('click');
-                  onOpenGoogleSignIn();
-                }}
-                className="flex p-1.5 px-2 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 shadow-xs transition-all items-center gap-1 cursor-pointer shrink-0"
-                title={isAuthenticated && currentUser ? `Signed in as ${currentUser.name}` : "Account Sign In"}
-              >
-                {isAuthenticated && currentUser ? (
-                  <span className="text-emerald-700 flex items-center gap-1 text-xs font-bold">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span className="max-w-[60px] truncate hidden md:inline">{currentUser.name.split(' ')[0]}</span>
-                  </span>
-                ) : (
-                  <span className="text-blue-700 flex items-center gap-1 text-xs font-bold">
-                    <UserCheck className="w-3.5 h-3.5" />
-                    <span className="hidden md:inline">LOGIN</span>
-                  </span>
-                )}
-              </button>
-            )}
+
 
             {/* Responsive Main Menu Button (☰ MENU) */}
             <button
@@ -235,6 +213,39 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                   </button>
                 </div>
               </div>
+
+              {/* Account / Google Sign In in Drawer Menu */}
+              {onOpenGoogleSignIn && (
+                <div className="mt-3 p-3 bg-white border border-stone-200 rounded-2xl shadow-xs">
+                  <button
+                    onClick={() => {
+                      audioEngine.playSfx('click');
+                      setIsMenuOpen(false);
+                      onOpenGoogleSignIn();
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl border border-stone-300 hover:border-pink-300 bg-stone-50 hover:bg-rose-50 text-stone-800 text-xs font-bold transition-all shadow-2xs flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      {isAuthenticated && currentUser ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <UserCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                      )}
+                      <div className="text-left">
+                        <div className="font-display font-black text-xs">
+                          {isAuthenticated && currentUser ? currentUser.name : "Google Account Sign In"}
+                        </div>
+                        <div className="text-[10px] text-stone-500 font-sans truncate">
+                          {isAuthenticated && currentUser ? currentUser.email : "Connect Google Account"}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-display font-black text-rose-600 bg-white px-2 py-0.5 rounded-full border border-stone-200">
+                      {isAuthenticated ? "MANAGE" : "SIGN IN"}
+                    </span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Drawer Bottom */}

@@ -163,7 +163,6 @@ export function App() {
           <HomeScreen
             onNavigate={handleNavigate}
             onStartMoodQuiz={handleStartMoodQuiz}
-            onOpenGoogleSignIn={() => setShowGoogleSignIn(true)}
             onOpenMoodHistory={() => setShowMoodHistory(true)}
             onOpenComfortShelf={() => setShowComfortShelf(true)}
             activeMoodId={activeMoodId}
