@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { audioEngine } from '../services/synthAudioEngine';
-import { X, Download, Smartphone, Share2, PlusSquare, Sparkles, Check, Apple } from 'lucide-react';
+import { BaseModal } from './BaseModal';
+import { Download, Smartphone, Share2, PlusSquare, Sparkles, Check, Apple } from 'lucide-react';
 
 interface InstallAppModalProps {
   onClose: () => void;
@@ -58,41 +59,25 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ onClose }) => 
   };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
+    <BaseModal
+      onClose={onClose}
+      maxWidth="max-w-md"
+      icon={
+        <img 
+          src="/icon-192.png" 
+          alt="Marisol App Icon" 
+          className="w-full h-full object-cover rounded-xl"
+        />
+      }
+      title={
+        <span className="flex items-center gap-1.5">
+          <span>DOWNLOAD MARISOL</span>
+          <Sparkles className="w-4 h-4 text-pink-500" />
+        </span>
+      }
+      subtitle="Install on your Android or iPhone Home Screen! 📲"
     >
-      <div 
-        className="bg-[#FFFDF7] border-3 border-ink rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-sketch-2xl space-y-4 relative text-center"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b-2 border-pink-200 pb-3">
-          <div className="flex items-center gap-2.5 text-left">
-            <div className="w-12 h-12 rounded-2xl border-2 border-ink overflow-hidden bg-rose-200 shadow-sketch shrink-0">
-              <img 
-                src="/icon-192.png" 
-                alt="Marisol App Icon" 
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div>
-              <h3 className="font-display font-black text-base sm:text-lg text-ink leading-tight flex items-center gap-1.5">
-                <span>DOWNLOAD MARISOL</span>
-                <Sparkles className="w-4 h-4 text-pink-500" />
-              </h3>
-              <p className="font-handwritten text-xs text-pink-700 font-bold">
-                Install on your Android or iPhone Home Screen! 📲
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center font-bold bg-white hover:bg-paper-200 transition-colors shadow-xs shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+      <div className="space-y-4 text-center">
 
         {/* Already Installed Badge */}
         {isStandalone || installedSuccess ? (
@@ -199,8 +184,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ onClose }) => 
         <div className="bg-pink-100/50 border border-pink-200 rounded-xl p-2.5 font-handwritten text-xs text-pink-900 font-bold">
           "Now Kritika can carry her comfort zone everywhere in her pocket!" 💖
         </div>
-
       </div>
-    </div>
+    </BaseModal>
   );
 };

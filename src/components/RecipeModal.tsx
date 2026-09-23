@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Recipe, ChefTitle } from '../types/game';
 import { Sparkles, Film, Clock, ChefHat, CheckCircle2, ChevronDown, ChevronUp, ArrowRight, BookOpen } from 'lucide-react';
 import { Marisol } from './Marisol';
+import { BaseModal } from './BaseModal';
 
 interface RecipeModalProps {
   recipe: Recipe;
@@ -29,11 +30,8 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
   const [showFullRecipe, setShowFullRecipe] = useState(false);
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-      <div 
-        className="bg-[#FAF7F0] border-3 border-ink rounded-3xl max-w-2xl w-full my-6 p-4 sm:p-6 shadow-sketch-2xl space-y-5 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <BaseModal onClose={onGoHome} maxWidth="max-w-2xl" hideHeader>
+      <div className="space-y-5">
         {/* Confetti Banner */}
         <div className="text-center space-y-1">
           <div className="inline-flex items-center gap-1.5 bg-doodleGold border-1.5 border-ink px-3 py-1 rounded-full font-handwritten text-xs sm:text-sm font-black text-ink shadow-sketch-sm">
@@ -218,6 +216,6 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
         </div>
 
       </div>
-    </div>
+    </BaseModal>
   );
 };

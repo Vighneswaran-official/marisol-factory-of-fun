@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { wellnessState, type SecretNote } from '../services/wellnessState';
 import { audioEngine } from '../services/synthAudioEngine';
-import { Lock, Unlock, Heart, Plus, Trash2, X, Sparkles, Mic, Square, Play, Pause } from 'lucide-react';
+import { BaseModal } from './BaseModal';
+import { Lock, Unlock, Heart, Plus, Trash2, Sparkles, Mic, Square, Play, Pause } from 'lucide-react';
 
 interface SecretLocketModalProps {
   onClose: () => void;
@@ -148,37 +149,14 @@ export const SecretLocketModal: React.FC<SecretLocketModalProps> = ({ onClose })
   };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
+    <BaseModal
+      onClose={onClose}
+      maxWidth="max-w-lg"
+      icon={<div className="w-full h-full bg-gradient-to-tr from-pink-400 to-rose-400 rounded-xl flex items-center justify-center text-white"><Heart className="w-5 h-5 fill-white" /></div>}
+      title="SECRET HEART LOCKET 🔐"
+      subtitle="Private notes, affirmations & voice memos for Kritika ♡"
     >
-      <div 
-        className="bg-[#FFFDF7] border-3 border-ink rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-sketch-2xl space-y-4 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b-2 border-pink-200 pb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-400 to-rose-400 text-white flex items-center justify-center shadow-xs">
-              <Heart className="w-5 h-5 fill-white" />
-            </div>
-            <div>
-              <h2 className="font-display font-black text-lg sm:text-xl text-ink leading-tight flex items-center gap-1.5">
-                <span>SECRET HEART LOCKET</span>
-                <span>🔐</span>
-              </h2>
-              <p className="font-handwritten text-xs text-ink-light font-bold">
-                Private notes, affirmations & voice memos for Kritika ♡
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200 transition-colors shrink-0 shadow-xs"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+      <div className="space-y-4">
 
         {/* Locked State */}
         {!isUnlocked ? (
@@ -373,8 +351,7 @@ export const SecretLocketModal: React.FC<SecretLocketModalProps> = ({ onClose })
             </div>
           </div>
         )}
-
       </div>
-    </div>
+    </BaseModal>
   );
 };

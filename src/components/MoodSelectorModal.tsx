@@ -1,7 +1,8 @@
 import React from 'react';
 import { STICKERS, type StickerData } from '../data/stickers';
 import { RECIPES_BY_MOOD } from '../data/recipes';
-import { Sparkles, Utensils, X } from 'lucide-react';
+import { BaseModal } from './BaseModal';
+import { Sparkles, Utensils } from 'lucide-react';
 import { audioEngine } from '../services/synthAudioEngine';
 
 interface MoodSelectorModalProps {
@@ -18,36 +19,14 @@ export const MoodSelectorModal: React.FC<MoodSelectorModalProps> = ({
   onOpenComfortCorner,
 }) => {
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
+    <BaseModal
+      onClose={onClose}
+      maxWidth="max-w-2xl"
+      icon={<div className="w-full h-full bg-coral-500 rounded-xl flex items-center justify-center text-white"><Utensils className="w-5 h-5 text-white" /></div>}
+      title="SELECT YOUR COOKING MOOD ♡"
+      subtitle="Pick from Kritika's 11 mood stickers to flavor your trivia and unlock a matching recipe!"
     >
-      <div 
-        className="bg-[#FAF7F0] border-3 border-ink rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-sketch-2xl space-y-4 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b-2 border-ink/20 pb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-2xl border-2 border-ink bg-coral-500 text-white flex items-center justify-center font-bold text-lg shadow-sketch">
-              <Utensils className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-display font-black text-xl text-ink leading-tight">
-                SELECT YOUR COOKING MOOD ♡
-              </h2>
-              <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
-                Pick from Kritika's 11 mood stickers to flavor your trivia and unlock a matching recipe!
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200 transition-colors shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+      <div className="space-y-4">
 
         {/* Girl's Perspective Angry / Stressed Quick Action */}
         {onOpenComfortCorner && (
@@ -147,6 +126,6 @@ export const MoodSelectorModal: React.FC<MoodSelectorModalProps> = ({
           </p>
         </div>
       </div>
-    </div>
+    </BaseModal>
   );
 };

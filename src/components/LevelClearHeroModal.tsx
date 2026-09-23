@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { audioEngine } from '../services/synthAudioEngine';
 import { gameState } from '../services/gameState';
+import { BaseModal } from './BaseModal';
 import { Sparkles, Volume2, VolumeX, Play, Pause, ArrowRight, Trophy } from 'lucide-react';
 import heroBannerVideoSrc from '../assets/Hero Banner video.mp4';
 
@@ -24,10 +25,8 @@ export const LevelClearHeroModal: React.FC<LevelClearHeroModalProps> = ({
   const player = gameState.getPlayer();
 
   useEffect(() => {
-    // Play celebratory sound fanfare
     audioEngine.playSfx('fanfare');
 
-    // Confetti celebration shower
     confetti({
       particleCount: 80,
       spread: 90,
@@ -85,36 +84,19 @@ export const LevelClearHeroModal: React.FC<LevelClearHeroModalProps> = ({
   };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
+    <BaseModal
+      onClose={onClose}
+      maxWidth="max-w-lg"
+      icon={<span className="text-2xl animate-bounce">👑</span>}
+      title={
+        <span className="flex items-center gap-1.5">
+          <span>{title}</span>
+          <Sparkles className="w-4 h-4 text-pink-500 animate-spin" />
+        </span>
+      }
+      subtitle={subtitle}
     >
-      <div 
-        className="bg-[#FFFDF7] border-3 border-ink rounded-3xl max-w-lg w-full p-4 sm:p-6 shadow-sketch-2xl space-y-4 relative text-center overflow-hidden animate-scale-up"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Floating Sparkles & Crown Header */}
-        <div className="flex items-center justify-between border-b-2 border-pink-200 pb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl animate-bounce">👑</span>
-            <div className="text-left">
-              <h3 className="font-display font-black text-lg sm:text-xl text-ink leading-tight flex items-center gap-1.5">
-                <span>{title}</span>
-                <Sparkles className="w-4 h-4 text-pink-500 animate-spin" />
-              </h3>
-              <p className="font-handwritten text-xs text-pink-700 font-bold">
-                {subtitle}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center font-bold bg-white hover:bg-paper-200 transition-colors shadow-xs shrink-0"
-          >
-            ✕
-          </button>
-        </div>
-
+      <div className="space-y-4 text-center">
         {/* HERO BANNER VIDEO PLAYER */}
         <div className="relative rounded-2xl overflow-hidden border-2.5 border-ink bg-black shadow-sketch group aspect-video">
           <video
@@ -200,8 +182,8 @@ export const LevelClearHeroModal: React.FC<LevelClearHeroModalProps> = ({
           <span>REVEAL SECRET RECIPE REWARD</span>
           <ArrowRight className="w-5 h-5" />
         </button>
-
       </div>
-    </div>
+    </BaseModal>
   );
 };
+

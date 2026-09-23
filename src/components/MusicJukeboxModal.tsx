@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { audioEngine } from '../services/synthAudioEngine';
 import { wellnessState } from '../services/wellnessState';
 import type { HindiSong } from '../data/hindiSongs';
-import { X, ExternalLink, SkipForward, SkipBack, Heart, Search, Pin, Plus, Copy, Check, Play } from 'lucide-react';
+import { BaseModal } from './BaseModal';
+import { ExternalLink, SkipForward, SkipBack, Heart, Search, Pin, Plus, Copy, Check, Play } from 'lucide-react';
 
 interface MusicJukeboxModalProps {
   onClose: () => void;
@@ -185,42 +186,20 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
   const otherSongsList = filteredSongs.filter(s => !pinnedIds.includes(s.id));
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
+    <BaseModal
+      onClose={onClose}
+      maxWidth="max-w-xl"
+      icon={<div className="w-full h-full bg-gradient-to-tr from-red-600 via-rose-500 to-pink-500 rounded-xl flex items-center justify-center text-white"><YouTubeIcon className="w-6 h-6 text-white" /></div>}
+      title="KRITIKA'S YOUTUBE LOUNGE"
+      subtitle="Hand-picked Bollywood comfort songs & self-love anthems 💖"
+      badge={
+        <span className="bg-red-500 text-white font-display text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+          <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+          CURATED PLAYLIST
+        </span>
+      }
     >
-      <div 
-        className="bg-[#FFFDF7] border-3 border-ink rounded-3xl max-w-xl w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-sketch-2xl space-y-4 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header with YouTube Lounge Badge */}
-        <div className="flex items-center justify-between border-b-2 border-pink-200 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-11 h-11 rounded-2xl border-2 border-ink bg-gradient-to-tr from-red-600 via-rose-500 to-pink-500 text-white flex items-center justify-center font-bold text-xl shadow-sketch">
-              <YouTubeIcon className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <h2 className="font-display font-black text-xl sm:text-2xl text-ink leading-tight">
-                  KRITIKA'S YOUTUBE LOUNGE
-                </h2>
-                <span className="bg-red-500 text-white font-display text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                  CURATED PLAYLIST
-                </span>
-              </div>
-              <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
-                Hand-picked Bollywood comfort songs & self-love anthems 💖
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200 transition-colors shrink-0 shadow-xs"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+      <div className="space-y-4">
 
         {/* Embedded Official YouTube Player */}
         <div className="bg-black border-2.5 border-ink rounded-3xl overflow-hidden shadow-sketch relative">
@@ -640,8 +619,7 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
             Close Lounge
           </button>
         </div>
-
       </div>
-    </div>
+    </BaseModal>
   );
 };

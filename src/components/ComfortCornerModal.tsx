@@ -3,7 +3,8 @@ import { audioEngine } from '../services/synthAudioEngine';
 import { gameState } from '../services/gameState';
 import { wellnessState } from '../services/wellnessState';
 import { RECIPES } from '../data/recipes';
-import { Heart, Sparkles, X, Utensils, Music, ShieldAlert, Award, Smile, Coffee, Film, Cloud } from 'lucide-react';
+import { BaseModal } from './BaseModal';
+import { Heart, Sparkles, Utensils, Music, ShieldAlert, Award, Smile, Coffee, Film, Cloud } from 'lucide-react';
 
 interface ComfortCornerModalProps {
   onClose: () => void;
@@ -98,41 +99,15 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({
   const totalPopped = Object.values(poppedBubbles).filter(Boolean).length;
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
+    <BaseModal
+      onClose={onClose}
+      maxWidth="max-w-xl"
+      icon={<div className="w-full h-full bg-coral-500 rounded-xl flex items-center justify-center text-white"><Heart className="w-6 h-6 fill-white animate-bounce-gentle" /></div>}
+      title="GIRL'S COMFORT CORNER ♡"
+      subtitle="Validation, warm blanket tranquility, comfort carbs & instant de-stressing!"
+      badge={<span className="bg-coral-100 text-coral-800 font-handwritten text-[11px] font-black px-2 py-0.5 rounded-full border border-coral-400">SANCTUARY</span>}
     >
-      <div 
-        className="bg-[#FAF7F0] border-3 border-ink rounded-3xl max-w-xl w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-sketch-2xl space-y-4 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b-2 border-ink/20 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-11 h-11 rounded-2xl border-2 border-ink bg-coral-500 text-white flex items-center justify-center font-bold text-xl shadow-sketch">
-              <Heart className="w-6 h-6 fill-white animate-bounce-gentle" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h2 className="font-display font-black text-xl sm:text-2xl text-ink leading-tight">
-                  GIRL'S COMFORT CORNER ♡
-                </h2>
-                <span className="bg-coral-100 text-coral-800 font-handwritten text-[11px] font-black px-2 py-0.5 rounded-full border border-coral-400">
-                  SANCTUARY
-                </span>
-              </div>
-              <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
-                Validation, warm blanket tranquility, comfort carbs & instant de-stressing!
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200 transition-colors shrink-0 shadow-xs"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+      <div className="space-y-4">
 
         {/* Big Sisterly Validation Banner */}
         <div className="bg-gradient-to-r from-rose-100 via-pink-100 to-amber-100 border-2.5 border-ink rounded-3xl p-4 shadow-sketch relative overflow-hidden">
@@ -565,6 +540,6 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({
           </p>
         </div>
       </div>
-    </div>
+    </BaseModal>
   );
 };
