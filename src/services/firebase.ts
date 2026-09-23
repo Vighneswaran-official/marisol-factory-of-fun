@@ -39,7 +39,7 @@ export interface FirebaseConfig {
 
 // Read from Vite environment variables with fallback to project credentials
 const envConfig: FirebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyAK56-Q98hiw-VkNUbGK_aDoRXqGMBXvLA',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyD4dIfV_Xv7sE_sx4wHE6n66QGWw9HZf-A',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'kritika-61cc2.firebaseapp.com',
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'kritika-61cc2',
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'kritika-61cc2.firebasestorage.app',
