@@ -9,7 +9,8 @@ import {
   ArrowLeft, Plus, Sparkles, Send, X, UserCheck, Heart, 
   MessageCircle, MessagesSquare, Pin, Camera, Paperclip, Smile,
   Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check,
-  Reply, BarChart2, AtSign, Video, Phone, MoreVertical, Mic
+  Reply, BarChart2, AtSign, Video, Phone, MoreVertical, Mic,
+  Trash2, ChevronDown, Ban, Globe
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { BaseModal } from './BaseModal';
@@ -194,6 +195,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const chatFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Message Edit & Delete State
+  const [editingMessage, setEditingMessage] = useState<GroupChatMessage | null>(null);
+  const [editingText, setEditingText] = useState('');
+  const [activeActionMenuMsgId, setActiveActionMenuMsgId] = useState<string | null>(null);
+  const [deleteModalMsg, setDeleteModalMsg] = useState<GroupChatMessage | null>(null);
 
   // Group Poll Creation State
   const [pollQuestion, setPollQuestion] = useState('');
@@ -395,6 +402,41 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
     setTimeout(() => {
       chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
+  };
+
+  const handleOpenEditMessage = (msg: GroupChatMessage) => {
+    setEditingMessage(msg);
+    setEditingText(msg.text);
+    setActiveActionMenuMsgId(null);
+  };
+
+  const handleSaveEditMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMessage || !editingText.trim()) return;
+    audioEngine.playSfx('click');
+    await batchWallService.editChatMessage(editingMessage.id, editingText);
+    setEditingMessage(null);
+    setEditingText('');
+    setShareToast('Message edited ✏️');
+    setTimeout(() => setShareToast(null), 2000);
+  };
+
+  const handleDeleteForMe = (msg: GroupChatMessage) => {
+    audioEngine.playSfx('click');
+    batchWallService.deleteChatMessageForMe(msg.id);
+    setDeleteModalMsg(null);
+    setActiveActionMenuMsgId(null);
+    setShareToast('Deleted for you 🗑️');
+    setTimeout(() => setShareToast(null), 2000);
+  };
+
+  const handleDeleteForEveryone = async (msg: GroupChatMessage) => {
+    audioEngine.playSfx('fanfare');
+    await batchWallService.deleteChatMessageForEveryone(msg.id);
+    setDeleteModalMsg(null);
+    setActiveActionMenuMsgId(null);
+    setShareToast('Deleted for everyone 🚫');
+    setTimeout(() => setShareToast(null), 2000);
   };
 
   // Create & Send Live Group Poll
@@ -819,26 +861,84 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                               : 'bg-white text-stone-900 rounded-tl-xs border border-stone-200 shadow-2xs'
                           }`}
                         >
-                          {/* 1. Distinct Bold Sender Name (Always prominently displayed like in WhatsApp screenshot) */}
+                          {/* 1. Distinct Bold Sender Name & WhatsApp Action Dropdown Trigger */}
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span 
-                              onClick={() => {
-                                setChatInput((prev: string) => `${prev ? prev + ' ' : ''}@${msg.senderName} `);
-                              }}
-                              className={`font-display font-black text-xs sm:text-[13px] tracking-tight ${senderColor} hover:underline cursor-pointer`}
-                              title="Click to mention in chat"
-                            >
-                              {msg.senderName}
-                            </span>
-                            {msg.isKritika && (
-                              <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs">
-                                👑 QUEEN
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span 
+                                onClick={() => {
+                                  setChatInput((prev: string) => `${prev ? prev + ' ' : ''}@${msg.senderName} `);
+                                }}
+                                className={`font-display font-black text-xs sm:text-[13px] tracking-tight ${senderColor} hover:underline cursor-pointer truncate`}
+                                title="Click to mention in chat"
+                              >
+                                {msg.senderName}
                               </span>
-                            )}
+                              {msg.isKritika && (
+                                <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0">
+                                  👑 QUEEN
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Dropdown Menu Trigger Button */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveActionMenuMsgId(activeActionMenuMsgId === msg.id ? null : msg.id);
+                                }}
+                                className="p-0.5 hover:bg-black/5 rounded text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+                                title="Message options"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* WhatsApp Message Action Dropdown */}
+                              {activeActionMenuMsgId === msg.id && (
+                                <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-stone-200 py-1 z-30 animate-scale-up text-xs font-medium">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      audioEngine.playSfx('pop');
+                                      setReplyingToMessage(msg);
+                                      setActiveActionMenuMsgId(null);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-stone-50 flex items-center gap-2 text-stone-700 cursor-pointer"
+                                  >
+                                    <Reply className="w-3.5 h-3.5 text-[#008069]" />
+                                    <span>Reply</span>
+                                  </button>
+
+                                  {!msg.isDeletedForEveryone && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditMessage(msg)}
+                                      className="w-full px-3 py-1.5 text-left hover:bg-stone-50 flex items-center gap-2 text-stone-700 cursor-pointer"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+                                      <span>Edit message</span>
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDeleteModalMsg(msg);
+                                      setActiveActionMenuMsgId(null);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-rose-50 flex items-center gap-2 text-rose-600 cursor-pointer border-t border-stone-100"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                    <span>Delete message</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                         {/* Quoted Reply Banner */}
-                        {msg.replyTo && (
+                        {msg.replyTo && !msg.isDeletedForEveryone && (
                           <div className={`mb-1.5 p-1.5 px-2 rounded-lg border-l-4 text-[11px] ${
                             isCurrentUser
                               ? 'bg-emerald-50/80 border-[#005C4B] text-emerald-950'
@@ -853,84 +953,97 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                           </div>
                         )}
 
-                        {/* Photo Attachment */}
-                        {msg.imageUrl && (
-                          <div className="mb-2 rounded-xl overflow-hidden border border-black/10 bg-black/5 relative group/img cursor-pointer">
-                            <img
-                              src={msg.imageUrl}
-                              alt="Attached photo"
-                              onClick={() => setLightboxImage({ url: msg.imageUrl!, caption: msg.text })}
-                              className="w-full max-h-60 object-cover hover:scale-101 transition-transform duration-200"
-                            />
-                            <div className="absolute top-2 right-2 bg-black/60 text-white p-1 rounded-md opacity-0 group-hover/img:opacity-100 transition-opacity">
-                              <Eye className="w-3.5 h-3.5" />
-                            </div>
+                        {/* Deleted for Everyone Banner */}
+                        {msg.isDeletedForEveryone ? (
+                          <div className="flex items-center gap-1.5 text-stone-400 italic text-xs py-1">
+                            <Ban className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                            <span>This message was deleted</span>
                           </div>
-                        )}
+                        ) : (
+                          <>
+                            {/* Photo Attachment */}
+                            {msg.imageUrl && (
+                              <div className="mb-2 rounded-xl overflow-hidden border border-black/10 bg-black/5 relative group/img cursor-pointer">
+                                <img
+                                  src={msg.imageUrl}
+                                  alt="Attached photo"
+                                  onClick={() => setLightboxImage({ url: msg.imageUrl!, caption: msg.text })}
+                                  className="w-full max-h-60 object-cover hover:scale-101 transition-transform duration-200"
+                                />
+                                <div className="absolute top-2 right-2 bg-black/60 text-white p-1 rounded-md opacity-0 group-hover/img:opacity-100 transition-opacity">
+                                  <Eye className="w-3.5 h-3.5" />
+                                </div>
+                              </div>
+                            )}
 
-                        {/* Interactive Live Poll */}
-                        {msg.poll && (
-                          <div className="p-2.5 rounded-xl space-y-2 my-1 bg-[#F0F2F5] border border-stone-200">
-                            <div className="flex items-center gap-1.5 font-display font-black text-xs text-stone-900">
-                              <BarChart2 className="w-4 h-4 text-[#008069]" />
-                              <span>{msg.poll.question}</span>
-                            </div>
+                            {/* Interactive Live Poll */}
+                            {msg.poll && (
+                              <div className="p-2.5 rounded-xl space-y-2 my-1 bg-[#F0F2F5] border border-stone-200">
+                                <div className="flex items-center gap-1.5 font-display font-black text-xs text-stone-900">
+                                  <BarChart2 className="w-4 h-4 text-[#008069]" />
+                                  <span>{msg.poll.question}</span>
+                                </div>
 
-                            <div className="space-y-1.5 pt-1">
-                              {(() => {
-                                const totalVotes = msg.poll.options.reduce((acc, opt) => acc + opt.votes.length, 0);
-                                const currentVoter = currentUser?.name || profileNameInput || 'You';
+                                <div className="space-y-1.5 pt-1">
+                                  {(() => {
+                                    const totalVotes = msg.poll.options.reduce((acc, opt) => acc + opt.votes.length, 0);
+                                    const currentVoter = currentUser?.name || profileNameInput || 'You';
 
-                                return msg.poll.options.map(opt => {
-                                  const voteCount = opt.votes.length;
-                                  const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
-                                  const hasVoted = opt.votes.includes(currentVoter);
+                                    return msg.poll.options.map(opt => {
+                                      const voteCount = opt.votes.length;
+                                      const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+                                      const hasVoted = opt.votes.includes(currentVoter);
 
-                                  return (
-                                    <div
-                                      key={opt.id}
-                                      onClick={() => handleVotePoll(msg.id, opt.id)}
-                                      className={`p-2 rounded-xl text-xs cursor-pointer transition-all relative overflow-hidden border bg-white ${
-                                        hasVoted 
-                                          ? 'border-[#008069] font-bold' 
-                                          : 'border-stone-200 hover:border-stone-400'
-                                      }`}
-                                    >
-                                      <div
-                                        className="absolute inset-y-0 left-0 transition-all duration-300 bg-[#008069]/20"
-                                        style={{ width: `${percentage}%` }}
-                                      />
+                                      return (
+                                        <div
+                                          key={opt.id}
+                                          onClick={() => handleVotePoll(msg.id, opt.id)}
+                                          className={`p-2 rounded-xl text-xs cursor-pointer transition-all relative overflow-hidden border bg-white ${
+                                            hasVoted 
+                                              ? 'border-[#008069] font-bold' 
+                                              : 'border-stone-200 hover:border-stone-400'
+                                          }`}
+                                        >
+                                          <div
+                                            className="absolute inset-y-0 left-0 transition-all duration-300 bg-[#008069]/20"
+                                            style={{ width: `${percentage}%` }}
+                                          />
 
-                                      <div className="relative flex items-center justify-between z-1">
-                                        <div className="flex items-center gap-1.5">
-                                          <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center text-[9px] ${
-                                            hasVoted ? 'bg-[#008069] text-white border-[#008069]' : 'border-stone-400'
-                                          }`}>
-                                            {hasVoted ? '✓' : ''}
-                                          </span>
-                                          <span>{opt.text}</span>
+                                          <div className="relative flex items-center justify-between z-1">
+                                            <div className="flex items-center gap-1.5">
+                                              <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center text-[9px] ${
+                                                hasVoted ? 'bg-[#008069] text-white border-[#008069]' : 'border-stone-400'
+                                              }`}>
+                                                {hasVoted ? '✓' : ''}
+                                              </span>
+                                              <span>{opt.text}</span>
+                                            </div>
+                                            <span className="font-display font-bold text-[10px] text-stone-600">
+                                              {percentage}% ({voteCount})
+                                            </span>
+                                          </div>
                                         </div>
-                                        <span className="font-display font-bold text-[10px] text-stone-600">
-                                          {percentage}% ({voteCount})
-                                        </span>
-                                      </div>
-                                    </div>
-                                  );
-                                });
-                              })()}
-                            </div>
-                          </div>
+                                      );
+                                    });
+                                  })()}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Formatted Text with Highlighted @Mentions */}
+                            {msg.text && !msg.poll && (
+                              <div className="whitespace-pre-wrap font-sans text-stone-900 leading-snug">
+                                {renderFormattedMessageText(msg.text, isCurrentUser)}
+                              </div>
+                            )}
+                          </>
                         )}
 
-                        {/* Formatted Text with Highlighted @Mentions */}
-                        {msg.text && !msg.poll && (
-                          <div className="whitespace-pre-wrap font-sans text-stone-900 leading-snug">
-                            {renderFormattedMessageText(msg.text, isCurrentUser)}
-                          </div>
-                        )}
-
-                        {/* Timestamp & Double checkmark in bottom right */}
-                        <div className="flex items-center justify-end gap-1 mt-1 text-[9px] text-stone-400 font-medium">
+                        {/* Timestamp, Edited Badge & Double checkmark */}
+                        <div className="flex items-center justify-end gap-1.5 mt-1 text-[9px] text-stone-400 font-medium">
+                          {msg.isEdited && !msg.isDeletedForEveryone && (
+                            <span className="italic text-stone-400">Edited</span>
+                          )}
                           <span>{msg.timestamp}</span>
                           {isCurrentUser && (
                             <CheckCheck className="w-3.5 h-3.5 text-[#53BDEB]" />
@@ -2163,6 +2276,98 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                   className="py-2.5 px-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-display font-bold uppercase shadow-2xs transition-colors cursor-pointer"
                 >
                   @Mention In Chat
+                </button>
+              </div>
+            </div>
+          </BaseModal>
+        )}
+
+        {/* MODAL: EDIT CHAT MESSAGE */}
+        {editingMessage && (
+          <BaseModal
+            onClose={() => setEditingMessage(null)}
+            title="EDIT MESSAGE"
+            subtitle="Update your message in Batch 41 Lounge"
+            icon={<Edit3 className="w-5 h-5 text-amber-500" />}
+            maxWidth="max-w-md"
+          >
+            <form onSubmit={handleSaveEditMessage} className="space-y-3.5 text-left">
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  Message Text:
+                </label>
+                <textarea
+                  rows={4}
+                  value={editingText}
+                  onChange={(e) => setEditingText(e.target.value)}
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-amber-500 focus:bg-white resize-none"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingMessage(null)}
+                  className="flex-1 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-display font-bold uppercase transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editingText.trim()}
+                  className="flex-1 py-2.5 bg-[#00A884] hover:bg-[#008F6F] disabled:opacity-50 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-colors cursor-pointer"
+                >
+                  Save Changes ✓
+                </button>
+              </div>
+            </form>
+          </BaseModal>
+        )}
+
+        {/* MODAL: DELETE MESSAGE (WHATSAPP STYLE) */}
+        {deleteModalMsg && (
+          <BaseModal
+            onClose={() => setDeleteModalMsg(null)}
+            title="DELETE MESSAGE?"
+            subtitle="Choose how you would like to delete this message"
+            icon={<Trash2 className="w-5 h-5 text-rose-500" />}
+            maxWidth="max-w-sm"
+          >
+            <div className="space-y-2.5 text-left">
+              <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-700">
+                <span className="font-bold text-stone-900 block mb-0.5">{deleteModalMsg.senderName}:</span>
+                <p className="line-clamp-2 italic">"{deleteModalMsg.text || 'Photo attachment'}"</p>
+              </div>
+
+              <div className="space-y-2 pt-1">
+                {/* Delete for Everyone */}
+                <button
+                  type="button"
+                  onClick={() => handleDeleteForEveryone(deleteModalMsg)}
+                  className="w-full py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-display font-black flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                >
+                  <Globe className="w-4 h-4" />
+                  <span>Delete for Everyone</span>
+                </button>
+
+                {/* Delete for Me */}
+                <button
+                  type="button"
+                  onClick={() => handleDeleteForMe(deleteModalMsg)}
+                  className="w-full py-2.5 px-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-display font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4 text-stone-500" />
+                  <span>Delete for Me</span>
+                </button>
+
+                {/* Cancel */}
+                <button
+                  type="button"
+                  onClick={() => setDeleteModalMsg(null)}
+                  className="w-full py-2 text-stone-500 hover:text-stone-800 text-xs font-display font-bold text-center cursor-pointer"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

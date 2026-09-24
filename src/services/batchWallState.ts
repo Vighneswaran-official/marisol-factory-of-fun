@@ -59,6 +59,8 @@ export interface GroupChatMessage {
   timestamp: string;
   createdAt: number;
   isKritika?: boolean;
+  isEdited?: boolean;
+  isDeletedForEveryone?: boolean;
   reactionEmoji?: string;
   reactions?: Record<string, number>; // emoji -> count
 }
@@ -595,6 +597,65 @@ class BatchWallService {
       try {
         setDoc(doc(db, 'group_chat_messages', messageId), { reactions: msg.reactions }, { merge: true });
       } catch {}
+    }
+
+    this.notify();
+  }
+
+  public async editChatMessage(messageId: string, newText: string) {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg || msg.isDeletedForEveryone) return;
+
+    msg.text = newText.trim();
+    msg.isEdited = true;
+    this.saveChatToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'group_chat_messages', messageId), { text: msg.text, isEdited: true }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to edit chat message on Firestore:', err);
+      }
+    }
+
+    this.notify();
+  }
+
+  public deleteChatMessageForMe(messageId: string) {
+    this.chatMessages = this.chatMessages.filter(m => m.id !== messageId);
+    this.saveChatToStorage();
+    this.notify();
+  }
+
+  public async deleteChatMessageForEveryone(messageId: string) {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg) return;
+
+    msg.isDeletedForEveryone = true;
+    msg.text = '🚫 This message was deleted';
+    msg.imageUrl = undefined;
+    msg.poll = undefined;
+    this.saveChatToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'group_chat_messages', messageId), {
+          isDeletedForEveryone: true,
+          text: '🚫 This message was deleted',
+          imageUrl: null,
+          poll: null
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to delete for everyone on Firestore:', err);
+      }
     }
 
     this.notify();
