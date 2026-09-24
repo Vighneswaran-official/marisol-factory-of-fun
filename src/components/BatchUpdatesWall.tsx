@@ -931,12 +931,10 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 <h4 className="font-display font-black text-xs sm:text-sm text-stone-900 truncate">
                   {currentUser?.name || profileNameInput || 'Batch 41 Member'}
                 </h4>
-                {/* Session User ID Tag */}
                 <span 
-                  className="font-mono text-[9px] sm:text-[10px] bg-stone-100 text-stone-700 px-1.5 py-0.2 rounded border border-stone-300 font-bold"
-                  title="Current Session User ID"
+                  className="font-display text-[9px] sm:text-[10px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full border border-rose-200 font-bold"
                 >
-                  UID: {userMatchedSessionData.userId}
+                  Batch 41
                 </span>
               </div>
             </div>
@@ -1481,24 +1479,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                                 <span className={`${isCurrentUser ? 'bg-white/20 text-white border border-white/30' : 'bg-gradient-to-r from-rose-500 to-pink-600 text-white'} font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0 flex items-center gap-0.5`}>
                                   <span>✨</span>
                                   <span>NEW USER</span>
-                                </span>
-                              )}
-                              {/* Matched User ID badge on bubble */}
-                              {msg.senderId && (
-                                <span 
-                                  className={`font-mono text-[8px] px-1 py-0.2 rounded border font-medium ${
-                                    isCurrentUser
-                                      ? 'bg-white/20 text-white border-white/30'
-                                      : 'bg-stone-100 text-stone-500 border-stone-200'
-                                  }`}
-                                  title={`Message sender User ID: ${msg.senderId}`}
-                                >
-                                  UID: {msg.senderId}
-                                </span>
-                              )}
-                              {isCurrentUser && (
-                                <span className="bg-white/25 text-white font-mono text-[7px] font-black uppercase px-1 py-0.2 rounded shadow-2xs shrink-0">
-                                  MATCHED
                                 </span>
                               )}
                             </div>
