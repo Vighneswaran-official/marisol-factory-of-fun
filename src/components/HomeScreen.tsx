@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import type { ScreenState } from '../types/game';
 import { audioEngine } from '../services/synthAudioEngine';
 import { authService } from '../services/authService';
+import { musicStreamingService, type PlayerState } from '../services/musicStreamingService';
 import { 
   KRITIKA_STICKER_MOODS, 
   getMoodMacaroni, 
@@ -10,14 +11,14 @@ import {
 import { moodHistoryManager } from '../services/moodRotationService';
 import { 
   Play, Pause, Volume2, VolumeX, Sparkles, 
-  MessageCircle,
-  Clock, Film, Heart, Calendar, Lock, Check
+  MessageCircle, Disc3, Camera, Music,
+  Clock, Film, Heart, Calendar, Lock, Check, X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import heroBannerVideoSrc from '../assets/Hero Banner video.mp4';
 
 interface HomeScreenProps {
-  onNavigate: (screen: ScreenState) => void;
+  onNavigate: (screen: ScreenState, wallMode?: 'chat' | 'posts' | 'bulletin') => void;
   onStartMoodQuiz: (moodId: string) => void;
   onOpenMoodHistory?: () => void;
   onOpenComfortShelf?: () => void;
@@ -34,11 +35,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onSelectMood
 }) => {
   const [, setTick] = useState(0);
+  const [musicState, setMusicState] = useState<PlayerState>(musicStreamingService.getState());
 
   useEffect(() => {
-    return authService.subscribe(() => {
-      setTick(t => t + 1);
-    });
+    const unsubAuth = authService.subscribe(() => setTick(t => t + 1));
+    const unsubMusic = musicStreamingService.subscribe(s => setMusicState(s));
+    return () => {
+      unsubAuth();
+      unsubMusic();
+    };
   }, []);
 
   const isAuthenticated = authService.isAuthenticated();
@@ -142,7 +147,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] p-3 sm:p-6 pb-28 text-ink">
-      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-5">
+      <div className="max-w-5xl lg:max-w-6xl mx-auto space-y-4 sm:space-y-5">
 
         {/* 1. TOP HEADER & COMFORT SHORTCUTS */}
         <div className="flex items-center justify-between gap-2 border-b border-stone-200/80 pb-3">
@@ -182,6 +187,61 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </button>
           </div>
         </div>
+
+        {/* NOW PLAYING MUSIC STATUS BAR (With X Cut/Close Option in Home) */}
+        {musicState.currentTrack && (
+          <div className="bg-stone-900 text-white p-2.5 px-4 rounded-2xl border border-stone-700/70 shadow-xs flex items-center justify-between gap-3 animate-fade-in">
+            <div 
+              onClick={() => onNavigate('music')}
+              className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-90 transition-opacity"
+            >
+              <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-stone-800 shrink-0">
+                <img 
+                  src={musicState.currentTrack.artworkUrl} 
+                  alt={musicState.currentTrack.title} 
+                  className="w-full h-full object-cover" 
+                />
+                {musicState.isPlaying && (
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                    <Disc3 className="w-3.5 h-3.5 text-rose-400 animate-spin-slow" />
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-display font-black uppercase text-rose-400">NOW PLAYING:</span>
+                  <span className="font-display font-black text-xs text-white truncate">{musicState.currentTrack.title}</span>
+                </div>
+                <p className="text-[10px] text-stone-400 truncate">{musicState.currentTrack.artist}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('pop');
+                  musicStreamingService.togglePlayPause();
+                }}
+                className="w-7 h-7 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center cursor-pointer transition-transform active:scale-95"
+                title={musicState.isPlaying ? 'Pause' : 'Play'}
+              >
+                {musicState.isPlaying ? <Pause className="w-3 h-3 fill-white" /> : <Play className="w-3 h-3 fill-white ml-0.5" />}
+              </button>
+
+              {/* X Cut Music Option */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  musicStreamingService.stop();
+                }}
+                className="p-1 text-stone-400 hover:text-rose-300 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                title="Stop & cut music"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 2. MODERN BENTO GRID SYSTEM */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 sm:gap-4">
@@ -434,55 +494,122 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           </div>
 
-          {/* BENTO CARD 5 & 6: PRIMARY ACTION LAUNCHERS (Span 6 + Span 6) */}
-          <div className="md:col-span-6">
-            <button
-              onClick={() => {
-                audioEngine.playSfx('fanfare');
-                onStartMoodQuiz(activeMoodId);
-              }}
-              className="w-full p-4 rounded-3xl bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 text-white flex items-center justify-between gap-3 shadow-sm hover:shadow-md cursor-pointer hover:scale-101 active:scale-98 transition-all"
-            >
-              <div className="text-left space-y-0.5">
-                <span className="text-[10px] font-display font-black uppercase text-pink-200 tracking-wider">
-                  MOOD-ADAPTED TRIVIA
-                </span>
-                <div className="font-display font-black text-base text-white">
-                  Play #{currentMoodSetting.scaleNumber} Quiz 🎯
+          {/* BENTO CARDS 5-8: THE 4 PILLARS (CHAT, POST, MUSIC, QUIZ) */}
+          <div className="md:col-span-12">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-[11px] font-display font-black uppercase text-stone-500 tracking-wider">
+                🌟 Factory of Fun Pillars
+              </span>
+              <span className="text-[11px] font-sans text-stone-400">
+                Multi-person chat, posts, music & quiz
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+              {/* PILLAR 1: CHAT */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onNavigate('batch_wall', 'chat');
+                }}
+                className="p-3.5 rounded-3xl bg-white border border-stone-200 hover:border-purple-300 flex flex-col justify-between gap-3 shadow-xs hover:shadow-md cursor-pointer hover:scale-101 active:scale-98 transition-all text-left group"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-9 h-9 rounded-2xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-bold shadow-2xs group-hover:bg-purple-100 transition-colors">
+                    <MessageCircle className="w-4 h-4" />
+                  </div>
+                  <span className="text-[9px] font-display font-black uppercase text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+                    REAL-TIME
+                  </span>
                 </div>
-                <p className="font-handwritten text-xs text-white/90 font-bold">
-                  Earn Macaronis & unlock victory celebration video!
-                </p>
-              </div>
-              <div className="w-10 h-10 rounded-2xl bg-white text-rose-600 flex items-center justify-center font-bold shrink-0 shadow-xs">
-                <Play className="w-5 h-5 fill-rose-600" />
-              </div>
-            </button>
-          </div>
+                <div>
+                  <h4 className="font-display font-black text-sm text-stone-900 group-hover:text-purple-700 transition-colors">
+                    Chat Lounge 💬
+                  </h4>
+                  <p className="font-handwritten text-xs text-stone-600 font-bold line-clamp-2">
+                    Group messages, pin highlights & author-only edits
+                  </p>
+                </div>
+              </button>
 
-          <div className="md:col-span-6">
-            <button
-              onClick={() => {
-                audioEngine.playSfx('click');
-                onNavigate('batch_wall');
-              }}
-              className="w-full p-4 rounded-3xl bg-white border border-stone-200 hover:border-purple-300 flex items-center justify-between gap-3 shadow-xs hover:shadow-sm cursor-pointer hover:scale-101 active:scale-98 transition-all"
-            >
-              <div className="text-left space-y-0.5">
-                <span className="text-[10px] font-display font-black uppercase text-purple-700 tracking-wider">
-                  ASYNC COMMUNITY
-                </span>
-                <div className="font-display font-black text-base text-stone-900">
-                  Bulletin Board & Chat 📌
+              {/* PILLAR 2: POST */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onNavigate('batch_wall', 'posts');
+                }}
+                className="p-3.5 rounded-3xl bg-white border border-stone-200 hover:border-pink-300 flex flex-col justify-between gap-3 shadow-xs hover:shadow-md cursor-pointer hover:scale-101 active:scale-98 transition-all text-left group"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-9 h-9 rounded-2xl bg-pink-50 text-pink-600 border border-pink-200 flex items-center justify-center font-bold shadow-2xs group-hover:bg-pink-100 transition-colors">
+                    <Camera className="w-4 h-4" />
+                  </div>
+                  <span className="text-[9px] font-display font-black uppercase text-pink-700 bg-pink-50 px-2 py-0.5 rounded-full border border-pink-100">
+                    COMMUNITY
+                  </span>
                 </div>
-                <p className="font-handwritten text-xs text-stone-600 font-bold">
-                  Read notes & reply at your own time!
-                </p>
-              </div>
-              <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-bold shrink-0 shadow-xs">
-                <MessageCircle className="w-5 h-5" />
-              </div>
-            </button>
+                <div>
+                  <h4 className="font-display font-black text-sm text-stone-900 group-hover:text-pink-600 transition-colors">
+                    Moments & Posts 📸
+                  </h4>
+                  <p className="font-handwritten text-xs text-stone-600 font-bold line-clamp-2">
+                    Photo feed, pin favorite posts & personal stories
+                  </p>
+                </div>
+              </button>
+
+              {/* PILLAR 3: MUSIC */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onNavigate('music');
+                }}
+                className="p-3.5 rounded-3xl bg-white border border-stone-200 hover:border-amber-300 flex flex-col justify-between gap-3 shadow-xs hover:shadow-md cursor-pointer hover:scale-101 active:scale-98 transition-all text-left group"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold shadow-2xs group-hover:bg-amber-100 transition-colors">
+                    <Music className="w-4 h-4" />
+                  </div>
+                  <span className="text-[9px] font-display font-black uppercase text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                    STREAMER
+                  </span>
+                </div>
+                <div>
+                  <h4 className="font-display font-black text-sm text-stone-900 group-hover:text-amber-700 transition-colors">
+                    Hear Music 🎵
+                  </h4>
+                  <p className="font-handwritten text-xs text-stone-600 font-bold line-clamp-2">
+                    Lo-fi beats, binaural synth stations & ambient player
+                  </p>
+                </div>
+              </button>
+
+              {/* PILLAR 4: PLAY QUIZ */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('fanfare');
+                  onStartMoodQuiz(activeMoodId);
+                }}
+                className="p-3.5 rounded-3xl bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 text-white flex flex-col justify-between gap-3 shadow-xs hover:shadow-md cursor-pointer hover:scale-101 active:scale-98 transition-all text-left group"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-9 h-9 rounded-2xl bg-white text-rose-600 flex items-center justify-center font-bold shadow-2xs">
+                    <Play className="w-4 h-4 fill-rose-600" />
+                  </div>
+                  <span className="text-[9px] font-display font-black uppercase text-pink-200 bg-white/20 px-2 py-0.5 rounded-full border border-white/30">
+                    1000+ TRIVIA
+                  </span>
+                </div>
+                <div>
+                  <h4 className="font-display font-black text-sm text-white">
+                    Play Quiz 🎯
+                  </h4>
+                  <p className="font-handwritten text-xs text-white/90 font-bold line-clamp-2">
+                    Food & Cinema trivia tailored to #{currentMoodSetting.scaleNumber}
+                  </p>
+                </div>
+              </button>
+            </div>
           </div>
 
         </div>

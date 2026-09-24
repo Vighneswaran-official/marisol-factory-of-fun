@@ -369,7 +369,18 @@ export class NonRepeatingQuizEngine {
     }
 
     const shuffled = [...pool].sort(() => 0.5 - Math.random());
-    const selected = shuffled.slice(0, count);
+    const selected = shuffled.slice(0, count).map(q => {
+      // Robust Fisher-Yates shuffle on options so correct answer is randomly distributed across A, B, C, D
+      const shuffledOptions = [...q.options];
+      for (let i = shuffledOptions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledOptions[i], shuffledOptions[j]] = [shuffledOptions[j], shuffledOptions[i]];
+      }
+      return {
+        ...q,
+        options: shuffledOptions
+      };
+    });
 
     selected.forEach(q => this.playedIds.add(q.id));
     this.savePlayedIds();

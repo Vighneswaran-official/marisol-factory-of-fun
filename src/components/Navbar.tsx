@@ -96,7 +96,36 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
             )}
           </div>
 
-          {/* Right: Core Stats & Menu Controls (Standard Mobile App Sizing) */}
+          {/* Center: Desktop Navigation Links (Visible on md/lg screens) */}
+          <nav className="hidden md:flex items-center gap-1 bg-stone-100/90 border border-stone-200/80 p-1 rounded-full shadow-2xs">
+            {[
+              { id: 'home' as ScreenState, label: 'Home', emoji: '🏠' },
+              { id: 'music' as ScreenState, label: 'Music', emoji: '🎵' },
+              { id: 'quiz' as ScreenState, label: 'Mood Quiz', emoji: '🎯' },
+              { id: 'batch_wall' as ScreenState, label: 'Lounge & Wall', emoji: '💬' },
+            ].map(item => {
+              const isActive = currentScreen === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    onNavigate(item.id);
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-display font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isActive
+                      ? 'bg-rose-600 text-white shadow-xs scale-102'
+                      : 'text-stone-700 hover:text-stone-900 hover:bg-white/80'
+                  }`}
+                >
+                  <span className="text-sm">{item.emoji}</span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Right: Core Stats & Menu Controls */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             
             {/* Macaronis Score */}
@@ -117,13 +146,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
               <span>{player.streak}</span>
             </div>
 
-            {/* Direct Community Lounge Button */}
+            {/* Direct Community Lounge Button (Mobile only since desktop has center links) */}
             <button
               onClick={() => {
                 audioEngine.playSfx('click');
                 onNavigate('batch_wall');
               }}
-              className={`h-8 px-2.5 sm:px-3 rounded-full flex items-center gap-1 text-xs font-display font-black transition-all cursor-pointer shrink-0 ${
+              className={`md:hidden h-8 px-2.5 rounded-full flex items-center gap-1 text-xs font-display font-black transition-all cursor-pointer shrink-0 ${
                 currentScreen === 'batch_wall'
                   ? 'bg-rose-600 text-white shadow-xs'
                   : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs'
@@ -131,8 +160,29 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
               title="Open Batch 41 Lounge"
             >
               <span>💬</span>
-              <span className="hidden sm:inline">Lounge</span>
+              <span className="hidden min-[400px]:inline">Lounge</span>
             </button>
+
+            {/* Account Profile / Sign In Pill (Desktop & Mobile) */}
+            {onOpenGoogleSignIn && (
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onOpenGoogleSignIn();
+                }}
+                className="h-8 px-2.5 sm:px-3 bg-white hover:bg-stone-50 border border-stone-200 rounded-full flex items-center gap-1.5 text-xs font-display font-bold text-stone-800 shadow-2xs transition-all cursor-pointer shrink-0"
+                title={isAuthenticated && currentUser ? `Signed in as ${currentUser.name}` : "Sign In with Google"}
+              >
+                {isAuthenticated && currentUser ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                ) : (
+                  <UserCheck className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                )}
+                <span className="hidden lg:inline truncate max-w-[100px]">
+                  {isAuthenticated && currentUser ? currentUser.name.split(' ')[0] : 'Profile'}
+                </span>
+              </button>
+            )}
 
             {/* Responsive Main Menu Button (☰ MENU) */}
             <button
@@ -140,7 +190,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                 audioEngine.playSfx('click');
                 setIsMenuOpen(true);
               }}
-              className="h-8 px-3 bg-stone-900 hover:bg-stone-800 text-white rounded-full flex items-center gap-1.5 text-xs font-display font-black shadow-xs transition-all cursor-pointer shrink-0 active:scale-95"
+              className="h-8 px-2.5 sm:px-3 bg-stone-900 hover:bg-stone-800 text-white rounded-full flex items-center gap-1 text-xs font-display font-black shadow-xs transition-all cursor-pointer shrink-0 active:scale-95"
               title="Open Navigation Menu"
             >
               <Menu className="w-3.5 h-3.5" />

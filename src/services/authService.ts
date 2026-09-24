@@ -243,6 +243,15 @@ class AuthService {
     return Boolean(this.currentUser);
   }
 
+  public isGoogleAuthenticated(): boolean {
+    if (!this.currentUser) return false;
+    return Boolean(
+      this.currentUser.isGoogleVerified ||
+      this.currentUser.loginMethod === 'google' ||
+      (this.currentUser.email && this.currentUser.email.includes('@'))
+    );
+  }
+
   public getClassmates(): StudentProfile[] {
     return this.classmates;
   }

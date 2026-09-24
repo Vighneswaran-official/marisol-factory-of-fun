@@ -10,7 +10,7 @@ import {
   MessageCircle, MessagesSquare, Pin, Camera, Paperclip, Smile,
   Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check,
   Reply, BarChart2, AtSign, Video, Phone, MoreVertical, Mic,
-  Trash2, ChevronDown, Ban, Globe
+  Trash2, ChevronDown, Ban, Globe, Lock, Clock
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { BaseModal } from './BaseModal';
@@ -18,6 +18,7 @@ import { GoogleSignInModal } from './GoogleSignInModal';
 
 interface BatchUpdatesWallProps {
   onNavigate?: (screen: ScreenState) => void;
+  initialMode?: 'chat' | 'posts' | 'bulletin';
 }
 
 // Client-side image compression for fast sync and storage
@@ -156,14 +157,20 @@ const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
   });
 };
 
-export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: _onNavigate }) => {
+export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: _onNavigate, initialMode }) => {
   const [, setTick] = useState(0);
   const player = gameState.getPlayer();
   const currentUser = authService.getCurrentUser();
   const isAuthenticated = authService.isAuthenticated();
 
   // Mode Switcher: 'chat' | 'posts' | 'bulletin'
-  const [activeMode, setActiveMode] = useState<'chat' | 'posts' | 'bulletin'>('chat');
+  const [activeMode, setActiveMode] = useState<'chat' | 'posts' | 'bulletin'>(initialMode || 'chat');
+
+  useEffect(() => {
+    if (initialMode) {
+      setActiveMode(initialMode);
+    }
+  }, [initialMode]);
 
   // Modals & Popups
   const [showNewPostModal, setShowNewPostModal] = useState(false);
@@ -173,6 +180,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const [showCreatePollModal, setShowCreatePollModal] = useState(false);
   const [selectedClassmateDetail, setSelectedClassmateDetail] = useState<StudentProfile | null>(null);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; caption?: string } | null>(null);
+  const [seenInfoMsg, setSeenInfoMsg] = useState<GroupChatMessage | null>(null);
 
   // Profile Editor Form State
   const [profileNameInput, setProfileNameInput] = useState(currentUser?.name || player.nickname || 'Kritika Gupta 👑');
@@ -191,6 +199,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const [showChatEmojiPicker, setShowChatEmojiPicker] = useState(false);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+  const [highlightedChatMsgId, setHighlightedChatMsgId] = useState<string | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const chatFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -200,6 +209,11 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const [activeActionMenuMsgId, setActiveActionMenuMsgId] = useState<string | null>(null);
   const [deleteModalMsg, setDeleteModalMsg] = useState<GroupChatMessage | null>(null);
   const [deletionReaction, setDeletionReaction] = useState<{ text: string; emoji: string } | null>(null);
+
+  // Post Edit & Options State
+  const [editingPost, setEditingPost] = useState<InstagramPost | null>(null);
+  const [editingPostCaption, setEditingPostCaption] = useState('');
+  const [activePostMenuId, setActivePostMenuId] = useState<string | null>(null);
 
   // Group Poll Creation State
   const [pollQuestion, setPollQuestion] = useState('');
@@ -247,8 +261,19 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   useEffect(() => {
     if (activeMode === 'chat') {
       chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const userToMark = currentUser ? {
+        userId: currentUser.id,
+        userName: currentUser.name,
+        userEmail: currentUser.email,
+        avatarUrl: currentUser.avatarUrl
+      } : {
+        userId: `user_${player.nickname || 'Student'}`,
+        userName: player.nickname || 'Student',
+        avatarUrl: '/marisol/avatars/01_brighter_ideas.png'
+      };
+      batchWallService.markAllMessagesAsSeen(userToMark);
     }
-  }, [activeMode]);
+  }, [activeMode, currentUser]);
 
   useEffect(() => {
     if (currentUser?.name) {
@@ -359,6 +384,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   // Send WhatsApp Group Message (with replyTo support)
   const handleSendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!authService.isGoogleAuthenticated()) {
+      setShowGoogleModal(true);
+      setShareToast('Please sign in with a Google account to chat! 🔒');
+      setTimeout(() => setShareToast(null), 3000);
+      return;
+    }
     const text = chatInput.trim();
     if (!text && !chatImageAttachment) return;
 
@@ -413,11 +444,42 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     e.preventDefault();
     if (!editingMessage || !editingText.trim()) return;
     audioEngine.playSfx('click');
-    await batchWallService.editChatMessage(editingMessage.id, editingText);
+    const result = await batchWallService.editChatMessage(editingMessage.id, editingText, {
+      id: currentUser?.id,
+      email: currentUser?.email,
+      name: currentUser?.name || profileNameInput
+    });
+    if (!result.success) {
+      setShareToast(result.error || 'Failed to edit message');
+    } else {
+      setShareToast('Message edited ✏️');
+    }
     setEditingMessage(null);
     setEditingText('');
-    setShareToast('Message edited ✏️');
-    setTimeout(() => setShareToast(null), 2000);
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  const handleTogglePinMessage = async (msg: GroupChatMessage) => {
+    audioEngine.playSfx('pop');
+    if (msg.isPinned) {
+      await batchWallService.unpinChatMessage(msg.id);
+      setShareToast('Message unpinned 📌');
+    } else {
+      const pinner = currentUser?.name || profileNameInput || 'Batch Member';
+      await batchWallService.pinChatMessage(msg.id, pinner);
+      setShareToast('Message pinned to top 📌✨');
+    }
+    setActiveActionMenuMsgId(null);
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  const handleJumpToMessage = (messageId: string) => {
+    const el = document.getElementById(`chat-msg-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedChatMsgId(messageId);
+      setTimeout(() => setHighlightedChatMsgId(null), 2500);
+    }
   };
 
   const handleDeleteForMe = (msg: GroupChatMessage) => {
@@ -431,16 +493,87 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   const handleDeleteForEveryone = async (msg: GroupChatMessage) => {
     audioEngine.playSfx('pop');
-    await batchWallService.deleteChatMessageForEveryone(msg.id);
+    const result = await batchWallService.deleteChatMessageForEveryone(msg.id, {
+      id: currentUser?.id,
+      email: currentUser?.email,
+      name: currentUser?.name || profileNameInput
+    });
+    if (!result.success) {
+      setShareToast(result.error || 'Failed to delete message');
+      setTimeout(() => setShareToast(null), 2500);
+    } else {
+      setDeletionReaction({ text: 'Message deleted for everyone', emoji: '🗑️✨' });
+      setTimeout(() => setDeletionReaction(null), 2500);
+    }
     setDeleteModalMsg(null);
     setActiveActionMenuMsgId(null);
-    setDeletionReaction({ text: 'Message deleted for everyone', emoji: '🗑️✨' });
-    setTimeout(() => setDeletionReaction(null), 2500);
+  };
+
+  // Post Pinning, Editing & Deletion Handlers
+  const handleOpenEditPost = (post: InstagramPost) => {
+    setEditingPost(post);
+    setEditingPostCaption(post.caption);
+    setActivePostMenuId(null);
+  };
+
+  const handleSaveEditPost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPost) return;
+    audioEngine.playSfx('click');
+    const result = await batchWallService.editInstagramPost(editingPost.id, editingPostCaption, {
+      id: currentUser?.id,
+      email: currentUser?.email,
+      name: currentUser?.name || profileNameInput
+    });
+    if (!result.success) {
+      setShareToast(result.error || 'Failed to edit post');
+    } else {
+      setShareToast('Post caption updated ✏️✨');
+    }
+    setEditingPost(null);
+    setEditingPostCaption('');
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  const handleTogglePinPost = async (post: InstagramPost) => {
+    audioEngine.playSfx('pop');
+    if (post.isPinned) {
+      await batchWallService.unpinInstagramPost(post.id);
+      setShareToast('Post unpinned 📌');
+    } else {
+      const pinner = currentUser?.name || profileNameInput || 'Batch Member';
+      await batchWallService.pinInstagramPost(post.id, pinner);
+      setShareToast('Post pinned to top 📌✨');
+    }
+    setActivePostMenuId(null);
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  const handleDeletePost = async (post: InstagramPost) => {
+    audioEngine.playSfx('pop');
+    const result = await batchWallService.deleteInstagramPost(post.id, {
+      id: currentUser?.id,
+      email: currentUser?.email,
+      name: currentUser?.name || profileNameInput
+    });
+    if (!result.success) {
+      setShareToast(result.error || 'Failed to delete post');
+    } else {
+      setShareToast('Post deleted 🗑️');
+    }
+    setActivePostMenuId(null);
+    setTimeout(() => setShareToast(null), 2500);
   };
 
   // Create & Send Live Group Poll
   const handleCreatePoll = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!authService.isGoogleAuthenticated()) {
+      setShowGoogleModal(true);
+      setShareToast('Please sign in with a Google account to create polls! 🔒');
+      setTimeout(() => setShareToast(null), 3000);
+      return;
+    }
     if (!pollQuestion.trim() || !pollOption1.trim() || !pollOption2.trim()) return;
 
     audioEngine.playSfx('fanfare');
@@ -480,6 +613,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   // Vote on Poll
   const handleVotePoll = (messageId: string, optionId: string) => {
+    if (!authService.isGoogleAuthenticated()) {
+      setShowGoogleModal(true);
+      setShareToast('Please sign in with a Google account to vote! 🔒');
+      setTimeout(() => setShareToast(null), 3000);
+      return;
+    }
     audioEngine.playSfx('pop');
     const voter = currentUser?.name || profileNameInput || 'You';
     batchWallService.votePoll(messageId, optionId, voter);
@@ -610,7 +749,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] p-2.5 sm:p-5 pb-28 text-stone-900">
-      <div className="max-w-xl mx-auto space-y-3">
+      <div className="max-w-4xl lg:max-w-5xl mx-auto space-y-3 sm:space-y-4">
 
         {/* Sync Toast Notification */}
         {network.syncToast && (
@@ -644,7 +783,54 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           </div>
         )}
 
+        {/* 1. MULTI-PERSON ACTIVE USER BAR */}
+        <div className="bg-white border border-stone-200/90 rounded-2xl p-2.5 px-3.5 shadow-2xs flex items-center justify-between gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="relative w-8 h-8 rounded-full overflow-hidden border-2 border-rose-400 shrink-0 bg-rose-50 shadow-2xs">
+              <img 
+                src={currentUser?.avatarUrl || profileAvatarInput || AVATAR_PRESETS[0].url} 
+                alt="Your Avatar" 
+                className="w-full h-full object-cover" 
+              />
+            </div>
+            <div className="min-w-0 text-left">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-display font-black text-rose-600 uppercase tracking-wider">
+                  You are active as:
+                </span>
+                {currentUser?.isGoogleVerified && (
+                  <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.2 rounded-full">
+                    Google Verified ✓
+                  </span>
+                )}
+              </div>
+              <h4 className="font-display font-black text-xs sm:text-sm text-stone-900 truncate">
+                {currentUser?.name || profileNameInput || 'Batch 41 Member'}
+              </h4>
+            </div>
+          </div>
 
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowProfileModal(true)}
+              className="py-1.5 px-3 bg-stone-100 hover:bg-rose-50 hover:text-rose-600 text-stone-700 rounded-xl text-xs font-display font-bold flex items-center gap-1 transition-colors cursor-pointer border border-stone-200"
+              title="Switch user profile or test as different batch member"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-rose-500" />
+              <span>Switch Profile</span>
+            </button>
+            {!authService.isGoogleAuthenticated() && (
+              <button
+                type="button"
+                onClick={() => setShowGoogleModal(true)}
+                className="py-1.5 px-3 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white rounded-xl text-xs font-display font-black flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
+              >
+                <span>Google Sign In</span>
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* 2. UNIFIED COHESIVE TAB SWITCHER */}
         <div className="grid grid-cols-3 gap-1 bg-stone-200/70 p-1 rounded-2xl border border-stone-300/80">
@@ -696,7 +882,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
         {/* ==================== 1. BATCH LOUNGE CHAT ==================== */}
         {activeMode === 'chat' && (
-          <div className="bg-white border border-stone-200/90 rounded-3xl overflow-hidden shadow-xs flex flex-col h-[570px] animate-fade-in relative">
+          <div className="bg-white border border-stone-200/90 rounded-3xl overflow-hidden shadow-xs flex flex-col h-[580px] sm:h-[650px] lg:h-[700px] animate-fade-in relative">
             
             {/* Clean Modern Lounge Top Bar */}
             <div className="bg-white border-b border-stone-200/80 text-stone-900 p-2.5 px-4 flex items-center justify-between shrink-0 shadow-2xs">
@@ -768,15 +954,67 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               </div>
             </div>
 
+            {/* Interactive Pinned Message Banner */}
+            {(() => {
+              const pinnedMsg = chatMessages.slice().reverse().find(m => m.isPinned);
+              if (!pinnedMsg) return null;
+
+              return (
+                <div 
+                  onClick={() => handleJumpToMessage(pinnedMsg.id)}
+                  className="bg-gradient-to-r from-amber-50 via-rose-50 to-pink-50 border-b border-amber-200/90 px-3.5 py-2 flex items-center justify-between gap-2.5 z-20 shadow-xs cursor-pointer hover:bg-amber-100/60 transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <Pin className="w-3.5 h-3.5 fill-white" />
+                    </div>
+                    <div className="min-w-0 text-left">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-display font-black text-[11px] text-amber-900 truncate">
+                          Pinned Message
+                        </span>
+                        <span className="text-[10px] text-stone-500 truncate">
+                          • {pinnedMsg.senderName}
+                        </span>
+                      </div>
+                      <p className="font-sans text-xs text-stone-700 truncate max-w-md">
+                        {pinnedMsg.text || (pinnedMsg.imageUrl ? '📷 Photo attachment' : 'Group message')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => handleJumpToMessage(pinnedMsg.id)}
+                      className="px-2 py-0.5 bg-white/90 hover:bg-white text-amber-900 border border-amber-300 rounded-md text-[10px] font-display font-black shadow-2xs transition-all cursor-pointer"
+                      title="Jump to pinned message"
+                    >
+                      View
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePinMessage(pinnedMsg)}
+                      className="p-1 text-stone-400 hover:text-rose-600 rounded-full hover:bg-white/80 transition-colors cursor-pointer"
+                      title="Unpin message"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Clean Stream Area (Pure, Clean Minimal Surface) */}
             <div className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin bg-[#FAFAFA]">
               {/* Date Separators & Chat Stream */}
               {chatMessages.map((msg, index) => {
-                const currentUserName = (currentUser?.name || profileNameInput || '').trim().toLowerCase();
+                const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
+                const msgSenderName = (msg.senderName || '').replace(' 👑', '').trim().toLowerCase();
                 const isCurrentUser = Boolean(
                   (currentUser?.id && msg.senderId && currentUser.id === msg.senderId) ||
                   (currentUser?.email && msg.senderEmail && currentUser.email.trim().toLowerCase() === msg.senderEmail.trim().toLowerCase()) ||
-                  (currentUserName !== '' && msg.senderName.trim().toLowerCase() === currentUserName && !msg.isKritika)
+                  (currentUserName !== '' && currentUserName === msgSenderName)
                 );
                 const reactionsList = Object.entries(msg.reactions || {}).filter(([, count]) => count > 0);
                 const senderColor = getWhatsAppSenderColor(msg.senderName, msg.isKritika);
@@ -795,9 +1033,10 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                     )}
 
                     <div
+                      id={`chat-msg-${msg.id}`}
                       onMouseEnter={() => setHoveredMessageId(msg.id)}
                       onMouseLeave={() => setHoveredMessageId(null)}
-                      className={`flex items-start gap-1.5 group ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
+                      className={`flex items-start gap-1.5 group transition-all duration-300 ${isCurrentUser ? 'justify-end' : 'justify-start'} ${highlightedChatMsgId === msg.id ? 'p-1 bg-amber-100/60 rounded-2xl ring-2 ring-amber-400' : ''}`}
                     >
                       {/* Member Profile Avatar on the Left (for incoming messages) */}
                       {!isCurrentUser && (
@@ -824,6 +1063,16 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                               : 'bg-white text-stone-900 rounded-tl-xs border border-stone-200/80 shadow-2xs'
                           }`}
                         >
+                          {/* Pinned pill if message is pinned */}
+                          {msg.isPinned && (
+                            <div className={`flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full w-fit mb-1 shadow-2xs ${
+                              isCurrentUser ? 'bg-amber-400/30 text-amber-100 border border-amber-300/40' : 'bg-amber-50 text-amber-800 border border-amber-300'
+                            }`}>
+                              <Pin className="w-2.5 h-2.5 fill-current" />
+                              <span>Pinned</span>
+                            </div>
+                          )}
+
                           {/* 1. Distinct Bold Sender Name & Action Dropdown Trigger */}
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <div className="flex items-center gap-1.5 min-w-0">
@@ -873,7 +1122,18 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                                     <span>Reply</span>
                                   </button>
 
-                                  {!msg.isDeletedForEveryone && (
+                                  {/* Pin / Unpin option */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTogglePinMessage(msg)}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-stone-50 flex items-center gap-2 text-stone-700 cursor-pointer"
+                                  >
+                                    <Pin className="w-3.5 h-3.5 text-amber-600" />
+                                    <span>{msg.isPinned ? 'Unpin message' : 'Pin message'}</span>
+                                  </button>
+
+                                  {/* STRICT AUTHOR-ONLY: Edit message ONLY if isCurrentUser is true */}
+                                  {isCurrentUser && !msg.isDeletedForEveryone && (
                                     <button
                                       type="button"
                                       onClick={() => handleOpenEditMessage(msg)}
@@ -1002,16 +1262,43 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                           </>
                         )}
 
-                        {/* Timestamp, Edited Badge & Double checkmark */}
-                        <div className="flex items-center justify-end gap-1.5 mt-1 text-[9px] text-stone-400 font-medium">
-                          {msg.isEdited && !msg.isDeletedForEveryone && (
-                            <span className="italic text-stone-400">Edited</span>
-                          )}
-                          <span>{msg.timestamp}</span>
-                          {isCurrentUser && (
-                            <CheckCheck className="w-3.5 h-3.5 text-[#53BDEB]" />
-                          )}
-                        </div>
+                        {/* Timestamp, Edited Badge & Double Checkmark Read Receipt */}
+                        {(() => {
+                          const allMembers = batchWallService.getAllBatchMembers(classmates);
+                          const seenByList = msg.seenBy || [];
+                          const unseenMembers = allMembers.filter(m => !seenByList.some(s => (s.userId && s.userId === m.id) || (m.email && s.userEmail && s.userEmail.toLowerCase() === m.email.toLowerCase()) || (s.userName && s.userName.toLowerCase().trim() === m.name.toLowerCase().trim())));
+                          const isAllSeen = seenByList.length > 0 && unseenMembers.length === 0;
+
+                          return (
+                            <div className="flex items-center justify-end gap-1.5 mt-1 text-[9px] text-stone-400 font-medium">
+                              {msg.isEdited && !msg.isDeletedForEveryone && (
+                                <span className="italic text-stone-400">Edited</span>
+                              )}
+                              <span>{msg.timestamp}</span>
+                              
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSeenInfoMsg(msg);
+                                }}
+                                className="flex items-center gap-0.5 hover:opacity-80 transition-all cursor-pointer p-0.5 rounded group/seen"
+                                title={isAllSeen ? `Seen by all ${allMembers.length} members (Click to view seen details)` : `Delivered (${seenByList.length}/${allMembers.length} seen - Click to view details)`}
+                              >
+                                <CheckCheck
+                                  className={`w-3.5 h-3.5 transition-colors ${
+                                    isAllSeen 
+                                      ? 'text-[#00A884] dark:text-[#53BDEB] fill-[#00A884]/20 stroke-[2.5]' 
+                                      : 'text-stone-400'
+                                  }`}
+                                />
+                                <span className={`text-[8px] font-bold ${isAllSeen ? 'text-[#00A884] dark:text-[#53BDEB]' : 'text-stone-400'}`}>
+                                  {seenByList.length}/{allMembers.length}
+                                </span>
+                              </button>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Emoji Reactions at bottom of bubble */}
@@ -1059,6 +1346,18 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                             title="Reply to this message"
                           >
                             <Reply className="w-3 h-3" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              audioEngine.playSfx('pop');
+                              setSeenInfoMsg(msg);
+                            }}
+                            className="text-xs hover:text-sky-600 font-bold flex items-center gap-0.5 p-0.5 pl-1 border-l border-stone-200 cursor-pointer text-stone-500"
+                            title="View who has seen this message"
+                          >
+                            <Eye className="w-3 h-3" />
                           </button>
                         </div>
                       )}
@@ -1156,96 +1455,143 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               </div>
             )}
 
-            {/* Bottom Input Bar with Pill & Circular Send (Clean Modern Lounge Style) */}
-            <form onSubmit={handleSendChatMessage} className="p-2.5 px-3 flex items-center gap-2 shrink-0 bg-white border-t border-stone-200/80">
-              {/* Left Rounded Pill Container */}
-              <div className="flex-1 bg-stone-50 focus-within:bg-white focus-within:border-rose-300 rounded-full flex items-center px-2 py-1 shadow-2xs border border-stone-200 transition-all">
-                {/* Emoji Smile Icon */}
+            {/* Bottom Input Bar: Google Auth Lock Banner if not signed in with Google */}
+            {!authService.isGoogleAuthenticated() ? (
+              <div className="p-3 px-4 bg-gradient-to-r from-stone-900 via-rose-950 to-stone-900 border-t border-rose-500/30 flex items-center justify-between gap-3 text-white shrink-0 shadow-md">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-full bg-rose-500/20 border border-rose-400/40 flex items-center justify-center shrink-0 animate-pulse">
+                    <Lock className="w-4.5 h-4.5 text-rose-300" />
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <h4 className="font-display font-black text-xs text-rose-200 truncate flex items-center gap-1.5">
+                      <span>Google Account Required to Chat</span>
+                      <span className="bg-rose-500/30 text-rose-300 text-[9px] px-1.5 py-0.2 rounded-full border border-rose-400/40 font-bold uppercase">Locked</span>
+                    </h4>
+                    <p className="text-[10px] text-stone-300 truncate font-medium">
+                      Only users logged in with a Google account can send messages, reply & vote in Batch 41 lounge
+                    </p>
+                  </div>
+                </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowChatEmojiPicker(!showChatEmojiPicker);
-                    setShowMentionPicker(false);
-                  }}
-                  className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
-                  title="Smileys"
+                  onClick={() => setShowGoogleModal(true)}
+                  className="px-3.5 py-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white rounded-xl text-xs font-display font-black uppercase flex items-center gap-1.5 shadow-sm transition-all shrink-0 cursor-pointer active:scale-95"
                 >
-                  <Smile className="w-5 h-5" />
-                </button>
-
-                {/* Text Input */}
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1 px-2.5 py-1 text-xs sm:text-sm outline-none bg-transparent text-stone-900"
-                />
-
-                {/* @Mention Trigger */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMentionPicker(!showMentionPicker);
-                    setShowChatEmojiPicker(false);
-                  }}
-                  className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
-                  title="@Mention someone"
-                >
-                  <AtSign className="w-4.5 h-4.5" />
-                </button>
-
-                {/* Hidden File Input */}
-                <input
-                  ref={chatFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleChatImageSelect}
-                  className="hidden"
-                />
-
-                {/* Attachment Paperclip */}
-                <button
-                  type="button"
-                  onClick={() => chatFileInputRef.current?.click()}
-                  className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
-                  title="Attach Photo"
-                >
-                  <Paperclip className="w-4.5 h-4.5" />
-                </button>
-
-                {/* Camera Icon */}
-                <button
-                  type="button"
-                  onClick={() => chatFileInputRef.current?.click()}
-                  className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
-                  title="Camera"
-                >
-                  <Camera className="w-4.5 h-4.5" />
+                  <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                    <path fill="#ffffff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#ffffff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  </svg>
+                  <span>Sign In with Google</span>
                 </button>
               </div>
+            ) : (
+              /* Bottom Input Bar with Pill & Circular Send (Clean Modern Lounge Style) */
+              <form onSubmit={handleSendChatMessage} className="p-2.5 px-3 flex items-center gap-2 shrink-0 bg-white border-t border-stone-200/80">
+                {/* Left Rounded Pill Container */}
+                <div className="flex-1 bg-stone-50 focus-within:bg-white focus-within:border-rose-300 rounded-full flex items-center px-2 py-1 shadow-2xs border border-stone-200 transition-all">
+                  {/* Emoji Smile Icon */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowChatEmojiPicker(!showChatEmojiPicker);
+                      setShowMentionPicker(false);
+                    }}
+                    className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
+                    title="Smileys"
+                  >
+                    <Smile className="w-5 h-5" />
+                  </button>
 
-              {/* Right Floating Circular Send / Mic Button */}
-              <button
-                type={chatInput.trim() || chatImageAttachment ? "submit" : "button"}
-                disabled={isSendingChat}
-                onClick={() => {
-                  if (!chatInput.trim() && !chatImageAttachment) {
-                    audioEngine.playSfx('fanfare');
-                    setShareToast('Voice cheer sent! 🎙️✨');
-                    setTimeout(() => setShareToast(null), 2000);
-                  }
-                }}
-                className={`w-10 h-10 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-full transition-all shadow-sm cursor-pointer shrink-0 flex items-center justify-center ${isSendingChat ? 'opacity-50 cursor-not-allowed' : ''}`}
-                title={chatInput.trim() || chatImageAttachment ? "Send" : "Hold for voice note"}
-              >
-                {chatInput.trim() || chatImageAttachment ? (
-                  <Send className="w-4.5 h-4.5" />
-                ) : (
-                  <Mic className="w-4.5 h-4.5" />
-                )}
-              </button>
-            </form>
+                  {/* Text Input */}
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Type a message..."
+                    className="flex-1 px-2.5 py-1 text-xs sm:text-sm outline-none bg-transparent text-stone-900"
+                  />
+
+                  {/* @Mention Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMentionPicker(!showMentionPicker);
+                      setShowChatEmojiPicker(false);
+                    }}
+                    className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
+                    title="@Mention someone"
+                  >
+                    <AtSign className="w-4.5 h-4.5" />
+                  </button>
+
+                  {/* Hidden File Input */}
+                  <input
+                    ref={chatFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleChatImageSelect}
+                    className="hidden"
+                  />
+
+                  {/* Attachment Paperclip */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!authService.isGoogleAuthenticated()) {
+                        setShowGoogleModal(true);
+                        setShareToast('Please sign in with a Google account to send photos! 🔒');
+                        setTimeout(() => setShareToast(null), 3000);
+                        return;
+                      }
+                      chatFileInputRef.current?.click();
+                    }}
+                    className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
+                    title="Attach Photo"
+                  >
+                    <Paperclip className="w-4.5 h-4.5" />
+                  </button>
+
+                  {/* Camera Icon */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!authService.isGoogleAuthenticated()) {
+                        setShowGoogleModal(true);
+                        setShareToast('Please sign in with a Google account to send photos! 🔒');
+                        setTimeout(() => setShareToast(null), 3000);
+                        return;
+                      }
+                      chatFileInputRef.current?.click();
+                    }}
+                    className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
+                    title="Camera"
+                  >
+                    <Camera className="w-4.5 h-4.5" />
+                  </button>
+                </div>
+
+                {/* Right Floating Circular Send / Mic Button */}
+                <button
+                  type={chatInput.trim() || chatImageAttachment ? "submit" : "button"}
+                  disabled={isSendingChat}
+                  onClick={() => {
+                    if (!chatInput.trim() && !chatImageAttachment) {
+                      audioEngine.playSfx('fanfare');
+                      setShareToast('Voice cheer sent! 🎙️✨');
+                      setTimeout(() => setShareToast(null), 2000);
+                    }
+                  }}
+                  className={`w-10 h-10 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-full transition-all shadow-sm cursor-pointer shrink-0 flex items-center justify-center ${isSendingChat ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={chatInput.trim() || chatImageAttachment ? "Send" : "Hold for voice note"}
+                >
+                  {chatInput.trim() || chatImageAttachment ? (
+                    <Send className="w-4.5 h-4.5" />
+                  ) : (
+                    <Mic className="w-4.5 h-4.5" />
+                  )}
+                </button>
+              </form>
+            )}
           </div>
         )}
 
@@ -1325,18 +1671,40 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               </button>
             </div>
 
-            {/* Photo Post Cards Stream */}
-            <div className="space-y-3.5">
+            {/* Photo Post Cards Stream (Responsive 2-column grid on desktop, 1-column on mobile) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
               {photoPosts.map(post => {
                 const isExpanded = Boolean(expandedComments[post.id]);
                 const commentText = postCommentText[post.id] || '';
                 const filterDef = FILTER_STYLES[post.filter || 'none'] || FILTER_STYLES.none;
+
+                const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
+                const postAuthorName = (post.authorName || '').replace(' 👑', '').trim().toLowerCase();
+                const isPostAuthor = Boolean(
+                  (currentUser?.id && post.userId && currentUser.id === post.userId) ||
+                  (currentUser?.email && (post.userEmail || post.authorEmail) && currentUser.email.toLowerCase().trim() === (post.userEmail || post.authorEmail)?.toLowerCase().trim()) ||
+                  (currentUserName !== '' && currentUserName === postAuthorName)
+                );
+                const isKritika = currentUserName.includes('kritika') || (currentUser?.email || '').toLowerCase().includes('kritika');
 
                 return (
                   <div
                     key={post.id}
                     className="bg-white border border-stone-200/90 rounded-2xl overflow-hidden shadow-2xs space-y-2.5 transition-all hover:border-rose-300"
                   >
+                    {/* Pinned Post Badge */}
+                    {post.isPinned && (
+                      <div className="bg-gradient-to-r from-amber-500 via-rose-500 to-pink-500 text-white px-3.5 py-1 text-[10px] font-display font-black flex items-center justify-between shadow-2xs">
+                        <span className="flex items-center gap-1.5 uppercase tracking-wider">
+                          <Pin className="w-3 h-3 fill-white" />
+                          <span>Pinned Post</span>
+                        </span>
+                        <span className="text-white/90 text-[9px] font-bold">
+                          {post.pinnedBy ? `Pinned by ${post.pinnedBy}` : 'Featured'}
+                        </span>
+                      </div>
+                    )}
+
                     <div className="p-3 px-3.5 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full p-0.5 bg-gradient-to-tr from-rose-400 to-amber-400">
@@ -1363,9 +1731,59 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                         </div>
                       </div>
 
-                      <span className="text-[10px] text-stone-400 font-medium">
-                        {post.timestamp}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-stone-400 font-medium">
+                          {post.timestamp}
+                        </span>
+
+                        {/* Post Action Menu */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setActivePostMenuId(activePostMenuId === post.id ? null : post.id)}
+                            className="p-1 hover:bg-stone-100 rounded-full text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+                            title="Post options"
+                          >
+                            <MoreVertical className="w-3.5 h-3.5" />
+                          </button>
+
+                          {activePostMenuId === post.id && (
+                            <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-stone-200 py-1 z-30 animate-scale-up text-xs font-medium">
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePinPost(post)}
+                                className="w-full px-3 py-1.5 text-left hover:bg-stone-50 flex items-center gap-2 text-stone-700 cursor-pointer"
+                              >
+                                <Pin className="w-3.5 h-3.5 text-amber-600" />
+                                <span>{post.isPinned ? 'Unpin post' : 'Pin to top'}</span>
+                              </button>
+
+                              {/* STRICT AUTHOR-ONLY: Edit Caption ONLY if isPostAuthor is true */}
+                              {isPostAuthor && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditPost(post)}
+                                  className="w-full px-3 py-1.5 text-left hover:bg-stone-50 flex items-center gap-2 text-stone-700 cursor-pointer"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>Edit caption</span>
+                                </button>
+                              )}
+
+                              {(isPostAuthor || isKritika) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePost(post)}
+                                  className="w-full px-3 py-1.5 text-left hover:bg-rose-50 flex items-center gap-2 text-rose-600 cursor-pointer border-t border-stone-100"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                  <span>Delete post</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div 
@@ -1436,6 +1854,11 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                           {post.authorName}
                         </span>
                         {post.caption}
+                        {post.isEdited && (
+                          <span className="text-[10px] text-stone-400 italic ml-1">
+                            (edited)
+                          </span>
+                        )}
                       </p>
 
                       {post.hashtags && post.hashtags.length > 0 && (
@@ -1538,7 +1961,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               </button>
             </div>
 
-            <div className="space-y-3">
+            {/* Bulletin Notes Grid (Responsive 2-column grid on desktop, 1-column on mobile) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {allBulletinPosts.map(post => {
                 const sticker = STICKERS.find(s => s.alias === post.avatarPose) || STICKERS[0];
                 const reactionEntries = Object.entries(post.reactions || {}).filter(([, count]) => count > 0);
@@ -2288,52 +2712,232 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           </BaseModal>
         )}
 
-        {/* MODAL: DELETE MESSAGE (WHATSAPP STYLE) */}
-        {deleteModalMsg && (
+        {/* MODAL: EDIT POST CAPTION */}
+        {editingPost && (
           <BaseModal
-            onClose={() => setDeleteModalMsg(null)}
-            title="DELETE MESSAGE?"
-            subtitle="Choose how you would like to delete this message"
-            icon={<Trash2 className="w-5 h-5 text-rose-500" />}
-            maxWidth="max-w-sm"
+            onClose={() => setEditingPost(null)}
+            title="EDIT POST CAPTION"
+            subtitle="Update your caption for this post"
+            icon={<Edit3 className="w-5 h-5 text-amber-500" />}
+            maxWidth="max-w-md"
           >
-            <div className="space-y-2.5 text-left">
-              <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-700">
-                <span className="font-bold text-stone-900 block mb-0.5">{deleteModalMsg.senderName}:</span>
-                <p className="line-clamp-2 italic">"{deleteModalMsg.text || 'Photo attachment'}"</p>
+            <form onSubmit={handleSaveEditPost} className="space-y-3.5 text-left">
+              <div className="rounded-xl overflow-hidden border border-stone-200 aspect-16/9 max-h-40 bg-black/5">
+                <img src={editingPost.imageUrl} alt="Post preview" className="w-full h-full object-cover" />
               </div>
 
-              <div className="space-y-2 pt-1">
-                {/* Delete for Everyone */}
-                <button
-                  type="button"
-                  onClick={() => handleDeleteForEveryone(deleteModalMsg)}
-                  className="w-full py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-display font-black flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
-                >
-                  <Globe className="w-4 h-4" />
-                  <span>Delete for Everyone</span>
-                </button>
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  Post Caption:
+                </label>
+                <textarea
+                  rows={4}
+                  value={editingPostCaption}
+                  onChange={(e) => setEditingPostCaption(e.target.value)}
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-amber-500 focus:bg-white resize-none"
+                  required
+                />
+              </div>
 
-                {/* Delete for Me */}
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => handleDeleteForMe(deleteModalMsg)}
-                  className="w-full py-2.5 px-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-display font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4 text-stone-500" />
-                  <span>Delete for Me</span>
-                </button>
-
-                {/* Cancel */}
-                <button
-                  type="button"
-                  onClick={() => setDeleteModalMsg(null)}
-                  className="w-full py-2 text-stone-500 hover:text-stone-800 text-xs font-display font-bold text-center cursor-pointer"
+                  onClick={() => setEditingPost(null)}
+                  className="flex-1 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-display font-bold uppercase transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
+                <button
+                  type="submit"
+                  disabled={!editingPostCaption.trim()}
+                  className="flex-1 py-2.5 bg-[#00A884] hover:bg-[#008F6F] disabled:opacity-50 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-colors cursor-pointer"
+                >
+                  Save Caption ✓
+                </button>
               </div>
-            </div>
+            </form>
+          </BaseModal>
+        )}
+
+        {/* MODAL: DELETE MESSAGE (WHATSAPP STYLE) */}
+        {deleteModalMsg && (() => {
+          const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
+          const msgSenderName = (deleteModalMsg.senderName || '').replace(' 👑', '').trim().toLowerCase();
+          const isAuthor = Boolean(
+            (currentUser?.id && deleteModalMsg.senderId && currentUser.id === deleteModalMsg.senderId) ||
+            (currentUser?.email && deleteModalMsg.senderEmail && currentUser.email.trim().toLowerCase() === deleteModalMsg.senderEmail.trim().toLowerCase()) ||
+            (currentUserName !== '' && currentUserName === msgSenderName)
+          );
+          const isKritika = currentUserName.includes('kritika') || (currentUser?.email || '').toLowerCase().includes('kritika');
+
+          return (
+            <BaseModal
+              onClose={() => setDeleteModalMsg(null)}
+              title="DELETE MESSAGE?"
+              subtitle="Choose how you would like to delete this message"
+              icon={<Trash2 className="w-5 h-5 text-rose-500" />}
+              maxWidth="max-w-sm"
+            >
+              <div className="space-y-2.5 text-left">
+                <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-700">
+                  <span className="font-bold text-stone-900 block mb-0.5">{deleteModalMsg.senderName}:</span>
+                  <p className="line-clamp-2 italic">"{deleteModalMsg.text || 'Photo attachment'}"</p>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  {/* Delete for Everyone: ONLY visible to message author or Kritika */}
+                  {(isAuthor || isKritika) && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteForEveryone(deleteModalMsg)}
+                      className="w-full py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-display font-black flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                    >
+                      <Globe className="w-4 h-4" />
+                      <span>Delete for Everyone</span>
+                    </button>
+                  )}
+
+                  {/* Delete for Me */}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteForMe(deleteModalMsg)}
+                    className="w-full py-2.5 px-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-display font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4 text-stone-500" />
+                    <span>Delete for Me</span>
+                  </button>
+
+                  {/* Cancel */}
+                  <button
+                    type="button"
+                    onClick={() => setDeleteModalMsg(null)}
+                    className="w-full py-2 text-stone-500 hover:text-stone-800 text-xs font-display font-bold text-center cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </BaseModal>
+          );
+        })()}
+
+        {/* MODAL: MESSAGE READ RECEIPTS / SEEN STATUS */}
+        {seenInfoMsg && (
+          <BaseModal
+            onClose={() => setSeenInfoMsg(null)}
+            title="MESSAGE READ STATUS"
+            subtitle="Check who has seen this message and who hasn't yet"
+            icon={<Eye className="w-5 h-5 text-sky-500" />}
+            maxWidth="max-w-md"
+          >
+            {(() => {
+              const allMembers = batchWallService.getAllBatchMembers(classmates);
+              const seenByList = seenInfoMsg.seenBy || [];
+              const unseenMembers = allMembers.filter(m => !seenByList.some(s => (s.userId && s.userId === m.id) || (m.email && s.userEmail && s.userEmail.toLowerCase() === m.email.toLowerCase()) || (s.userName && s.userName.toLowerCase().trim() === m.name.toLowerCase().trim())));
+              const isAllSeen = seenByList.length > 0 && unseenMembers.length === 0;
+
+              return (
+                <div className="space-y-4 text-left">
+                  {/* Message Preview Box */}
+                  <div className="p-3 bg-stone-50 border border-stone-200 rounded-2xl space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-display font-black text-stone-900">{seenInfoMsg.senderName}</span>
+                      <span className="text-[10px] text-stone-400">{seenInfoMsg.timestamp}</span>
+                    </div>
+                    <p className="text-xs text-stone-700 font-sans italic line-clamp-2">
+                      "{seenInfoMsg.text || (seenInfoMsg.imageUrl ? 'Photo Attachment' : 'Group Message')}"
+                    </p>
+                  </div>
+
+                  {/* Read Status Banner */}
+                  <div className={`p-3 rounded-2xl border flex items-center justify-between gap-2 text-xs font-bold ${
+                    isAllSeen 
+                      ? 'bg-sky-50 border-sky-200 text-sky-900' 
+                      : 'bg-stone-50 border-stone-200 text-stone-700'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <CheckCheck className={`w-4 h-4 ${isAllSeen ? 'text-sky-500' : 'text-stone-400'}`} />
+                      <span>{isAllSeen ? 'Seen by all batch members!' : `Delivered (${seenByList.length} of ${allMembers.length} seen)`}</span>
+                    </div>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                      isAllSeen ? 'bg-sky-500 text-white' : 'bg-stone-200 text-stone-700'
+                    }`}>
+                      {isAllSeen ? 'All Read ✓✓' : 'Partial'}
+                    </span>
+                  </div>
+
+                  {/* Seen By Section */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-display font-black text-xs text-stone-700 uppercase flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-sky-500" />
+                        <span>Seen By ({seenByList.length})</span>
+                      </h4>
+                    </div>
+
+                    {seenByList.length === 0 ? (
+                      <p className="text-xs text-stone-400 italic p-2">No read receipts recorded yet.</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                        {seenByList.map((s, idx) => (
+                          <div key={idx} className="p-2 bg-emerald-50/60 border border-emerald-200/80 rounded-xl flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full overflow-hidden border border-emerald-300 bg-white">
+                                <img src={s.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop'} alt={s.userName} className="w-full h-full object-cover" />
+                              </div>
+                              <span className="font-display font-bold text-stone-900">{s.userName}</span>
+                            </div>
+                            <span className="text-[10px] text-emerald-700 font-medium bg-white px-2 py-0.5 rounded-full border border-emerald-200">
+                              Seen {s.seenAt ? new Date(s.seenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Not Seen Yet Section */}
+                  <div className="space-y-2 pt-2 border-t border-stone-200">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-display font-black text-xs text-stone-700 uppercase flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Not Seen Yet ({unseenMembers.length})</span>
+                      </h4>
+                    </div>
+
+                    {unseenMembers.length === 0 ? (
+                      <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-200 text-xs font-bold text-sky-800 text-center">
+                        ✨ Everyone in the batch has seen this message!
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                        {unseenMembers.map((m) => (
+                          <div key={m.id} className="p-2 bg-stone-50 border border-stone-200 rounded-xl flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full overflow-hidden border border-stone-300 bg-white">
+                                <img src={m.avatarUrl} alt={m.name} className="w-full h-full object-cover" />
+                              </div>
+                              <span className="font-display font-bold text-stone-800">{m.name}</span>
+                            </div>
+                            <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                              Unread ⏳
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSeenInfoMsg(null)}
+                    className="w-full py-2 bg-stone-900 text-white rounded-xl font-display font-black text-xs uppercase cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              );
+            })()}
           </BaseModal>
         )}
 

@@ -74,8 +74,14 @@ export function App() {
     KRITIKA_STICKER_MOODS.find(m => m.id === activeMoodId) || KRITIKA_STICKER_MOODS[0];
   const currentMacaroni = getMoodMacaroni(activeMoodId);
 
+  // Batch wall initial mode ('chat' | 'posts' | 'bulletin')
+  const [wallInitialMode, setWallInitialMode] = useState<'chat' | 'posts' | 'bulletin'>('chat');
+
   // Screen navigation handler
-  const handleNavigate = (screen: ScreenState) => {
+  const handleNavigate = (screen: ScreenState, wallMode?: 'chat' | 'posts' | 'bulletin') => {
+    if (wallMode) {
+      setWallInitialMode(wallMode);
+    }
     setCurrentScreen(screen);
     setPlayer(gameState.getPlayer());
     if (screen === 'home') {
@@ -84,14 +90,15 @@ export function App() {
     } else if (screen === 'music') {
       setActiveNavTab('music');
     } else if (screen === 'batch_wall') {
-      setActiveNavTab('wall');
+      const mode = wallMode || wallInitialMode;
+      setActiveNavTab(mode === 'posts' ? 'posts' : 'chat');
       setQuizFinished(false);
     } else if (screen === 'quiz') {
       setActiveNavTab('quiz');
     }
   };
 
-  // Bottom Navigation tab click handler
+  // Bottom Navigation tab click handler (Home, Chat, Post, Music, Quiz)
   const handleBottomTabSelect = (tab: MainNavTab) => {
     setActiveNavTab(tab);
     if (tab === 'home') {
@@ -100,8 +107,10 @@ export function App() {
       handleNavigate('music');
     } else if (tab === 'quiz') {
       handleStartMoodQuiz(activeMoodId);
-    } else if (tab === 'wall') {
-      handleNavigate('batch_wall');
+    } else if (tab === 'chat') {
+      handleNavigate('batch_wall', 'chat');
+    } else if (tab === 'posts') {
+      handleNavigate('batch_wall', 'posts');
     }
   };
 
@@ -393,7 +402,7 @@ export function App() {
 
         {/* 4. BULLETIN CHAT & GROUP ROOM (Batch Updates Wall) */}
         {currentScreen === 'batch_wall' && (
-          <BatchUpdatesWall onNavigate={handleNavigate} />
+          <BatchUpdatesWall onNavigate={handleNavigate} initialMode={wallInitialMode} />
         )}
 
       </main>

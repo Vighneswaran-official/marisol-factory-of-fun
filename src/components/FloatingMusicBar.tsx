@@ -55,6 +55,7 @@ export const FloatingMusicBar: React.FC<FloatingMusicBarProps> = ({ onOpenMusicS
               musicStreamingService.togglePlayPause();
             }}
             className="w-8 h-8 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center shadow-xs transition-transform active:scale-95 cursor-pointer"
+            title={playerState.isPlaying ? 'Pause' : 'Play'}
           >
             {playerState.isPlaying ? <Pause className="w-3.5 h-3.5 fill-white" /> : <Play className="w-3.5 h-3.5 fill-white ml-0.5" />}
           </button>
@@ -65,8 +66,21 @@ export const FloatingMusicBar: React.FC<FloatingMusicBarProps> = ({ onOpenMusicS
               musicStreamingService.playNext();
             }}
             className="p-1.5 text-stone-400 hover:text-white rounded-full transition-colors cursor-pointer"
+            title="Next Song"
           >
             <SkipForward className="w-4 h-4" />
+          </button>
+
+          {/* Cut/Stop Music Button (X) */}
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              musicStreamingService.stop();
+            }}
+            className="p-1.5 text-stone-400 hover:text-rose-400 hover:bg-white/10 rounded-full transition-colors cursor-pointer ml-0.5"
+            title="Stop & Close Music"
+          >
+            <span className="text-xs font-black">✕</span>
           </button>
         </div>
       </div>

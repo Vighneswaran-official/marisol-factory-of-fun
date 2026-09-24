@@ -1,5 +1,5 @@
 // Shared Batch Wall State Service for MLP41PT Batch Students with Firebase Firestore
-import { db, collection, addDoc, onSnapshot, query, orderBy, limit, doc, setDoc, deleteDoc } from './firebase';
+import { db, collection, onSnapshot, query, orderBy, limit, doc, setDoc, deleteDoc } from './firebase';
 
 export interface BulletinReply {
   id: string;
@@ -29,7 +29,54 @@ export interface BatchUpdatePost {
   reactions: Record<string, number>; // stickerAlias -> count
   replies?: BulletinReply[]; // Asynchronous threaded replies from Kritika and classmates
   category?: 'tribute' | 'question' | 'cheer' | 'general';
+  isPinned?: boolean;
+  pinnedBy?: string;
+  pinnedAt?: number;
 }
+
+export interface MessageReceipt {
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  avatarUrl?: string;
+  seenAt: number;
+}
+
+export interface BatchMember {
+  id: string;
+  name: string;
+  email?: string;
+  avatarUrl: string;
+  isKritika?: boolean;
+}
+
+export const KNOWN_BATCH_MEMBERS: BatchMember[] = [
+  {
+    id: 'member_kritika',
+    name: 'Kritika Gupta 👑',
+    email: 'kritika.gupta@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+    isKritika: true,
+  },
+  {
+    id: 'member_priyanshu',
+    name: 'Priyanshu Sharma',
+    email: 'priyanshu.sharma@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
+  },
+  {
+    id: 'member_ananya',
+    name: 'Ananya Deshmukh',
+    email: 'ananya.deshmukh@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
+  },
+  {
+    id: 'member_rohan',
+    name: 'Rohan Mehra',
+    email: 'rohan.mehra@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',
+  },
+];
 
 export interface ChatPollOption {
   id: string;
@@ -63,6 +110,10 @@ export interface GroupChatMessage {
   isDeletedForEveryone?: boolean;
   reactionEmoji?: string;
   reactions?: Record<string, number>; // emoji -> count
+  seenBy?: MessageReceipt[]; // Read receipts tracking who has seen this message
+  isPinned?: boolean;
+  pinnedBy?: string;
+  pinnedAt?: number;
 }
 
 export interface InstagramComment {
@@ -98,12 +149,18 @@ export interface InstagramPost {
   timestamp: string;
   createdAt: number;
   isKritika?: boolean;
+  isPinned?: boolean;
+  pinnedBy?: string;
+  pinnedAt?: number;
+  isEdited?: boolean;
 }
 
 const STORAGE_KEY = 'marisol_batch_updates_v2';
 const CHAT_STORAGE_KEY = 'marisol_group_chat_messages_v2';
 const INSTA_STORAGE_KEY = 'marisol_instagram_posts_v2';
 const QUEUE_KEY = 'marisol_batch_offline_queue_v2';
+
+const nowTs = Date.now();
 
 const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
   {
@@ -114,10 +171,16 @@ const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
     text: 'Hey Batch 41 family! Welcome to our comfort lounge! Savoring every sweet memory together ♡ ✨',
     imageUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80',
     timestamp: 'Today at 2:30 PM',
-    createdAt: Date.now() - 3600000 * 3,
+    createdAt: nowTs - 3600000 * 3,
     isKritika: true,
     reactionEmoji: '💖',
-    reactions: { '💖': 8, '✨': 5 }
+    reactions: { '💖': 8, '✨': 5 },
+    seenBy: [
+      { userId: 'member_kritika', userName: 'Kritika Gupta 👑', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 3 },
+      { userId: 'member_priyanshu', userName: 'Priyanshu Sharma', avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 2.8 },
+      { userId: 'member_ananya', userName: 'Ananya Deshmukh', avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 2.5 },
+      { userId: 'member_rohan', userName: 'Rohan Mehra', avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 2.1 }
+    ]
   },
   {
     id: 'chat_init_2',
@@ -125,8 +188,12 @@ const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
     avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
     text: '@Kritika Gupta 👑 The music player and comfort arcade are pure vibes! 🧀🍕',
     timestamp: 'Today at 3:15 PM',
-    createdAt: Date.now() - 3600000 * 2,
-    reactions: { '🍕': 4, '🔥': 3 }
+    createdAt: nowTs - 3600000 * 2,
+    reactions: { '🍕': 4, '🔥': 3 },
+    seenBy: [
+      { userId: 'member_priyanshu', userName: 'Priyanshu Sharma', avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 2 },
+      { userId: 'member_kritika', userName: 'Kritika Gupta 👑', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 1.8 }
+    ]
   },
   {
     id: 'chat_init_3',
@@ -134,8 +201,12 @@ const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
     avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
     text: 'Who wants to do the Chai Enthusiast movie quiz round together tonight? ☕🎬',
     timestamp: 'Today at 3:45 PM',
-    createdAt: Date.now() - 3600000,
-    reactions: { '☕': 5, '👏': 3 }
+    createdAt: nowTs - 3600000,
+    reactions: { '☕': 5, '👏': 3 },
+    seenBy: [
+      { userId: 'member_ananya', userName: 'Ananya Deshmukh', avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 },
+      { userId: 'member_kritika', userName: 'Kritika Gupta 👑', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop', seenAt: nowTs - 1800000 }
+    ]
   }
 ];
 
@@ -269,7 +340,11 @@ class BatchWallService {
               remotePosts.push({ ...data, id: docSnap.id });
             });
 
-            this.posts = remotePosts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            this.posts = remotePosts.sort((a, b) => {
+              if (a.isPinned && !b.isPinned) return -1;
+              if (!a.isPinned && b.isPinned) return 1;
+              return (b.createdAt || 0) - (a.createdAt || 0);
+            });
             this.saveToStorage();
             this.notify();
           }
@@ -309,7 +384,11 @@ class BatchWallService {
             snapshot.forEach((docSnap) => {
               remoteInsta.push({ ...(docSnap.data() as InstagramPost), id: docSnap.id });
             });
-            this.instagramPosts = remoteInsta.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            this.instagramPosts = remoteInsta.sort((a, b) => {
+              if (a.isPinned && !b.isPinned) return -1;
+              if (!a.isPinned && b.isPinned) return 1;
+              return (b.createdAt || 0) - (a.createdAt || 0);
+            });
             this.saveInstaToStorage();
             this.notify();
           }
@@ -411,7 +490,7 @@ class BatchWallService {
   private async syncPostToFirestore(post: BatchUpdatePost) {
     if (db) {
       try {
-        await addDoc(collection(db, 'batch_updates'), post);
+        await setDoc(doc(db, 'batch_updates', post.id), post);
       } catch (err) {
         console.warn('Failed to add post to Firestore:', err);
       }
@@ -419,18 +498,128 @@ class BatchWallService {
   }
 
   public getPosts(onlyCurrentUser?: boolean, currentUserId?: string): BatchUpdatePost[] {
+    let list = [...this.posts];
     if (onlyCurrentUser && currentUserId) {
-      return this.posts.filter(p => p.userId === currentUserId);
+      list = list.filter(p => p.userId === currentUserId);
     }
-    return [...this.posts];
+    return list.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
   }
 
   public getChatMessages(): GroupChatMessage[] {
     return [...this.chatMessages];
   }
 
+  public getPinnedChatMessage(): GroupChatMessage | null {
+    return this.chatMessages.slice().reverse().find(m => m.isPinned) || null;
+  }
+
+  public getAllBatchMembers(additionalClassmates: Array<{ id?: string; name?: string; email?: string; avatarUrl?: string }> = []): BatchMember[] {
+    const memberMap = new Map<string, BatchMember>();
+
+    KNOWN_BATCH_MEMBERS.forEach(m => memberMap.set(m.name.toLowerCase(), m));
+
+    additionalClassmates.forEach(c => {
+      if (!c.name) return;
+      const key = c.name.toLowerCase();
+      if (!memberMap.has(key)) {
+        memberMap.set(key, {
+          id: c.id || `member_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          name: c.name,
+          email: c.email,
+          avatarUrl: c.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+          isKritika: c.name.toLowerCase().includes('kritika') || Boolean(c.email && c.email.toLowerCase().includes('kritika'))
+        });
+      }
+    });
+
+    return Array.from(memberMap.values());
+  }
+
+  public markAllMessagesAsSeen(user: { userId: string; userName: string; userEmail?: string; avatarUrl?: string }) {
+    if (!user.userName) return;
+    const now = Date.now();
+    let changed = false;
+
+    this.chatMessages.forEach(msg => {
+      if (!msg.seenBy) {
+        msg.seenBy = [];
+      }
+
+      const alreadySeen = msg.seenBy.some(s =>
+        (user.userId && s.userId === user.userId) ||
+        (user.userEmail && s.userEmail && s.userEmail.toLowerCase() === user.userEmail.toLowerCase()) ||
+        (s.userName && s.userName.toLowerCase().trim() === user.userName.toLowerCase().trim())
+      );
+
+      if (!alreadySeen) {
+        msg.seenBy.push({
+          userId: user.userId || `user_${Date.now()}`,
+          userName: user.userName,
+          userEmail: user.userEmail,
+          avatarUrl: user.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+          seenAt: now
+        });
+        changed = true;
+
+        if (db && msg.id) {
+          try {
+            setDoc(doc(db, 'group_chat_messages', msg.id), { seenBy: msg.seenBy }, { merge: true });
+          } catch {}
+        }
+      }
+    });
+
+    if (changed) {
+      this.saveChatToStorage();
+      try {
+        this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+      } catch {}
+      this.notify();
+    }
+  }
+
+  public markMessageAsSeen(messageId: string, user: { userId: string; userName: string; userEmail?: string; avatarUrl?: string }) {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg || !user.userName) return;
+
+    if (!msg.seenBy) msg.seenBy = [];
+    const alreadySeen = msg.seenBy.some(s =>
+      (user.userId && s.userId === user.userId) ||
+      (user.userEmail && s.userEmail && s.userEmail.toLowerCase() === user.userEmail.toLowerCase()) ||
+      (s.userName && s.userName.toLowerCase().trim() === user.userName.toLowerCase().trim())
+    );
+
+    if (!alreadySeen) {
+      msg.seenBy.push({
+        userId: user.userId || `user_${Date.now()}`,
+        userName: user.userName,
+        userEmail: user.userEmail,
+        avatarUrl: user.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+        seenAt: Date.now()
+      });
+      this.saveChatToStorage();
+      try {
+        this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+      } catch {}
+      if (db && msg.id) {
+        try {
+          setDoc(doc(db, 'group_chat_messages', msg.id), { seenBy: msg.seenBy }, { merge: true });
+        } catch {}
+      }
+      this.notify();
+    }
+  }
+
   public getInstagramPosts(): InstagramPost[] {
-    return [...this.instagramPosts];
+    return [...this.instagramPosts].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
   }
 
   public getOfflineQueue(): BatchUpdatePost[] {
@@ -527,7 +716,16 @@ class BatchWallService {
       timestamp: 'Just now',
       createdAt: Date.now(),
       isKritika,
-      reactions: {}
+      reactions: {},
+      seenBy: [
+        {
+          userId: data.senderId || data.senderName,
+          userName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
+          userEmail: data.senderEmail,
+          avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+          seenAt: Date.now()
+        }
+      ]
     };
 
     this.chatMessages.push(msg);
@@ -539,7 +737,7 @@ class BatchWallService {
 
     if (db) {
       try {
-        await addDoc(collection(db, 'group_chat_messages'), msg);
+        await setDoc(doc(db, 'group_chat_messages', msg.id), msg);
       } catch (err) {
         console.warn('Failed to sync chat message to Firestore:', err);
       }
@@ -547,6 +745,69 @@ class BatchWallService {
 
     this.notify();
     return msg;
+  }
+
+  public async pinChatMessage(messageId: string, pinnedBy?: string) {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg) return;
+
+    const willPin = !msg.isPinned;
+    this.chatMessages.forEach(m => {
+      if (m.id === messageId) {
+        m.isPinned = willPin;
+        m.pinnedBy = willPin ? (pinnedBy || 'Classmate') : undefined;
+        m.pinnedAt = willPin ? Date.now() : undefined;
+      } else if (willPin) {
+        m.isPinned = false;
+      }
+    });
+
+    this.saveChatToStorage();
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'group_chat_messages', messageId), {
+          isPinned: willPin,
+          pinnedBy: willPin ? (pinnedBy || 'Classmate') : null,
+          pinnedAt: willPin ? Date.now() : null
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to update pin on Firestore:', err);
+      }
+    }
+
+    this.notify();
+  }
+
+  public async unpinChatMessage(messageId: string) {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg) return;
+
+    msg.isPinned = false;
+    msg.pinnedBy = undefined;
+    msg.pinnedAt = undefined;
+    this.saveChatToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'group_chat_messages', messageId), {
+          isPinned: false,
+          pinnedBy: null,
+          pinnedAt: null
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to unpin message on Firestore:', err);
+      }
+    }
+
+    this.notify();
   }
 
   public votePoll(messageId: string, optionId: string, voterName: string) {
@@ -606,9 +867,30 @@ class BatchWallService {
     this.notify();
   }
 
-  public async editChatMessage(messageId: string, newText: string) {
+  public async editChatMessage(
+    messageId: string, 
+    newText: string,
+    editor?: { id?: string; email?: string; name?: string }
+  ): Promise<{ success: boolean; error?: string }> {
     const msg = this.chatMessages.find(m => m.id === messageId);
-    if (!msg || msg.isDeletedForEveryone) return;
+    if (!msg || msg.isDeletedForEveryone) {
+      return { success: false, error: 'Message not found or deleted.' };
+    }
+
+    // Strict author verification: ONLY author can edit their own message!
+    if (editor) {
+      const editorNameClean = (editor.name || '').replace(' 👑', '').trim().toLowerCase();
+      const senderNameClean = (msg.senderName || '').replace(' 👑', '').trim().toLowerCase();
+      const isAuthor = Boolean(
+        (editor.id && msg.senderId && editor.id === msg.senderId) ||
+        (editor.email && msg.senderEmail && editor.email.toLowerCase().trim() === msg.senderEmail.toLowerCase().trim()) ||
+        (editorNameClean !== '' && editorNameClean === senderNameClean)
+      );
+
+      if (!isAuthor) {
+        return { success: false, error: 'Permission denied: You can only edit your own messages.' };
+      }
+    }
 
     msg.text = newText.trim();
     msg.isEdited = true;
@@ -627,6 +909,7 @@ class BatchWallService {
     }
 
     this.notify();
+    return { success: true };
   }
 
   public deleteChatMessageForMe(messageId: string) {
@@ -635,7 +918,28 @@ class BatchWallService {
     this.notify();
   }
 
-  public async deleteChatMessageForEveryone(messageId: string) {
+  public async deleteChatMessageForEveryone(
+    messageId: string,
+    deleter?: { id?: string; email?: string; name?: string }
+  ): Promise<{ success: boolean; error?: string }> {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg) return { success: false, error: 'Message not found.' };
+
+    if (deleter) {
+      const isKritika = (deleter.name || '').toLowerCase().includes('kritika') || (deleter.email || '').toLowerCase().includes('kritika');
+      const deleterNameClean = (deleter.name || '').replace(' 👑', '').trim().toLowerCase();
+      const senderNameClean = (msg.senderName || '').replace(' 👑', '').trim().toLowerCase();
+      const isAuthor = Boolean(
+        (deleter.id && msg.senderId && deleter.id === msg.senderId) ||
+        (deleter.email && msg.senderEmail && deleter.email.toLowerCase().trim() === msg.senderEmail.toLowerCase().trim()) ||
+        (deleterNameClean !== '' && deleterNameClean === senderNameClean)
+      );
+
+      if (!isAuthor && !isKritika) {
+        return { success: false, error: 'Permission denied: Only the author can delete this message for everyone.' };
+      }
+    }
+
     // Remove from local in-memory message list
     this.chatMessages = this.chatMessages.filter(m => m.id !== messageId);
     this.saveChatToStorage();
@@ -656,6 +960,7 @@ class BatchWallService {
     }
 
     this.notify();
+    return { success: true };
   }
 
   // =================== INSTAGRAM POSTS MANAGEMENT ===================
@@ -705,7 +1010,7 @@ class BatchWallService {
 
     if (db) {
       try {
-        await addDoc(collection(db, 'instagram_posts'), newPost);
+        await setDoc(doc(db, 'instagram_posts', newPost.id), newPost);
       } catch (err) {
         console.warn('Failed to add insta post to Firestore:', err);
       }
@@ -713,6 +1018,146 @@ class BatchWallService {
 
     this.notify();
     return newPost;
+  }
+
+  public async pinInstagramPost(postId: string, pinnedBy?: string) {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return;
+
+    const willPin = !post.isPinned;
+    post.isPinned = willPin;
+    post.pinnedBy = willPin ? (pinnedBy || 'Classmate') : undefined;
+    post.pinnedAt = willPin ? Date.now() : undefined;
+
+    this.saveInstaToStorage();
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'instagram_posts', postId), {
+          isPinned: willPin,
+          pinnedBy: willPin ? (pinnedBy || 'Classmate') : null,
+          pinnedAt: willPin ? Date.now() : null
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to update post pin on Firestore:', err);
+      }
+    }
+
+    this.notify();
+  }
+
+  public async unpinInstagramPost(postId: string) {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return;
+
+    post.isPinned = false;
+    post.pinnedBy = undefined;
+    post.pinnedAt = undefined;
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'instagram_posts', postId), {
+          isPinned: false,
+          pinnedBy: null,
+          pinnedAt: null
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to unpin post on Firestore:', err);
+      }
+    }
+
+    this.notify();
+  }
+
+  public async editInstagramPost(
+    postId: string, 
+    newCaption: string,
+    editor?: { id?: string; email?: string; name?: string }
+  ): Promise<{ success: boolean; error?: string }> {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return { success: false, error: 'Post not found.' };
+
+    if (editor) {
+      const editorNameClean = (editor.name || '').replace(' 👑', '').trim().toLowerCase();
+      const authorNameClean = (post.authorName || '').replace(' 👑', '').trim().toLowerCase();
+      const isAuthor = Boolean(
+        (editor.id && post.userId && editor.id === post.userId) ||
+        (editor.email && (post.userEmail || post.authorEmail) && editor.email.toLowerCase().trim() === (post.userEmail || post.authorEmail)?.toLowerCase().trim()) ||
+        (editorNameClean !== '' && editorNameClean === authorNameClean)
+      );
+
+      if (!isAuthor) {
+        return { success: false, error: 'Permission denied: You can only edit your own posts.' };
+      }
+    }
+
+    post.caption = newCaption.trim();
+    post.isEdited = true;
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'instagram_posts', postId), { caption: post.caption, isEdited: true }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to edit post on Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return { success: true };
+  }
+
+  public async deleteInstagramPost(
+    postId: string,
+    deleter?: { id?: string; email?: string; name?: string }
+  ): Promise<{ success: boolean; error?: string }> {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return { success: false, error: 'Post not found.' };
+
+    if (deleter) {
+      const isKritika = (deleter.name || '').toLowerCase().includes('kritika') || (deleter.email || '').toLowerCase().includes('kritika');
+      const deleterNameClean = (deleter.name || '').replace(' 👑', '').trim().toLowerCase();
+      const authorNameClean = (post.authorName || '').replace(' 👑', '').trim().toLowerCase();
+      const isAuthor = Boolean(
+        (deleter.id && post.userId && deleter.id === post.userId) ||
+        (deleter.email && (post.userEmail || post.authorEmail) && deleter.email.toLowerCase().trim() === (post.userEmail || post.authorEmail)?.toLowerCase().trim()) ||
+        (deleterNameClean !== '' && deleterNameClean === authorNameClean)
+      );
+
+      if (!isAuthor && !isKritika) {
+        return { success: false, error: 'Permission denied: Only the author can delete this post.' };
+      }
+    }
+
+    this.instagramPosts = this.instagramPosts.filter(p => p.id !== postId);
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await deleteDoc(doc(db, 'instagram_posts', postId));
+      } catch (err) {
+        console.warn('Failed to delete post on Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return { success: true };
   }
 
   public likeInstagramPost(postId: string, currentUserName?: string) {

@@ -337,9 +337,23 @@ class MusicStreamingService {
   }
 
   /**
-   * Play a specific full-length track
+   * Play a specific full-length track without any overlap
    */
   public async playTrack(track: Track, newQueue?: Track[]) {
+    // 1. Immediately halt and reset any existing audio playback
+    if (this.audioFallback) {
+      try {
+        this.audioFallback.pause();
+        this.audioFallback.currentTime = 0;
+        this.audioFallback.src = '';
+      } catch {}
+    }
+    if (this.ytPlayer && this.isYtReady) {
+      try {
+        this.ytPlayer.stopVideo?.() || this.ytPlayer.pauseVideo?.();
+      } catch {}
+    }
+
     if (newQueue && newQueue.length > 0) {
       this.state.queue = newQueue;
       this.state.queueIndex = newQueue.findIndex(t => t.id === track.id);
@@ -366,7 +380,7 @@ class MusicStreamingService {
       }
     }
 
-    // Fallback HTML5 Audio
+    // Fallback HTML5 Audio (Guaranteed single audio source)
     if (this.audioFallback) {
       try {
         this.audioFallback.src = track.streamUrl;
@@ -396,6 +410,27 @@ class MusicStreamingService {
     return undefined;
   }
 
+  /**
+   * Completely stop and cut music playback (dismisses player)
+   */
+  public stop() {
+    if (this.ytPlayer && this.isYtReady) {
+      try {
+        this.ytPlayer.stopVideo?.() || this.ytPlayer.pauseVideo?.();
+      } catch {}
+    }
+    if (this.audioFallback) {
+      try {
+        this.audioFallback.pause();
+        this.audioFallback.currentTime = 0;
+        this.audioFallback.src = '';
+      } catch {}
+    }
+    this.state.isPlaying = false;
+    this.state.currentTrack = null;
+    this.notify();
+  }
+
   public togglePlayPause() {
     if (!this.state.currentTrack) {
       if (this.state.queue.length > 0) {
@@ -409,6 +444,10 @@ class MusicStreamingService {
         this.ytPlayer.pauseVideo();
         this.state.isPlaying = false;
       } else {
+        // Ensure fallback audio is silent
+        if (this.audioFallback) {
+          this.audioFallback.pause();
+        }
         this.ytPlayer.playVideo();
         this.state.isPlaying = true;
       }
