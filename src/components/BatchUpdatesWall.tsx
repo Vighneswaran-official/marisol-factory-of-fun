@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { ScreenState } from '../types/game';
 import { batchWallService, type InstagramPost, type GroupChatMessage } from '../services/batchWallState';
 import { authService, type StudentProfile } from '../services/authService';
@@ -10,7 +10,8 @@ import {
   MessageCircle, MessagesSquare, Pin, Camera, Paperclip, Smile,
   Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check,
   Reply, BarChart2, AtSign, Video, Phone, MoreVertical, Mic,
-  Trash2, ChevronDown, Ban, Globe, Lock, Clock
+  Trash2, ChevronDown, Ban, Globe, Lock, Clock,
+  Search, Filter, Users, ArrowLeft
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { BaseModal } from './BaseModal';
@@ -249,6 +250,36 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const [selectedMoodEmoji, setSelectedMoodEmoji] = useState(currentUser?.currentMoodEmoji || '🌸');
   const [bulletinText, setBulletinText] = useState('');
 
+  // Data state
+  const allBulletinPosts = batchWallService.getPosts();
+  const chatMessages = batchWallService.getChatMessages();
+  const photoPosts = batchWallService.getInstagramPosts();
+  const network = batchWallService.getNetworkStatus();
+  const classmates = authService.getClassmates();
+
+  // Chat Subtabs & Direct 1-on-1 Chatting State
+  const [chatSubTab, setChatSubTab] = useState<'lounge' | 'direct' | 'users'>('lounge');
+  const [selectedDirectUser, setSelectedDirectUser] = useState<StudentProfile | null>(null);
+  const [directInput, setDirectInput] = useState('');
+  const [directImageAttachment, setDirectImageAttachment] = useState<string | null>(null);
+  const [showDirectEmojiPicker, setShowDirectEmojiPicker] = useState(false);
+  const [isSendingDirect, setIsSendingDirect] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const directChatBottomRef = useRef<HTMLDivElement | null>(null);
+  const directFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Matched Message Table & Session Inspection State
+  const [chatFilterMode, setChatFilterMode] = useState<'all' | 'my_messages'>('all');
+
+  // Compute matched session user data by querying the message table
+  const userMatchedSessionData = useMemo(() => {
+    return batchWallService.getUserMatchedChatData({
+      id: currentUser?.id,
+      email: currentUser?.email,
+      name: currentUser?.name || profileNameInput || studentName
+    });
+  }, [currentUser, profileNameInput, studentName, chatMessages]);
+
   useEffect(() => {
     const unsubWall = batchWallService.subscribe(() => setTick(t => t + 1));
     const unsubAuth = authService.subscribe(() => setTick(t => t + 1));
@@ -260,7 +291,11 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   useEffect(() => {
     if (activeMode === 'chat') {
-      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      if (chatSubTab === 'lounge') {
+        chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      } else if (chatSubTab === 'direct' && selectedDirectUser) {
+        directChatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
       const userToMark = currentUser ? {
         userId: currentUser.id,
         userName: currentUser.name,
@@ -273,7 +308,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       };
       batchWallService.markAllMessagesAsSeen(userToMark);
     }
-  }, [activeMode, currentUser]);
+  }, [activeMode, chatSubTab, selectedDirectUser, currentUser]);
 
   useEffect(() => {
     if (currentUser?.name) {
@@ -293,11 +328,65 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     }
   }, [currentUser]);
 
-  const allBulletinPosts = batchWallService.getPosts();
-  const chatMessages = batchWallService.getChatMessages();
-  const photoPosts = batchWallService.getInstagramPosts();
-  const network = batchWallService.getNetworkStatus();
-  const classmates = authService.getClassmates();
+  // Send Direct Message (1-on-1 between any two users)
+  const handleSendDirectMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authService.isUserAllowedToChat()) {
+      setShowGoogleModal(true);
+      setShareToast('Please sign in with your Mail ID to chat! 🔒');
+      setTimeout(() => setShareToast(null), 3000);
+      return;
+    }
+    if (!selectedDirectUser) return;
+    const text = directInput.trim();
+    if (!text && !directImageAttachment) return;
+
+    setIsSendingDirect(true);
+    audioEngine.playSfx('fanfare');
+
+    const myId = currentUser?.id || `user_${player.nickname || 'Student'}`;
+    const myName = currentUser?.name || profileNameInput || 'Batch 41 Student';
+    const myEmail = currentUser?.email;
+    const myAvatar = currentUser?.avatarUrl || profileAvatarInput;
+
+    await batchWallService.sendDirectMessage({
+      senderId: myId,
+      senderName: myName,
+      senderEmail: myEmail,
+      senderAvatarUrl: myAvatar,
+      senderIsNewUser: currentUser?.isNewUser ?? true,
+      senderUserTag: currentUser?.userTag || 'New User',
+      recipientId: selectedDirectUser.id,
+      recipientName: selectedDirectUser.name,
+      recipientEmail: selectedDirectUser.email,
+      recipientAvatarUrl: selectedDirectUser.avatarUrl,
+      text: text || (directImageAttachment ? '📷 Photo' : ''),
+      imageUrl: directImageAttachment || undefined
+    });
+
+    setDirectInput('');
+    setDirectImageAttachment(null);
+    setShowDirectEmojiPicker(false);
+    setIsSendingDirect(false);
+
+    setTimeout(() => {
+      directChatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  // Direct Chat Image Upload
+  const handleDirectImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImageFile(file, 960, 0.75);
+      setDirectImageAttachment(compressed);
+      audioEngine.playSfx('pop');
+    } catch (err) {
+      console.warn('Direct message image error:', err);
+    }
+    if (directFileInputRef.current) directFileInputRef.current.value = '';
+  };
 
   // Chat Image Upload
   const handleChatImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -783,7 +872,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           </div>
         )}
 
-        {/* 1. MULTI-PERSON ACTIVE USER BAR */}
+        {/* 1. MULTI-PERSON ACTIVE USER BAR WITH SESSION USER DATA & MESSAGE TABLE MATCH */}
         <div className="bg-white border border-stone-200/90 rounded-2xl p-2.5 px-3.5 shadow-2xs flex items-center justify-between gap-2.5 flex-wrap">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="relative w-8 h-8 rounded-full overflow-hidden border-2 border-rose-400 shrink-0 bg-rose-50 shadow-2xs">
@@ -804,13 +893,53 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   </span>
                 )}
               </div>
-              <h4 className="font-display font-black text-xs sm:text-sm text-stone-900 truncate">
-                {currentUser?.name || profileNameInput || 'Batch 41 Member'}
-              </h4>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h4 className="font-display font-black text-xs sm:text-sm text-stone-900 truncate">
+                  {currentUser?.name || profileNameInput || 'Batch 41 Member'}
+                </h4>
+                {/* Session User ID Tag */}
+                <span 
+                  className="font-mono text-[9px] sm:text-[10px] bg-stone-100 text-stone-700 px-1.5 py-0.2 rounded border border-stone-300 font-bold"
+                  title="Current Session User ID"
+                >
+                  UID: {userMatchedSessionData.userId}
+                </span>
+              </div>
             </div>
           </div>
 
+          {/* Current Message for User Snippet (Quick Jump) */}
+          {userMatchedSessionData.currentMessage ? (
+            <button
+              type="button"
+              onClick={() => handleJumpToMessage(userMatchedSessionData.currentMessage!.id)}
+              className="hidden md:flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-900 px-2.5 py-1 rounded-xl text-xs font-medium cursor-pointer transition-colors max-w-[240px] lg:max-w-[320px] truncate"
+              title={`Current message: "${userMatchedSessionData.currentMessage.text}". Click to jump.`}
+            >
+              <span className="font-bold text-rose-700 text-[10px] uppercase shrink-0">Current Msg:</span>
+              <span className="truncate italic">"{userMatchedSessionData.currentMessage.text.slice(0, 30)}..."</span>
+              <span className="text-rose-600 text-[10px] font-bold underline shrink-0">Jump ↗</span>
+            </button>
+          ) : (
+            <span className="hidden md:inline text-[11px] text-stone-400 italic">No messages sent in table yet</span>
+          )}
+
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Direct Chats Quick Button */}
+            <button
+              type="button"
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setActiveMode('chat');
+                setChatSubTab('direct');
+              }}
+              className="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-display font-bold flex items-center gap-1 transition-colors cursor-pointer border border-rose-200"
+              title="Chat 1-on-1 with each other user"
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-rose-600" />
+              <span>Direct Chats</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setShowProfileModal(true)}
@@ -820,13 +949,13 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               <UserCheck className="w-3.5 h-3.5 text-rose-500" />
               <span>Switch Profile</span>
             </button>
-            {!authService.isGoogleAuthenticated() && (
+            {!authService.isUserAllowedToChat() && (
               <button
                 type="button"
                 onClick={() => setShowGoogleModal(true)}
                 className="py-1.5 px-3 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white rounded-xl text-xs font-display font-black flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
               >
-                <span>Google Sign In</span>
+                <span>Sign In With Mail</span>
               </button>
             )}
           </div>
@@ -880,12 +1009,100 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           </button>
         </div>
 
-        {/* ==================== 1. BATCH LOUNGE CHAT ==================== */}
+        {/* ==================== 1. BATCH LOUNGE & DIRECT CHAT ==================== */}
         {activeMode === 'chat' && (
           <div className="bg-white border border-stone-200/90 rounded-3xl overflow-hidden shadow-xs flex flex-col h-[580px] sm:h-[650px] lg:h-[700px] animate-fade-in relative">
             
-            {/* Clean Modern Lounge Top Bar */}
-            <div className="bg-white border-b border-stone-200/80 text-stone-900 p-2.5 px-4 flex items-center justify-between shrink-0 shadow-2xs">
+            {/* 3-Way Subtab Selector: Batch Lounge | Direct Chats (1-on-1) | All Users */}
+            <div className="bg-stone-100/90 border-b border-stone-200/90 p-1.5 px-3 flex items-center justify-between gap-2 shrink-0 flex-wrap">
+              <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-stone-200/90 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setChatSubTab('lounge');
+                  }}
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg font-display font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                    chatSubTab === 'lounge'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+                  }`}
+                >
+                  <MessagesSquare className="w-3.5 h-3.5" />
+                  <span>Batch Lounge</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    chatSubTab === 'lounge' ? 'bg-rose-800 text-white' : 'bg-stone-100 text-stone-600'
+                  }`}>
+                    {chatMessages.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setChatSubTab('direct');
+                  }}
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg font-display font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                    chatSubTab === 'direct'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+                  }`}
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Direct Chats (1-on-1)</span>
+                  {selectedDirectUser && (
+                    <span className="text-[10px] bg-rose-200 text-rose-950 px-1.5 py-0.2 rounded-full font-bold truncate max-w-[80px]">
+                      {selectedDirectUser.name.split(' ')[0]}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setChatSubTab('users');
+                  }}
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg font-display font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                    chatSubTab === 'users'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>All Users</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    chatSubTab === 'users' ? 'bg-rose-800 text-white' : 'bg-stone-100 text-stone-600'
+                  }`}>
+                    {classmates.length}
+                  </span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {currentUser ? (
+                  <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-2xs">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
+                    <span>Allowed to Chat ✓</span>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowGoogleModal(true)}
+                    className="inline-flex items-center gap-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-[10px] font-display font-bold px-2 py-0.5 rounded-full cursor-pointer transition-colors"
+                  >
+                    <span>Sign In With Mail</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* A. BATCH LOUNGE (GROUP CHAT) */}
+            {chatSubTab === 'lounge' && (
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                {/* Clean Modern Lounge Top Bar */}
+                <div className="bg-white border-b border-stone-200/80 text-stone-900 p-2.5 px-4 flex items-center justify-between shrink-0 shadow-2xs">
               <div 
                 onClick={() => setShowProfileModal(true)}
                 className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-85 transition-opacity"
@@ -904,6 +1121,45 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                     Kritika Gupta 👑, Priyanshu, Ananya, You
                   </p>
                 </div>
+              </div>
+
+              {/* Chat Message Table Filter (All vs My Messages Matched) */}
+              <div className="flex items-center gap-1 bg-stone-100 p-0.5 rounded-xl border border-stone-200 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setChatFilterMode('all');
+                  }}
+                  className={`px-2 py-1 rounded-lg font-display font-bold text-[10px] sm:text-[11px] transition-colors cursor-pointer ${
+                    chatFilterMode === 'all'
+                      ? 'bg-white text-stone-900 shadow-2xs'
+                      : 'text-stone-500 hover:text-stone-800'
+                  }`}
+                  title="Show all messages in the chat lounge"
+                >
+                  All ({chatMessages.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setChatFilterMode('my_messages');
+                  }}
+                  className={`px-2 py-1 rounded-lg font-display font-bold text-[10px] sm:text-[11px] transition-colors cursor-pointer flex items-center gap-1 ${
+                    chatFilterMode === 'my_messages'
+                      ? 'bg-purple-600 text-white shadow-2xs'
+                      : 'text-stone-500 hover:text-stone-800'
+                  }`}
+                  title={`Show only messages matching your session User ID: ${userMatchedSessionData.userId}`}
+                >
+                  <span>My Messages</span>
+                  <span className={`text-[9px] px-1 rounded-full ${
+                    chatFilterMode === 'my_messages' ? 'bg-purple-800 text-white' : 'bg-stone-200 text-stone-700'
+                  }`}>
+                    {userMatchedSessionData.totalMatched}
+                  </span>
+                </button>
               </div>
 
               {/* Action Icons */}
@@ -1007,8 +1263,46 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
             {/* Clean Stream Area (Pure, Clean Minimal Surface) */}
             <div className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin bg-[#FAFAFA]">
+              {/* Active Filter Notice if in my_messages mode */}
+              {chatFilterMode === 'my_messages' && (
+                <div className="bg-purple-50 border border-purple-200 text-purple-900 px-3 py-2 rounded-2xl flex items-center justify-between text-xs mb-2 shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                    <span>Showing <strong>{userMatchedSessionData.totalMatched}</strong> message(s) matched for User ID: <code className="bg-white px-1.5 py-0.5 rounded border border-purple-200 font-mono text-[11px] font-bold text-purple-950">{userMatchedSessionData.userId}</code></span>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setChatFilterMode('all')}
+                    className="text-xs font-bold text-purple-700 hover:text-purple-950 underline cursor-pointer shrink-0 ml-2"
+                  >
+                    Show All
+                  </button>
+                </div>
+              )}
+
+              {/* Empty state if my_messages has 0 items */}
+              {chatFilterMode === 'my_messages' && userMatchedSessionData.matchedMessages.length === 0 && (
+                <div className="p-8 text-center space-y-2.5 my-8">
+                  <div className="w-12 h-12 rounded-full bg-purple-50 text-purple-600 mx-auto flex items-center justify-center font-bold text-xl border border-purple-200">
+                    💬
+                  </div>
+                  <h4 className="font-display font-black text-sm text-stone-800">No Messages Matched in Table</h4>
+                  <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                    No messages found matching your session User ID: <code className="font-mono bg-stone-100 px-1 py-0.5 rounded">{userMatchedSessionData.userId}</code>.
+                    Send a message below and it will immediately match!
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setChatFilterMode('all')}
+                    className="mt-2 py-1.5 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    View All Messages
+                  </button>
+                </div>
+              )}
+
               {/* Date Separators & Chat Stream */}
-              {chatMessages.map((msg, index) => {
+              {(chatFilterMode === 'my_messages' ? userMatchedSessionData.matchedMessages : chatMessages).map((msg, index) => {
                 const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
                 const msgSenderName = (msg.senderName || '').replace(' 👑', '').trim().toLowerCase();
                 const isCurrentUser = Boolean(
@@ -1075,7 +1369,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
                           {/* 1. Distinct Bold Sender Name & Action Dropdown Trigger */}
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                               <span 
                                 onClick={() => {
                                   setChatInput((prev: string) => `${prev ? prev + ' ' : ''}@${msg.senderName} `);
@@ -1088,6 +1382,30 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                               {msg.isKritika && (
                                 <span className={`${isCurrentUser ? 'bg-white text-rose-600' : 'bg-rose-500 text-white'} font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0`}>
                                   👑 QUEEN
+                                </span>
+                              )}
+                              {msg.senderIsNewUser && (
+                                <span className={`${isCurrentUser ? 'bg-white/20 text-white border border-white/30' : 'bg-gradient-to-r from-rose-500 to-pink-600 text-white'} font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0 flex items-center gap-0.5`}>
+                                  <span>✨</span>
+                                  <span>NEW USER</span>
+                                </span>
+                              )}
+                              {/* Matched User ID badge on bubble */}
+                              {msg.senderId && (
+                                <span 
+                                  className={`font-mono text-[8px] px-1 py-0.2 rounded border font-medium ${
+                                    isCurrentUser
+                                      ? 'bg-white/20 text-white border-white/30'
+                                      : 'bg-stone-100 text-stone-500 border-stone-200'
+                                  }`}
+                                  title={`Message sender User ID: ${msg.senderId}`}
+                                >
+                                  UID: {msg.senderId}
+                                </span>
+                              )}
+                              {isCurrentUser && (
+                                <span className="bg-white/25 text-white font-mono text-[7px] font-black uppercase px-1 py-0.2 rounded shadow-2xs shrink-0">
+                                  MATCHED
                                 </span>
                               )}
                             </div>
@@ -1109,6 +1427,36 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                               {/* WhatsApp Message Action Dropdown */}
                               {activeActionMenuMsgId === msg.id && (
                                 <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-stone-200 py-1 z-30 animate-scale-up text-xs font-medium">
+                                  {/* Direct 1-on-1 Chat option */}
+                                  {!isCurrentUser && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        audioEngine.playSfx('click');
+                                        const partner = classmates.find(c => c.name.toLowerCase() === msg.senderName.toLowerCase().replace(' 👑', '')) || {
+                                          id: msg.senderId || `user_${msg.senderName.toLowerCase().replace(/\s+/g, '_')}`,
+                                          name: msg.senderName,
+                                          email: msg.senderEmail || '',
+                                          avatarUrl: msg.avatarUrl || '/marisol/avatars/01_brighter_ideas.png',
+                                          batch: 'MLP41PT',
+                                          currentMood: 'Radiant Sunshine 🌸',
+                                          currentMoodEmoji: '🌸',
+                                          statusNote: 'Active in Factory of Fun ♡',
+                                          lastUpdated: 'Just now',
+                                          isGoogleVerified: true,
+                                          isNewUser: msg.senderIsNewUser
+                                        };
+                                        setSelectedDirectUser(partner);
+                                        setChatSubTab('direct');
+                                        setActiveActionMenuMsgId(null);
+                                      }}
+                                      className="w-full px-3 py-1.5 text-left hover:bg-rose-50 flex items-center gap-2 text-rose-700 cursor-pointer font-bold border-b border-stone-100"
+                                    >
+                                      <MessageCircle className="w-3.5 h-3.5 text-rose-600" />
+                                      <span>Chat 1-on-1</span>
+                                    </button>
+                                  )}
+
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -1455,8 +1803,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               </div>
             )}
 
-            {/* Bottom Input Bar: Google Auth Lock Banner if not signed in with Google */}
-            {!authService.isGoogleAuthenticated() ? (
+            {/* Bottom Input Bar: Mail Auth Lock Banner if not signed in */}
+            {!authService.isUserAllowedToChat() ? (
               <div className="p-3 px-4 bg-gradient-to-r from-stone-900 via-rose-950 to-stone-900 border-t border-rose-500/30 flex items-center justify-between gap-3 text-white shrink-0 shadow-md">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-9 h-9 rounded-full bg-rose-500/20 border border-rose-400/40 flex items-center justify-center shrink-0 animate-pulse">
@@ -1464,11 +1812,11 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   </div>
                   <div className="min-w-0 text-left">
                     <h4 className="font-display font-black text-xs text-rose-200 truncate flex items-center gap-1.5">
-                      <span>Google Account Required to Chat</span>
+                      <span>Sign In with Mail ID Required to Chat</span>
                       <span className="bg-rose-500/30 text-rose-300 text-[9px] px-1.5 py-0.2 rounded-full border border-rose-400/40 font-bold uppercase">Locked</span>
                     </h4>
                     <p className="text-[10px] text-stone-300 truncate font-medium">
-                      Only users logged in with a Google account can send messages, reply & vote in Batch 41 lounge
+                      All new users signed in with their mail ID can send messages, reply & chat with each other user
                     </p>
                   </div>
                 </div>
@@ -1477,11 +1825,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   onClick={() => setShowGoogleModal(true)}
                   className="px-3.5 py-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white rounded-xl text-xs font-display font-black uppercase flex items-center gap-1.5 shadow-sm transition-all shrink-0 cursor-pointer active:scale-95"
                 >
-                  <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-                    <path fill="#ffffff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                    <path fill="#ffffff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  </svg>
-                  <span>Sign In with Google</span>
+                  <span>Sign In with Mail ID</span>
                 </button>
               </div>
             ) : (
@@ -1537,9 +1881,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   <button
                     type="button"
                     onClick={() => {
-                      if (!authService.isGoogleAuthenticated()) {
+                      if (!authService.isUserAllowedToChat()) {
                         setShowGoogleModal(true);
-                        setShareToast('Please sign in with a Google account to send photos! 🔒');
+                        setShareToast('Please sign in with your Mail ID to send photos! 🔒');
                         setTimeout(() => setShareToast(null), 3000);
                         return;
                       }
@@ -1555,9 +1899,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   <button
                     type="button"
                     onClick={() => {
-                      if (!authService.isGoogleAuthenticated()) {
+                      if (!authService.isUserAllowedToChat()) {
                         setShowGoogleModal(true);
-                        setShareToast('Please sign in with a Google account to send photos! 🔒');
+                        setShareToast('Please sign in with your Mail ID to send photos! 🔒');
                         setTimeout(() => setShareToast(null), 3000);
                         return;
                       }
@@ -1594,6 +1938,582 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
             )}
           </div>
         )}
+
+        {/* B. DIRECT 1-ON-1 CHAT */}
+        {chatSubTab === 'direct' && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            {!selectedDirectUser ? (
+              /* 1. Direct Conversations & Member Picker */
+              <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-4 space-y-4 bg-stone-50/50">
+                <div className="bg-white border border-stone-200/90 rounded-2xl p-4 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-display font-black text-sm text-stone-900 flex items-center gap-2">
+                        <MessageCircle className="w-4 h-4 text-rose-500" />
+                        <span>1-on-1 Direct Messaging</span>
+                      </h3>
+                      <p className="text-xs text-stone-500">
+                        Select any new user or classmate below to start a private real-time chat
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setChatSubTab('users')}
+                      className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-display font-bold transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span>View All Users</span>
+                    </button>
+                  </div>
+
+                  {/* Search Users Input */}
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      placeholder="Search users by name or mail ID..."
+                      className="w-full pl-9 pr-3 py-2 bg-stone-100/80 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-300 focus:bg-white transition-all text-stone-900"
+                    />
+                  </div>
+                </div>
+
+                {/* Active Conversations List */}
+                {(() => {
+                  const myId = currentUser?.id || `user_${player.nickname || 'Student'}`;
+                  const conversations = batchWallService.getAllDirectConversations(myId, currentUser?.email);
+
+                  if (conversations.length === 0) return null;
+
+                  return (
+                    <div className="bg-white border border-stone-200/90 rounded-2xl p-3 shadow-2xs space-y-2">
+                      <span className="text-[11px] font-display font-black text-stone-500 uppercase tracking-wider px-1">
+                        Recent Conversations
+                      </span>
+                      <div className="divide-y divide-stone-100">
+                        {conversations.map(conv => {
+                          const partnerProfile = classmates.find(c => c.id === conv.partnerId) || {
+                            id: conv.partnerId,
+                            name: conv.partnerName,
+                            email: conv.partnerEmail || '',
+                            avatarUrl: conv.partnerAvatarUrl || '/marisol/avatars/01_brighter_ideas.png',
+                            batch: 'MLP41PT',
+                            currentMood: 'Radiant Sunshine 🌸',
+                            currentMoodEmoji: '🌸',
+                            statusNote: 'Active in Factory of Fun ♡',
+                            lastUpdated: 'Recently',
+                            isGoogleVerified: true,
+                            isNewUser: conv.partnerIsNewUser
+                          };
+
+                          return (
+                            <div
+                              key={conv.conversationId}
+                              onClick={() => {
+                                audioEngine.playSfx('click');
+                                setSelectedDirectUser(partnerProfile);
+                                batchWallService.markDirectMessagesAsRead(conv.conversationId, myId);
+                              }}
+                              className="p-2.5 rounded-xl hover:bg-rose-50/60 transition-colors flex items-center justify-between gap-3 cursor-pointer group"
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-full overflow-hidden border border-stone-200 shrink-0">
+                                  <img
+                                    src={conv.partnerAvatarUrl || '/marisol/avatars/01_brighter_ideas.png'}
+                                    alt={conv.partnerName}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <h4 className="font-display font-bold text-xs text-stone-900 group-hover:text-rose-600 transition-colors truncate">
+                                      {conv.partnerName}
+                                    </h4>
+                                    {conv.partnerIsNewUser && (
+                                      <span className="bg-gradient-to-r from-amber-400 to-rose-400 text-white font-mono text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0">
+                                        NEW USER
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-stone-500 truncate max-w-xs sm:max-w-md">
+                                    {conv.lastMessage.text || 'Photo attachment'}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col items-end gap-1 shrink-0">
+                                <span className="text-[10px] text-stone-400 font-medium">
+                                  {conv.lastMessage.timestamp}
+                                </span>
+                                {conv.unreadCount > 0 && (
+                                  <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                                    {conv.unreadCount}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* All Classmates & Users Directory Quick List */}
+                <div className="bg-white border border-stone-200/90 rounded-2xl p-3 shadow-2xs space-y-2">
+                  <span className="text-[11px] font-display font-black text-stone-500 uppercase tracking-wider px-1">
+                    Select a User to Chat With
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {classmates
+                      .filter(cm => {
+                        if (!userSearchQuery) return true;
+                        const q = userSearchQuery.toLowerCase();
+                        return cm.name.toLowerCase().includes(q) || (cm.email && cm.email.toLowerCase().includes(q));
+                      })
+                      .map(cm => {
+                        const isMe = (currentUser?.id && cm.id === currentUser.id) || (currentUser?.email && cm.email && currentUser.email === cm.email);
+
+                        return (
+                          <div
+                            key={cm.id}
+                            className={`p-2.5 rounded-xl border border-stone-200/90 hover:border-rose-300 bg-stone-50/60 hover:bg-rose-50/40 transition-all flex items-center justify-between gap-2.5 ${isMe ? 'opacity-75' : ''}`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="relative shrink-0">
+                                <div className="w-9 h-9 rounded-full overflow-hidden border border-stone-200">
+                                  <img src={cm.avatarUrl || '/marisol/avatars/01_brighter_ideas.png'} alt={cm.name} className="w-full h-full object-cover" />
+                                </div>
+                                <span className="absolute -bottom-0.5 -right-0.5 text-[10px]">
+                                  {cm.currentMoodEmoji || '🌸'}
+                                </span>
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1">
+                                  <span className="font-display font-bold text-xs text-stone-900 truncate">
+                                    {cm.name}
+                                  </span>
+                                  {(cm.isNewUser || cm.userTag === 'New User') && (
+                                    <span className="bg-gradient-to-r from-amber-400 to-rose-400 text-white font-mono text-[7px] font-black uppercase px-1 py-0.2 rounded-full shrink-0">
+                                      NEW
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-stone-500 truncate">
+                                  {cm.email || cm.statusNote || 'Batch Member'}
+                                </p>
+                              </div>
+                            </div>
+
+                            {isMe ? (
+                              <span className="text-[10px] font-bold text-stone-400 px-2 py-1 bg-stone-100 rounded-lg shrink-0">
+                                You
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  audioEngine.playSfx('click');
+                                  setSelectedDirectUser(cm);
+                                }}
+                                className="px-2.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-display font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer shrink-0 active:scale-95"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                                <span>Chat</span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* 2. Direct 1-on-1 Conversation View with Selected User */
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                {/* Direct Chat Header */}
+                <div className="bg-white border-b border-stone-200/80 p-2.5 px-3 flex items-center justify-between gap-2 shrink-0 shadow-2xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        audioEngine.playSfx('click');
+                        setSelectedDirectUser(null);
+                      }}
+                      className="p-1 hover:bg-stone-100 rounded-full text-stone-600 cursor-pointer transition-colors"
+                      title="Back to all direct chats"
+                    >
+                      <ArrowLeft className="w-5 h-5" />
+                    </button>
+
+                    <div className="relative shrink-0">
+                      <div className="w-9 h-9 rounded-full overflow-hidden border border-stone-200">
+                        <img
+                          src={selectedDirectUser.avatarUrl || '/marisol/avatars/01_brighter_ideas.png'}
+                          alt={selectedDirectUser.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border border-white rounded-full" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-display font-black text-xs sm:text-sm text-stone-900 truncate">
+                          {selectedDirectUser.name}
+                        </h3>
+                        {(selectedDirectUser.isNewUser || selectedDirectUser.userTag === 'New User') && (
+                          <span className="bg-gradient-to-r from-amber-400 to-rose-400 text-white font-mono text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0">
+                            NEW USER
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-stone-500 truncate">
+                        {selectedDirectUser.email || selectedDirectUser.statusNote || 'Direct Chat'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 text-stone-600">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        audioEngine.playSfx('pop');
+                        setShareToast(`Direct video connection ready with ${selectedDirectUser.name.split(' ')[0]} 📹`);
+                        setTimeout(() => setShareToast(null), 2500);
+                      }}
+                      className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
+                      title="Video Call"
+                    >
+                      <Video className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        audioEngine.playSfx('pop');
+                        setShareToast(`Voice line ready with ${selectedDirectUser.name.split(' ')[0]} 📞`);
+                        setTimeout(() => setShareToast(null), 2500);
+                      }}
+                      className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
+                      title="Voice Call"
+                    >
+                      <Phone className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Direct Messages Stream */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin bg-[#FAFAFA]">
+                  {(() => {
+                    const myId = currentUser?.id || `user_${player.nickname || 'Student'}`;
+                    const dms = batchWallService.getDirectMessages(
+                      myId,
+                      selectedDirectUser.id,
+                      currentUser?.email,
+                      selectedDirectUser.email
+                    );
+
+                    if (dms.length === 0) {
+                      return (
+                        <div className="text-center py-12 space-y-2 text-stone-500">
+                          <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center mx-auto text-xl border border-rose-100 shadow-2xs">
+                            💬
+                          </div>
+                          <h4 className="font-display font-bold text-xs text-stone-800">
+                            Start of Direct Chat with {selectedDirectUser.name}
+                          </h4>
+                          <p className="text-[11px] max-w-xs mx-auto text-stone-500">
+                            Send a cheerful hello or share a photo below. Messages sync in real-time!
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return dms.map(msg => {
+                      const isSentByMe = (msg.senderId.toLowerCase() === myId.toLowerCase()) ||
+                        (Boolean(currentUser?.email) && msg.senderEmail?.toLowerCase() === currentUser?.email.toLowerCase());
+
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex items-start gap-1.5 ${isSentByMe ? 'justify-end' : 'justify-start'}`}
+                        >
+                          {!isSentByMe && (
+                            <div className="w-7 h-7 rounded-full overflow-hidden border border-stone-200 shrink-0 mt-0.5">
+                              <img
+                                src={msg.senderAvatarUrl || '/marisol/avatars/01_brighter_ideas.png'}
+                                alt={msg.senderName}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          )}
+
+                          <div className="max-w-[80%] space-y-1">
+                            <div
+                              className={`p-2.5 px-3 rounded-2xl text-xs sm:text-sm leading-relaxed relative ${
+                                isSentByMe
+                                  ? 'bg-rose-500 text-white rounded-tr-xs shadow-xs'
+                                  : 'bg-white text-stone-900 rounded-tl-xs border border-stone-200 shadow-2xs'
+                              }`}
+                            >
+                              {msg.imageUrl && (
+                                <div className="mb-2 rounded-xl overflow-hidden border border-black/10">
+                                  <img
+                                    src={msg.imageUrl}
+                                    alt="Attachment"
+                                    onClick={() => setLightboxImage({ url: msg.imageUrl!, caption: msg.text })}
+                                    className="w-full max-h-56 object-cover cursor-pointer hover:scale-101 transition-transform"
+                                  />
+                                </div>
+                              )}
+                              <p className="break-words font-sans">{msg.text}</p>
+                              <div className={`flex items-center justify-end gap-1 mt-1 text-[9px] ${isSentByMe ? 'text-rose-100' : 'text-stone-400'}`}>
+                                <span>{msg.timestamp}</span>
+                                {isSentByMe && <CheckCheck className="w-3 h-3 text-rose-200" />}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                  <div ref={directChatBottomRef} />
+                </div>
+
+                {/* Direct Chat Attachment Preview */}
+                {directImageAttachment && (
+                  <div className="bg-stone-100 p-2 px-3 border-t border-stone-200 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 rounded-lg overflow-hidden border border-stone-300 shadow-2xs">
+                        <img src={directImageAttachment} alt="Preview" className="w-full h-full object-cover" />
+                      </div>
+                      <div>
+                        <span className="font-display font-bold text-xs text-stone-800 block">Photo attached 📸</span>
+                        <span className="text-[10px] text-stone-500">Ready to send directly</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setDirectImageAttachment(null)}
+                      className="p-1 hover:bg-stone-200 rounded-full text-stone-600 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Direct Chat Emoji Tray */}
+                {showDirectEmojiPicker && (
+                  <div className="bg-white border-t border-stone-200 p-2 px-3 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0 shadow-inner animate-fade-in">
+                    <span className="text-[10px] font-bold text-stone-400 shrink-0">Emojis:</span>
+                    {COMMON_EMOJIS.map(emoji => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => {
+                          setDirectInput(prev => prev + emoji);
+                          audioEngine.playSfx('pop');
+                        }}
+                        className="w-7 h-7 rounded-xl hover:bg-rose-50 flex items-center justify-center text-sm transition-transform active:scale-90 cursor-pointer shrink-0"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Direct Chat Input Bar */}
+                {!authService.isUserAllowedToChat() ? (
+                  <div className="p-3 px-4 bg-gradient-to-r from-stone-900 via-rose-950 to-stone-900 border-t border-rose-500/30 flex items-center justify-between gap-3 text-white shrink-0 shadow-md">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Lock className="w-4.5 h-4.5 text-rose-300 shrink-0" />
+                      <div className="min-w-0 text-left">
+                        <h4 className="font-display font-black text-xs text-rose-200 truncate">
+                          Sign In with Mail ID Required
+                        </h4>
+                        <p className="text-[10px] text-stone-300 truncate">
+                          Sign in with your email to chat 1-on-1 with {selectedDirectUser.name}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowGoogleModal(true)}
+                      className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-display font-bold transition-all cursor-pointer shrink-0 active:scale-95"
+                    >
+                      Sign In
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSendDirectMessage} className="p-2.5 px-3 flex items-center gap-2 shrink-0 bg-white border-t border-stone-200/80">
+                    <div className="flex-1 bg-stone-50 focus-within:bg-white focus-within:border-rose-300 rounded-full flex items-center px-2 py-1 shadow-2xs border border-stone-200 transition-all">
+                      <button
+                        type="button"
+                        onClick={() => setShowDirectEmojiPicker(!showDirectEmojiPicker)}
+                        className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
+                        title="Smileys"
+                      >
+                        <Smile className="w-5 h-5" />
+                      </button>
+
+                      <input
+                        type="text"
+                        value={directInput}
+                        onChange={(e) => setDirectInput(e.target.value)}
+                        placeholder={`Message ${selectedDirectUser.name}...`}
+                        className="flex-1 px-2.5 py-1 text-xs sm:text-sm outline-none bg-transparent text-stone-900"
+                      />
+
+                      <input
+                        ref={directFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleDirectImageSelect}
+                        className="hidden"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => directFileInputRef.current?.click()}
+                        className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
+                        title="Attach Photo"
+                      >
+                        <Paperclip className="w-4.5 h-4.5" />
+                      </button>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSendingDirect || (!directInput.trim() && !directImageAttachment)}
+                      className="w-10 h-10 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-full transition-all shadow-sm cursor-pointer shrink-0 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Send Direct Message"
+                    >
+                      <Send className="w-4.5 h-4.5" />
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* C. ALL USERS DIRECTORY */}
+        {chatSubTab === 'users' && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-4 space-y-4 bg-stone-50/50">
+            <div className="bg-white border border-stone-200/90 rounded-2xl p-4 shadow-2xs space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-display font-black text-sm text-stone-900 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-rose-500" />
+                    <span>All Community Members & New Users ({classmates.length})</span>
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Anyone who signs in with their mail ID is called as a New User and is allowed to chat with everyone!
+                  </p>
+                </div>
+              </div>
+
+              {/* Search Directory */}
+              <div className="relative pt-1">
+                <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  placeholder="Search community users by name or email..."
+                  className="w-full pl-9 pr-3 py-2 bg-stone-100/80 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-300 focus:bg-white transition-all text-stone-900"
+                />
+              </div>
+            </div>
+
+            {/* Users Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {classmates
+                .filter(cm => {
+                  if (!userSearchQuery) return true;
+                  const q = userSearchQuery.toLowerCase();
+                  return cm.name.toLowerCase().includes(q) || (cm.email && cm.email.toLowerCase().includes(q));
+                })
+                .map(cm => {
+                  const isMe = (currentUser?.id && cm.id === currentUser.id) || (currentUser?.email && cm.email && currentUser.email === cm.email);
+                  const isKritika = cm.name.toLowerCase().includes('kritika');
+                  const isNew = cm.isNewUser || cm.userTag === 'New User' || cm.loginMethod === 'email';
+
+                  return (
+                    <div
+                      key={cm.id}
+                      className="bg-white border border-stone-200/90 rounded-2xl p-3.5 shadow-2xs flex flex-col justify-between gap-3 hover:border-rose-300 transition-all group"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="relative shrink-0">
+                          <div className={`w-12 h-12 rounded-full overflow-hidden border-2 ${isKritika ? 'border-amber-400 ring-2 ring-pink-300' : 'border-stone-200'}`}>
+                            <img src={cm.avatarUrl || '/marisol/avatars/01_brighter_ideas.png'} alt={cm.name} className="w-full h-full object-cover" />
+                          </div>
+                          <span className="absolute -bottom-1 -right-1 text-xs bg-white rounded-full border border-stone-200 p-0.5 shadow-2xs">
+                            {cm.currentMoodEmoji || '🌸'}
+                          </span>
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className="font-display font-black text-xs text-stone-900 truncate">
+                              {cm.name}
+                            </h4>
+                            {isNew && (
+                              <span className="bg-gradient-to-r from-amber-400 to-rose-400 text-white font-mono text-[8px] font-black uppercase px-2 py-0.2 rounded-full shadow-2xs shrink-0">
+                                ✨ NEW USER
+                              </span>
+                            )}
+                            {isMe && (
+                              <span className="bg-stone-900 text-white font-mono text-[7px] font-black uppercase px-1.5 py-0.2 rounded shadow-2xs shrink-0">
+                                YOU
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-[11px] text-stone-500 font-mono truncate mt-0.5">
+                            {cm.email || 'Registered Member'}
+                          </p>
+
+                          <p className="text-[10px] text-stone-600 italic truncate mt-1">
+                            "{cm.statusNote || cm.currentMood || 'Comfort & Joy'}"
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-stone-100 flex items-center justify-between gap-2">
+                        <span className="text-[10px] text-stone-400 font-medium">
+                          Batch: {cm.batch || 'MLP41PT'}
+                        </span>
+
+                        {isMe ? (
+                          <span className="text-xs font-bold text-stone-400 px-3 py-1 bg-stone-100 rounded-lg">
+                            Signed In
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              audioEngine.playSfx('click');
+                              setSelectedDirectUser(cm);
+                              setChatSubTab('direct');
+                            }}
+                            className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-display font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>Chat 1-on-1</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+      </div>
+    )}
 
         {/* ==================== 2. CONCISE POST FEED ==================== */}
         {activeMode === 'posts' && (

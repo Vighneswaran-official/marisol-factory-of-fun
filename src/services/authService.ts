@@ -32,8 +32,74 @@ export interface StudentProfile {
   statusNote: string;
   lastUpdated: string;
   isGoogleVerified: boolean;
-  loginMethod?: 'google' | 'phone_otp';
+  loginMethod?: 'google' | 'phone_otp' | 'email';
+  isNewUser?: boolean;
+  userTag?: string; // e.g. "New User"
+  createdAt?: number;
 }
+
+export const DEFAULT_CLASSMATES: StudentProfile[] = [
+  {
+    id: 'user_kritika',
+    name: 'Kritika Gupta 👑',
+    email: 'kritika.gupta@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+    batch: 'MLP41PT',
+    currentMood: 'Radiant Sunshine 🌸',
+    currentMoodEmoji: '🌸',
+    statusNote: 'Queen of Factory of Fun ♡ Always here to chat!',
+    lastUpdated: 'Just now',
+    isGoogleVerified: true,
+    loginMethod: 'email',
+    isNewUser: false,
+    userTag: 'Founder 👑'
+  },
+  {
+    id: 'user_priyanshu',
+    name: 'Priyanshu Sharma',
+    email: 'priyanshu.sharma@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
+    batch: 'MLP41PT',
+    currentMood: 'Pizza & Macaroni Feast 🍕',
+    currentMoodEmoji: '🍕',
+    statusNote: 'Ready for food & movie trivia anytime! 🧀',
+    lastUpdated: '10m ago',
+    isGoogleVerified: true,
+    loginMethod: 'email',
+    isNewUser: false,
+    userTag: 'Classmate'
+  },
+  {
+    id: 'user_ananya',
+    name: 'Ananya Deshmukh',
+    email: 'ananya.deshmukh@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
+    batch: 'MLP41PT',
+    currentMood: 'Warm Chai Moments ☕',
+    currentMoodEmoji: '☕',
+    statusNote: 'Chai enthusiast & comfort study buddy ✨',
+    lastUpdated: '25m ago',
+    isGoogleVerified: true,
+    loginMethod: 'email',
+    isNewUser: false,
+    userTag: 'Classmate'
+  },
+  {
+    id: 'user_rohan',
+    name: 'Rohan Mehra',
+    email: 'rohan.mehra@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',
+    batch: 'MLP41PT',
+    currentMood: 'Acoustic Harmonies 🎸',
+    currentMoodEmoji: '🎸',
+    statusNote: 'Listening to comforting jukebox melodies 🎵',
+    lastUpdated: '1h ago',
+    isGoogleVerified: true,
+    loginMethod: 'email',
+    isNewUser: false,
+    userTag: 'Classmate'
+  }
+];
 
 const AUTH_STORAGE_KEY = 'marisol_google_auth_v2';
 const CLASSMATES_STORAGE_KEY = 'marisol_batch_classmates_v2';
@@ -158,10 +224,13 @@ class AuthService {
       batch: 'MLP41PT',
       currentMood: this.currentUser?.currentMood || 'Radiant Sunshine 🌸',
       currentMoodEmoji: this.currentUser?.currentMoodEmoji || '🌸',
-      statusNote: this.currentUser?.statusNote || 'Connected via Google Auth ♡',
+      statusNote: this.currentUser?.statusNote || 'New User connected via Mail ID ♡',
       lastUpdated: 'Just now',
       isGoogleVerified: true,
-      loginMethod: method
+      loginMethod: method,
+      isNewUser: true,
+      userTag: 'New User',
+      createdAt: Date.now()
     };
 
     this.currentUser = profile;
@@ -181,14 +250,19 @@ class AuthService {
       const storedClassmates = localStorage.getItem(CLASSMATES_STORAGE_KEY);
       if (storedClassmates) {
         const parsed: StudentProfile[] = JSON.parse(storedClassmates);
-        this.classmates = parsed.filter(c => !['user_aarav', 'user_pooja', 'user_rohan', 'user_meera'].includes(c.id));
+        const filtered = parsed.filter(c => !['user_aarav', 'user_pooja', 'user_rohan_old', 'user_meera'].includes(c.id));
+        // Merge with DEFAULT_CLASSMATES ensuring everyone is available
+        const map = new Map<string, StudentProfile>();
+        DEFAULT_CLASSMATES.forEach(c => map.set(c.id, c));
+        filtered.forEach(c => map.set(c.id, c));
+        this.classmates = Array.from(map.values());
       } else {
-        this.classmates = [];
+        this.classmates = [...DEFAULT_CLASSMATES];
         this.saveClassmatesToStorage();
       }
     } catch {
       this.currentUser = null;
-      this.classmates = [];
+      this.classmates = [...DEFAULT_CLASSMATES];
     }
   }
 
@@ -211,7 +285,7 @@ class AuthService {
   private syncClassmateList(user: StudentProfile) {
     const existingIdx = this.classmates.findIndex(c => (user.email && c.email.toLowerCase() === user.email.toLowerCase()) || c.id === user.id);
     if (existingIdx >= 0) {
-      this.classmates[existingIdx] = user;
+      this.classmates[existingIdx] = { ...this.classmates[existingIdx], ...user };
     } else {
       this.classmates.unshift(user);
     }
@@ -248,8 +322,18 @@ class AuthService {
     return Boolean(
       this.currentUser.isGoogleVerified ||
       this.currentUser.loginMethod === 'google' ||
+      this.currentUser.loginMethod === 'email' ||
       (this.currentUser.email && this.currentUser.email.includes('@'))
     );
+  }
+
+  public isMailIdAuthenticated(): boolean {
+    if (!this.currentUser) return false;
+    return Boolean(this.currentUser.email && this.currentUser.email.includes('@'));
+  }
+
+  public isUserAllowedToChat(): boolean {
+    return this.isGoogleAuthenticated();
   }
 
   public getClassmates(): StudentProfile[] {
@@ -283,7 +367,17 @@ class AuthService {
   }
 
   /**
-   * Multi-User: Add or Login Student / Google Profile
+   * Direct Sign In with Mail ID / Email.
+   * Whoever signs in with their mail ID is registered as a "New User" and allowed to chat.
+   */
+  public loginWithEmail(email: string, name?: string): StudentProfile {
+    const trimmedEmail = email.trim().toLowerCase();
+    const formattedName = name?.trim() || formatNameFromEmail(trimmedEmail) || 'New User';
+    return this.loginStudentProfile(formattedName, trimmedEmail);
+  }
+
+  /**
+   * Multi-User: Add or Login Student / Mail Profile
    */
   public loginStudentProfile(name: string, email?: string): StudentProfile {
     const trimmed = name.trim() || 'Batch 41 Student';
@@ -293,18 +387,33 @@ class AuthService {
       c.name.toLowerCase() === trimmed.toLowerCase()
     );
 
-    const profile: StudentProfile = existing || {
-      id: `student_${Date.now()}`,
+    const resolvedId = email 
+      ? `user_${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
+      : `student_${Date.now()}`;
+
+    const profile: StudentProfile = existing ? {
+      ...existing,
+      name: trimmed !== 'Student' && trimmed !== 'Batch 41 Student' ? trimmed : existing.name,
+      isNewUser: existing.isNewUser ?? true,
+      userTag: existing.userTag || 'New User',
+      loginMethod: existing.loginMethod || (email ? 'email' : 'google')
+    } : {
+      id: resolvedId,
       name: isKritika && !trimmed.includes('👑') ? `${trimmed} 👑` : trimmed,
       email: email || `${trimmed.toLowerCase().replace(/\s+/g, '.')}@gmail.com`,
-      avatarUrl: isKritika ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop' : '/marisol/avatars/01_brighter_ideas.png',
+      avatarUrl: isKritika 
+        ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop' 
+        : '/marisol/avatars/01_brighter_ideas.png',
       batch: 'MLP41PT',
       currentMood: this.currentUser?.currentMood || 'Radiant Sunshine 🌸',
       currentMoodEmoji: this.currentUser?.currentMoodEmoji || '🌸',
-      statusNote: isKritika ? 'Queen of Factory of Fun ♡' : 'Active in Batch 41 Comfort Hub ✨',
+      statusNote: isKritika ? 'Queen of Factory of Fun ♡' : 'New User in Factory of Fun ♡ ✨',
       lastUpdated: 'Just now',
       isGoogleVerified: true,
-      loginMethod: 'google'
+      loginMethod: 'email',
+      isNewUser: true,
+      userTag: 'New User',
+      createdAt: Date.now()
     };
 
     this.currentUser = profile;

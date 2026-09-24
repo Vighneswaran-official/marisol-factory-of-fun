@@ -97,6 +97,8 @@ export interface GroupChatMessage {
   avatarUrl?: string;
   text: string;
   imageUrl?: string; // Image attachment for WhatsApp style chat
+  senderIsNewUser?: boolean;
+  senderUserTag?: string;
   replyTo?: {
     id: string;
     senderName: string;
@@ -116,6 +118,32 @@ export interface GroupChatMessage {
   pinnedAt?: number;
 }
 
+export interface DirectChatMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  senderEmail?: string;
+  senderAvatarUrl?: string;
+  senderIsNewUser?: boolean;
+  senderUserTag?: string;
+  recipientId: string;
+  recipientName: string;
+  recipientEmail?: string;
+  recipientAvatarUrl?: string;
+  text: string;
+  imageUrl?: string;
+  timestamp: string;
+  createdAt: number;
+  isRead?: boolean;
+}
+
+export const getDirectConversationId = (userA: string, userB: string): string => {
+  const cleanA = (userA || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  const cleanB = (userB || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  return [cleanA, cleanB].sort().join('___');
+};
+
 export interface InstagramComment {
   id: string;
   authorId?: string;
@@ -132,6 +160,7 @@ export interface InstagramComment {
 export interface InstagramPost {
   id: string;
   userId?: string;
+  authorId?: string;
   userEmail?: string;
   authorName: string;
   authorEmail?: string;
@@ -158,6 +187,7 @@ export interface InstagramPost {
 const STORAGE_KEY = 'marisol_batch_updates_v2';
 const CHAT_STORAGE_KEY = 'marisol_group_chat_messages_v2';
 const INSTA_STORAGE_KEY = 'marisol_instagram_posts_v2';
+const DM_STORAGE_KEY = 'marisol_direct_chat_messages_v2';
 const QUEUE_KEY = 'marisol_batch_offline_queue_v2';
 
 const nowTs = Date.now();
@@ -165,6 +195,7 @@ const nowTs = Date.now();
 const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
   {
     id: 'chat_init_1',
+    senderId: 'member_kritika',
     senderName: 'Kritika Gupta 👑',
     senderEmail: 'kritika.gupta@mlp41.edu',
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
@@ -184,6 +215,7 @@ const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
   },
   {
     id: 'chat_init_2',
+    senderId: 'member_priyanshu',
     senderName: 'Priyanshu Sharma',
     avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
     text: '@Kritika Gupta 👑 The music player and comfort arcade are pure vibes! 🧀🍕',
@@ -197,6 +229,7 @@ const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
   },
   {
     id: 'chat_init_3',
+    senderId: 'member_ananya',
     senderName: 'Ananya Deshmukh',
     avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
     text: 'Who wants to do the Chai Enthusiast movie quiz round together tonight? ☕🎬',
@@ -213,6 +246,7 @@ const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
 const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
   {
     id: 'insta_init_1',
+    authorId: 'member_kritika',
     authorName: 'Kritika Gupta 👑',
     authorEmail: 'kritika.gupta@mlp41.edu',
     authorAvatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
@@ -247,6 +281,7 @@ const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
   },
   {
     id: 'insta_init_2',
+    authorId: 'member_rohan',
     authorName: 'Rohan Mehra',
     authorAvatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',
     location: 'Pizza & Macaroni Hub 🍕🧀',
@@ -275,6 +310,7 @@ const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
 class BatchWallService {
   private posts: BatchUpdatePost[] = [];
   private chatMessages: GroupChatMessage[] = [];
+  private directMessages: DirectChatMessage[] = [];
   private instagramPosts: InstagramPost[] = [];
   private offlineQueue: BatchUpdatePost[] = [];
   private listeners: Set<() => void> = new Set();
@@ -300,6 +336,9 @@ class BatchWallService {
               this.saveChatToStorage();
               this.notify();
             } else if (event.data?.type === 'SYNC_CHAT') {
+              this.loadFromStorage();
+              this.notify();
+            } else if (event.data?.type === 'SYNC_DM') {
               this.loadFromStorage();
               this.notify();
             } else if (event.data?.type === 'SYNC_POSTS') {
@@ -372,6 +411,26 @@ class BatchWallService {
           console.warn('Firestore chat listener notice:', err);
         });
 
+        // Direct Messages (1-on-1 between each user) Firestore Listener
+        const dmQuery = query(
+          collection(db, 'direct_chat_messages'),
+          orderBy('createdAt', 'asc'),
+          limit(300)
+        );
+        onSnapshot(dmQuery, (snapshot) => {
+          if (!snapshot.empty) {
+            const remoteDMs: DirectChatMessage[] = [];
+            snapshot.forEach((docSnap) => {
+              remoteDMs.push({ ...(docSnap.data() as DirectChatMessage), id: docSnap.id });
+            });
+            this.directMessages = remoteDMs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+            this.saveDirectMessagesToStorage();
+            this.notify();
+          }
+        }, (err) => {
+          console.warn('Firestore direct messages sync notice:', err);
+        });
+
         // Instagram Posts Firestore Listener
         const instaQuery = query(
           collection(db, 'instagram_posts'),
@@ -421,6 +480,14 @@ class BatchWallService {
         this.saveChatToStorage();
       }
 
+      const storedDMs = localStorage.getItem(DM_STORAGE_KEY);
+      if (storedDMs) {
+        this.directMessages = JSON.parse(storedDMs);
+      } else {
+        this.directMessages = [];
+        this.saveDirectMessagesToStorage();
+      }
+
       const storedInsta = localStorage.getItem(INSTA_STORAGE_KEY);
       if (storedInsta) {
         this.instagramPosts = JSON.parse(storedInsta);
@@ -436,6 +503,7 @@ class BatchWallService {
     } catch {
       this.posts = [];
       this.chatMessages = [...DEFAULT_GROUP_CHAT_MESSAGES];
+      this.directMessages = [];
       this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
     }
   }
@@ -449,6 +517,12 @@ class BatchWallService {
   private saveChatToStorage() {
     try {
       localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(this.chatMessages));
+    } catch {}
+  }
+
+  private saveDirectMessagesToStorage() {
+    try {
+      localStorage.setItem(DM_STORAGE_KEY, JSON.stringify(this.directMessages));
     } catch {}
   }
 
@@ -688,6 +762,8 @@ class BatchWallService {
     senderName: string;
     senderEmail?: string;
     avatarUrl?: string;
+    senderIsNewUser?: boolean;
+    senderUserTag?: string;
     text: string;
     imageUrl?: string;
     replyTo?: {
@@ -703,12 +779,20 @@ class BatchWallService {
                       email.toLowerCase().includes('kritika') ||
                       name.toLowerCase().includes('marisol');
 
+    const resolvedSenderId = data.senderId?.trim() || 
+      (email ? `user_${email.split('@')[0]}` : `user_${name.toLowerCase().replace(/\s+/g, '_')}`);
+
+    const isNewUser = data.senderIsNewUser ?? true;
+    const userTag = data.senderUserTag || (isKritika ? 'Founder 👑' : 'New User');
+
     const msg: GroupChatMessage = {
       id: `chat_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      senderId: data.senderId,
+      senderId: resolvedSenderId,
       senderName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
       senderEmail: data.senderEmail,
       avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+      senderIsNewUser: isNewUser,
+      senderUserTag: userTag,
       text: data.text.trim(),
       imageUrl: data.imageUrl,
       replyTo: data.replyTo,
@@ -719,7 +803,7 @@ class BatchWallService {
       reactions: {},
       seenBy: [
         {
-          userId: data.senderId || data.senderName,
+          userId: resolvedSenderId,
           userName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
           userEmail: data.senderEmail,
           avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
@@ -745,6 +829,225 @@ class BatchWallService {
 
     this.notify();
     return msg;
+  }
+
+  // =========================================================================
+  // DIRECT MESSAGING (Chat With Each Other User)
+  // =========================================================================
+
+  public getDirectMessages(
+    convIdOrUserA: string,
+    userB?: string,
+    emailA?: string,
+    emailB?: string
+  ): DirectChatMessage[] {
+    let convId = convIdOrUserA;
+    if (userB) {
+      convId = getDirectConversationId(emailA || convIdOrUserA, emailB || userB);
+    }
+    return this.directMessages
+      .filter(m => m.conversationId === convId)
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  }
+
+  public getAllDirectConversations(myUserId?: string, myUserEmail?: string): {
+    conversationId: string;
+    partnerId: string;
+    partnerName: string;
+    partnerEmail?: string;
+    partnerAvatarUrl?: string;
+    partnerIsNewUser?: boolean;
+    lastMessage: DirectChatMessage;
+    unreadCount: number;
+  }[] {
+    const cleanMyId = (myUserId || '').toLowerCase();
+    const cleanMyEmail = (myUserEmail || '').toLowerCase();
+
+    const conversationMap = new Map<string, DirectChatMessage[]>();
+
+    this.directMessages.forEach(msg => {
+      const sId = (msg.senderId || '').toLowerCase();
+      const sEmail = (msg.senderEmail || '').toLowerCase();
+      const rId = (msg.recipientId || '').toLowerCase();
+      const rEmail = (msg.recipientEmail || '').toLowerCase();
+
+      const involvesMe = (cleanMyId && (sId === cleanMyId || rId === cleanMyId)) ||
+                         (cleanMyEmail && (sEmail === cleanMyEmail || rEmail === cleanMyEmail));
+
+      if (involvesMe) {
+        if (!conversationMap.has(msg.conversationId)) {
+          conversationMap.set(msg.conversationId, []);
+        }
+        conversationMap.get(msg.conversationId)!.push(msg);
+      }
+    });
+
+    const result: {
+      conversationId: string;
+      partnerId: string;
+      partnerName: string;
+      partnerEmail?: string;
+      partnerAvatarUrl?: string;
+      partnerIsNewUser?: boolean;
+      lastMessage: DirectChatMessage;
+      unreadCount: number;
+    }[] = [];
+
+    conversationMap.forEach((msgs, convId) => {
+      const sorted = msgs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      const lastMsg = sorted[sorted.length - 1];
+      const isSender = (lastMsg.senderId.toLowerCase() === cleanMyId) || (Boolean(cleanMyEmail) && lastMsg.senderEmail?.toLowerCase() === cleanMyEmail);
+      
+      const partnerId = isSender ? lastMsg.recipientId : lastMsg.senderId;
+      const partnerName = isSender ? lastMsg.recipientName : lastMsg.senderName;
+      const partnerEmail = isSender ? lastMsg.recipientEmail : lastMsg.senderEmail;
+      const partnerAvatarUrl = isSender ? lastMsg.recipientAvatarUrl : lastMsg.senderAvatarUrl;
+      const partnerIsNewUser = isSender ? undefined : lastMsg.senderIsNewUser;
+
+      const unreadCount = sorted.filter(m => {
+        const fromOther = (m.senderId.toLowerCase() !== cleanMyId) && (!cleanMyEmail || m.senderEmail?.toLowerCase() !== cleanMyEmail);
+        return fromOther && !m.isRead;
+      }).length;
+
+      result.push({
+        conversationId: convId,
+        partnerId,
+        partnerName,
+        partnerEmail,
+        partnerAvatarUrl,
+        partnerIsNewUser,
+        lastMessage: lastMsg,
+        unreadCount
+      });
+    });
+
+    return result.sort((a, b) => (b.lastMessage.createdAt || 0) - (a.lastMessage.createdAt || 0));
+  }
+
+  public async sendDirectMessage(data: {
+    senderId: string;
+    senderName: string;
+    senderEmail?: string;
+    senderAvatarUrl?: string;
+    senderIsNewUser?: boolean;
+    senderUserTag?: string;
+    recipientId: string;
+    recipientName: string;
+    recipientEmail?: string;
+    recipientAvatarUrl?: string;
+    text: string;
+    imageUrl?: string;
+  }): Promise<DirectChatMessage> {
+    const convId = getDirectConversationId(
+      data.senderEmail || data.senderId,
+      data.recipientEmail || data.recipientId
+    );
+
+    const msg: DirectChatMessage = {
+      id: `dm_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      conversationId: convId,
+      senderId: data.senderId,
+      senderName: data.senderName,
+      senderEmail: data.senderEmail,
+      senderAvatarUrl: data.senderAvatarUrl || '/marisol/avatars/01_brighter_ideas.png',
+      senderIsNewUser: data.senderIsNewUser ?? true,
+      senderUserTag: data.senderUserTag || 'New User',
+      recipientId: data.recipientId,
+      recipientName: data.recipientName,
+      recipientEmail: data.recipientEmail,
+      recipientAvatarUrl: data.recipientAvatarUrl,
+      text: data.text.trim(),
+      imageUrl: data.imageUrl,
+      timestamp: 'Just now',
+      createdAt: Date.now(),
+      isRead: false
+    };
+
+    this.directMessages.push(msg);
+    this.saveDirectMessagesToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_DM' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'direct_chat_messages', msg.id), msg);
+      } catch (err) {
+        console.warn('Failed to sync DM to Firestore:', err);
+      }
+    }
+
+    this.notify();
+
+    // Friendly automated comforting reply from built-in batch members for instant interactivity
+    const rLower = (data.recipientName || '').toLowerCase();
+    const isBotRecipient = rLower.includes('kritika') || rLower.includes('priyanshu') || rLower.includes('ananya') || rLower.includes('rohan');
+    
+    if (isBotRecipient) {
+      setTimeout(async () => {
+        let replyText = `Hey ${data.senderName.split(' ')[0]}! Great to hear from you. Welcome to Factory of Fun as our new user! ♡ 🌸`;
+        if (rLower.includes('kritika')) {
+          replyText = `Hey ${data.senderName.split(' ')[0]}! 👑 So wonderful chatting with you! Welcome as a New User to our Factory of Fun comfort hub ♡ Savoring sweet memories together! ✨`;
+        } else if (rLower.includes('priyanshu')) {
+          replyText = `Hey ${data.senderName.split(' ')[0]}! 🍕 Welcome! Ready for a quick round of 1,000+ Food & Movie trivia anytime!`;
+        } else if (rLower.includes('ananya')) {
+          replyText = `Hi ${data.senderName.split(' ')[0]}! ☕ Enjoying a warm cup of chai right now. So happy you reached out and joined us!`;
+        } else if (rLower.includes('rohan')) {
+          replyText = `Hey ${data.senderName.split(' ')[0]}! 🎸 Welcome! Listening to some relaxing music on the jukebox. Hope you have a wonderful day!`;
+        }
+
+        const autoMsg: DirectChatMessage = {
+          id: `dm_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          conversationId: convId,
+          senderId: data.recipientId,
+          senderName: data.recipientName,
+          senderEmail: data.recipientEmail,
+          senderAvatarUrl: data.recipientAvatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+          recipientId: data.senderId,
+          recipientName: data.senderName,
+          recipientEmail: data.senderEmail,
+          recipientAvatarUrl: data.senderAvatarUrl,
+          text: replyText,
+          timestamp: 'Just now',
+          createdAt: Date.now(),
+          isRead: false
+        };
+
+        this.directMessages.push(autoMsg);
+        this.saveDirectMessagesToStorage();
+        try {
+          this.broadcastChannel?.postMessage({ type: 'SYNC_DM' });
+        } catch {}
+        if (db) {
+          try {
+            await setDoc(doc(db, 'direct_chat_messages', autoMsg.id), autoMsg);
+          } catch {}
+        }
+        this.notify();
+      }, 1200);
+    }
+
+    return msg;
+  }
+
+  public async markDirectMessagesAsRead(conversationId: string, currentUserId: string) {
+    let changed = false;
+    this.directMessages.forEach(m => {
+      if (m.conversationId === conversationId && m.recipientId === currentUserId && !m.isRead) {
+        m.isRead = true;
+        changed = true;
+        if (db) {
+          try {
+            setDoc(doc(db, 'direct_chat_messages', m.id), { isRead: true }, { merge: true });
+          } catch {}
+        }
+      }
+    });
+    if (changed) {
+      this.saveDirectMessagesToStorage();
+      this.notify();
+    }
   }
 
   public async pinChatMessage(messageId: string, pinnedBy?: string) {
@@ -1354,6 +1657,48 @@ class BatchWallService {
 
     this.notify();
     return newReply;
+  }
+
+  /**
+   * Matches the group chat messages table for the current session user:
+   * Extracts user ID, finds all matched messages in the table,
+   * identifies the user's current (latest) message, and returns the matched dataset.
+   */
+  public getUserMatchedChatData(userQuery: { id?: string; email?: string; name?: string }): {
+    userId: string;
+    userName: string;
+    userEmail: string;
+    matchedMessages: GroupChatMessage[];
+    currentMessage: GroupChatMessage | null;
+    totalMatched: number;
+  } {
+    const rawId = userQuery.id?.trim() || '';
+    const rawEmail = userQuery.email?.trim().toLowerCase() || '';
+    const rawName = (userQuery.name || '').replace(' 👑', '').trim().toLowerCase();
+
+    const resolvedUserId = rawId || (rawEmail ? `user_${rawEmail.split('@')[0]}` : (rawName ? `user_${rawName.replace(/\s+/g, '_')}` : 'user_student'));
+
+    const matchedMessages = this.chatMessages.filter(msg => {
+      const msgSenderId = msg.senderId?.trim();
+      const msgEmail = msg.senderEmail?.trim().toLowerCase();
+      const msgName = (msg.senderName || '').replace(' 👑', '').trim().toLowerCase();
+
+      if (rawId && msgSenderId && rawId === msgSenderId) return true;
+      if (rawEmail && msgEmail && rawEmail === msgEmail) return true;
+      if (rawName && msgName && rawName === msgName) return true;
+      return false;
+    });
+
+    const currentMessage = matchedMessages.length > 0 ? matchedMessages[matchedMessages.length - 1] : null;
+
+    return {
+      userId: resolvedUserId,
+      userName: userQuery.name || 'Student',
+      userEmail: rawEmail,
+      matchedMessages,
+      currentMessage,
+      totalMatched: matchedMessages.length
+    };
   }
 
   public subscribe(listener: () => void) {
