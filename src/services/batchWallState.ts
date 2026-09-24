@@ -31,6 +31,17 @@ export interface BatchUpdatePost {
   category?: 'tribute' | 'question' | 'cheer' | 'general';
 }
 
+export interface ChatPollOption {
+  id: string;
+  text: string;
+  votes: string[]; // array of voter names
+}
+
+export interface ChatPoll {
+  question: string;
+  options: ChatPollOption[];
+}
+
 export interface GroupChatMessage {
   id: string;
   senderId?: string;
@@ -39,6 +50,12 @@ export interface GroupChatMessage {
   avatarUrl?: string;
   text: string;
   imageUrl?: string; // Image attachment for WhatsApp style chat
+  replyTo?: {
+    id: string;
+    senderName: string;
+    text: string;
+  };
+  poll?: ChatPoll;
   timestamp: string;
   createdAt: number;
   isKritika?: boolean;
@@ -478,6 +495,12 @@ class BatchWallService {
     avatarUrl?: string;
     text: string;
     imageUrl?: string;
+    replyTo?: {
+      id: string;
+      senderName: string;
+      text: string;
+    };
+    poll?: ChatPoll;
   }): Promise<GroupChatMessage> {
     const name = data.senderName.trim() || 'Batch 41 Student';
     const email = data.senderEmail || '';
@@ -493,6 +516,8 @@ class BatchWallService {
       avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
       text: data.text.trim(),
       imageUrl: data.imageUrl,
+      replyTo: data.replyTo,
+      poll: data.poll,
       timestamp: 'Just now',
       createdAt: Date.now(),
       isKritika,
@@ -516,6 +541,39 @@ class BatchWallService {
 
     this.notify();
     return msg;
+  }
+
+  public votePoll(messageId: string, optionId: string, voterName: string) {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg || !msg.poll) return;
+
+    const voter = voterName.trim() || 'You';
+    msg.poll.options.forEach(opt => {
+      // Toggle or switch vote
+      if (opt.id === optionId) {
+        if (opt.votes.includes(voter)) {
+          opt.votes = opt.votes.filter(v => v !== voter);
+        } else {
+          opt.votes.push(voter);
+        }
+      } else {
+        opt.votes = opt.votes.filter(v => v !== voter);
+      }
+    });
+
+    this.saveChatToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
+    if (db) {
+      try {
+        setDoc(doc(db, 'group_chat_messages', messageId), { poll: msg.poll }, { merge: true });
+      } catch {}
+    }
+
+    this.notify();
   }
 
   public reactToChatMessage(messageId: string, emoji: string) {

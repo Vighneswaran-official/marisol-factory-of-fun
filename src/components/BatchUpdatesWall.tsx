@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ScreenState } from '../types/game';
-import { batchWallService, type InstagramPost } from '../services/batchWallState';
+import { batchWallService, type InstagramPost, type GroupChatMessage } from '../services/batchWallState';
 import { authService, type StudentProfile } from '../services/authService';
 import { STICKERS } from '../data/stickers';
 import { gameState } from '../services/gameState';
@@ -8,7 +8,8 @@ import { audioEngine } from '../services/synthAudioEngine';
 import { 
   ArrowLeft, Plus, Sparkles, Send, X, UserCheck, Heart, 
   MessageCircle, MessagesSquare, Pin, Camera, Paperclip, Smile,
-  Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check
+  Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check,
+  Reply, BarChart2, AtSign, Users
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { BaseModal } from './BaseModal';
@@ -87,6 +88,23 @@ const AVATAR_PRESETS = [
 
 const COMMON_EMOJIS = ['💖', '🌸', '👑', '✨', '🍕', '☕', '🔥', '👏', '🎉', '🥳', '🌈', '🌻', '💌', '🥰', '🤗', '⭐'];
 
+// Color generator for distinct WhatsApp group members
+const getSenderColorClass = (name: string, isKritika?: boolean) => {
+  if (isKritika || name.toLowerCase().includes('kritika')) return 'text-rose-600';
+  const colors = [
+    'text-indigo-600',
+    'text-emerald-700',
+    'text-purple-700',
+    'text-amber-700',
+    'text-blue-600',
+    'text-teal-700',
+    'text-pink-600'
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+};
+
 export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }) => {
   const [, setTick] = useState(0);
   const player = gameState.getPlayer();
@@ -94,13 +112,14 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
   const isAuthenticated = authService.isAuthenticated();
 
   // Mode Switcher: 'chat' | 'posts' | 'bulletin'
-  const [activeMode, setActiveMode] = useState<'chat' | 'posts' | 'bulletin'>('posts');
+  const [activeMode, setActiveMode] = useState<'chat' | 'posts' | 'bulletin'>('chat');
 
   // Modals & Popups
   const [showNewPostModal, setShowNewPostModal] = useState(false);
   const [showNewPhotoPostModal, setShowNewPhotoPostModal] = useState(false);
   const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showCreatePollModal, setShowCreatePollModal] = useState(false);
   const [selectedClassmateDetail, setSelectedClassmateDetail] = useState<StudentProfile | null>(null);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; caption?: string } | null>(null);
 
@@ -113,14 +132,22 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
   const [profileBatchInput, setProfileBatchInput] = useState(currentUser?.batch || 'MLP41PT');
   const profileAvatarFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Group Chat State
+  // Group Chat State (WhatsApp Group Style)
   const [chatInput, setChatInput] = useState('');
   const [chatImageAttachment, setChatImageAttachment] = useState<string | null>(null);
+  const [replyingToMessage, setReplyingToMessage] = useState<GroupChatMessage | null>(null);
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [showChatEmojiPicker, setShowChatEmojiPicker] = useState(false);
+  const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const chatFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Group Poll Creation State
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOption1, setPollOption1] = useState('');
+  const [pollOption2, setPollOption2] = useState('');
+  const [pollOption3, setPollOption3] = useState('');
 
   // Post Feed State
   const [postCommentText, setPostCommentText] = useState<Record<string, string>>({});
@@ -247,7 +274,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
     audioEngine.playSfx('fanfare');
     confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
     setShowProfileModal(false);
-    setShareToast('Profile updated & reflected in chat! ✨');
+    setShareToast('Profile updated & reflected in group chat! ✨');
     setTimeout(() => setShareToast(null), 2500);
   };
 
@@ -271,7 +298,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
     setCustomTagInput('');
   };
 
-  // Send Chat Message
+  // Send WhatsApp Group Message (with replyTo support)
   const handleSendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = chatInput.trim();
@@ -291,22 +318,78 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
       confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 } });
     }
 
+    const replyData = replyingToMessage ? {
+      id: replyingToMessage.id,
+      senderName: replyingToMessage.senderName,
+      text: replyingToMessage.text.slice(0, 80)
+    } : undefined;
+
     await batchWallService.sendGroupChatMessage({
       senderId: currentUser?.id,
       senderName: name,
       senderEmail: email,
       avatarUrl: avatar,
       text: text || (chatImageAttachment ? '📷 Photo' : ''),
-      imageUrl: chatImageAttachment || undefined
+      imageUrl: chatImageAttachment || undefined,
+      replyTo: replyData
     });
 
     setChatInput('');
     setChatImageAttachment(null);
+    setReplyingToMessage(null);
     setShowChatEmojiPicker(false);
+    setShowMentionPicker(false);
     setIsSendingChat(false);
     setTimeout(() => {
       chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
+  };
+
+  // Create & Send Live Group Poll
+  const handleCreatePoll = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pollQuestion.trim() || !pollOption1.trim() || !pollOption2.trim()) return;
+
+    audioEngine.playSfx('fanfare');
+    const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
+    const email = currentUser?.email;
+    const avatar = currentUser?.avatarUrl || profileAvatarInput;
+
+    const options = [
+      { id: 'opt_1', text: pollOption1.trim(), votes: [] },
+      { id: 'opt_2', text: pollOption2.trim(), votes: [] }
+    ];
+    if (pollOption3.trim()) {
+      options.push({ id: 'opt_3', text: pollOption3.trim(), votes: [] });
+    }
+
+    await batchWallService.sendGroupChatMessage({
+      senderId: currentUser?.id,
+      senderName: name,
+      senderEmail: email,
+      avatarUrl: avatar,
+      text: `📊 Group Poll: ${pollQuestion.trim()}`,
+      poll: {
+        question: pollQuestion.trim(),
+        options
+      }
+    });
+
+    setPollQuestion('');
+    setPollOption1('');
+    setPollOption2('');
+    setPollOption3('');
+    setShowCreatePollModal(false);
+    setTimeout(() => {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  // Vote on Poll
+  const handleVotePoll = (messageId: string, optionId: string) => {
+    audioEngine.playSfx('pop');
+    const voter = currentUser?.name || profileNameInput || 'You';
+    batchWallService.votePoll(messageId, optionId, voter);
   };
 
   // Double tap to like Photo Post
@@ -506,6 +589,21 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
           <button
             onClick={() => {
               audioEngine.playSfx('click');
+              setActiveMode('chat');
+            }}
+            className={`py-2 px-2 rounded-xl font-display font-black text-[11px] sm:text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeMode === 'chat'
+                ? 'bg-white text-rose-700 shadow-xs scale-101'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <MessagesSquare className="w-3.5 h-3.5 text-purple-600" />
+            <span className="truncate">Group Chat ({chatMessages.length})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
               setActiveMode('posts');
             }}
             className={`py-2 px-2 rounded-xl font-display font-black text-[11px] sm:text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
@@ -516,21 +614,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
           >
             <Compass className="w-3.5 h-3.5 text-rose-500" />
             <span className="truncate">Post Feed ({photoPosts.length})</span>
-          </button>
-
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              setActiveMode('chat');
-            }}
-            className={`py-2 px-2 rounded-xl font-display font-black text-[11px] sm:text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeMode === 'chat'
-                ? 'bg-white text-rose-700 shadow-xs scale-101'
-                : 'text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <MessagesSquare className="w-3.5 h-3.5 text-purple-600" />
-            <span className="truncate">Live Chat ({chatMessages.length})</span>
           </button>
 
           <button
@@ -549,7 +632,443 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
           </button>
         </div>
 
-        {/* ==================== 1. CONCISE & POLISHED POST FEED ==================== */}
+        {/* ==================== 1. LIVE WHATSAPP-STYLE GROUP CHAT ==================== */}
+        {activeMode === 'chat' && (
+          <div className="bg-white border border-stone-200/90 rounded-3xl overflow-hidden shadow-2xs flex flex-col h-[550px] animate-fade-in relative">
+            
+            {/* Interactive Group Members Bar (WhatsApp Group Top Strip) */}
+            <div className="bg-gradient-to-r from-rose-50/90 via-pink-50/80 to-purple-50/90 border-b border-rose-200/70 p-2 px-3 flex items-center justify-between shrink-0 gap-2">
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+                <span className="text-[10px] font-display font-black text-rose-900 flex items-center gap-1 shrink-0 uppercase tracking-tight">
+                  <Users className="w-3 h-3 text-rose-600" />
+                  <span>Members:</span>
+                </span>
+
+                {/* You */}
+                <div
+                  onClick={() => setShowProfileModal(true)}
+                  className="flex items-center gap-1 bg-white border border-rose-200 px-2 py-0.5 rounded-full cursor-pointer hover:bg-rose-50 shrink-0 shadow-2xs"
+                  title="Click to edit your profile"
+                >
+                  <div className="w-4.5 h-4.5 rounded-full overflow-hidden border border-rose-300">
+                    <img src={currentUser?.avatarUrl || profileAvatarInput} alt="You" className="w-full h-full object-cover" />
+                  </div>
+                  <span className="text-[10px] font-bold text-rose-900">
+                    You ({currentUser?.name?.split(' ')[0] || profileNameInput.split(' ')[0]})
+                  </span>
+                </div>
+
+                {/* Classmate Members */}
+                {classmates.map(cm => (
+                  <div
+                    key={cm.id}
+                    onClick={() => {
+                      audioEngine.playSfx('pop');
+                      setChatInput(prev => `${prev}@${cm.name.split(' ')[0]} `);
+                    }}
+                    className="flex items-center gap-1 bg-white/80 hover:bg-white border border-stone-200 px-2 py-0.5 rounded-full cursor-pointer shrink-0 shadow-2xs transition-all active:scale-95"
+                    title={`Click to @mention ${cm.name}`}
+                  >
+                    <div className="w-4.5 h-4.5 rounded-full overflow-hidden border border-stone-300">
+                      <img src={cm.avatarUrl} alt={cm.name} className="w-full h-full object-cover" />
+                    </div>
+                    <span className="text-[10px] font-bold text-stone-700">
+                      {cm.name.split(' ')[0]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Create Poll Trigger */}
+              <button
+                type="button"
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  setShowCreatePollModal(true);
+                }}
+                className="p-1.5 bg-white hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0 shadow-2xs"
+                title="Create a Group Poll"
+              >
+                <BarChart2 className="w-3.5 h-3.5 text-rose-600" />
+                <span className="hidden sm:inline text-[10px]">Poll</span>
+              </button>
+            </div>
+
+            {/* Chat Stream */}
+            <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 scrollbar-thin bg-stone-50/50">
+              {chatMessages.map(msg => {
+                const isCurrentUser = currentUser?.name 
+                  ? msg.senderName.toLowerCase().includes(currentUser.name.toLowerCase())
+                  : msg.senderName.toLowerCase().includes(profileNameInput.toLowerCase());
+                const reactionsList = Object.entries(msg.reactions || {}).filter(([, count]) => count > 0);
+                const senderColor = getSenderColorClass(msg.senderName, msg.isKritika);
+
+                return (
+                  <div
+                    key={msg.id}
+                    onMouseEnter={() => setHoveredMessageId(msg.id)}
+                    onMouseLeave={() => setHoveredMessageId(null)}
+                    className={`flex items-end gap-2 group ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
+                  >
+                    {/* Left avatar for group members */}
+                    {!isCurrentUser && (
+                      <div 
+                        onClick={() => {
+                          const cm = classmates.find(c => c.name.toLowerCase() === msg.senderName.toLowerCase().replace(' 👑', ''));
+                          if (cm) setSelectedClassmateDetail(cm);
+                        }}
+                        className={`w-7.5 h-7.5 rounded-full overflow-hidden border shrink-0 mb-1 cursor-pointer hover:scale-105 transition-transform ${
+                          msg.isKritika ? 'border-amber-400 ring-2 ring-pink-300' : 'border-stone-300'
+                        }`}
+                      >
+                        <img src={msg.avatarUrl} alt={msg.senderName} className="w-full h-full object-cover" />
+                      </div>
+                    )}
+
+                    <div className="relative max-w-[85%] sm:max-w-[75%] space-y-1">
+                      <div
+                        className={`p-2.5 sm:p-3 rounded-2xl shadow-2xs text-xs sm:text-sm leading-relaxed relative ${
+                          isCurrentUser
+                            ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-br-xs'
+                            : msg.isKritika
+                              ? 'bg-gradient-to-br from-pink-50 via-white to-amber-50 text-stone-900 rounded-bl-xs border border-pink-300 ring-1 ring-pink-200'
+                              : 'bg-white text-stone-900 rounded-bl-xs border border-stone-200'
+                        }`}
+                      >
+                        {/* Clear WhatsApp Group Sender Label */}
+                        {!isCurrentUser && (
+                          <div className="flex items-center justify-between gap-2 mb-1 border-b border-black/5 pb-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`font-display font-black text-[11px] ${senderColor}`}>
+                                {msg.senderName}
+                              </span>
+                              {msg.isKritika && (
+                                <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full">
+                                  👑 QUEEN
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[9px] text-stone-400 font-bold">
+                              Batch 41
+                            </span>
+                          </div>
+                        )}
+
+                        {/* WhatsApp-style Quoted Reply Banner */}
+                        {msg.replyTo && (
+                          <div className={`mb-2 p-1.5 px-2.5 rounded-lg border-l-3 text-[11px] ${
+                            isCurrentUser
+                              ? 'bg-white/15 border-white text-rose-100'
+                              : 'bg-stone-100 border-rose-500 text-stone-600'
+                          }`}>
+                            <span className="font-display font-bold block text-[10px] opacity-90">
+                              ↩️ {msg.replyTo.senderName}
+                            </span>
+                            <span className="truncate block font-sans">
+                              {msg.replyTo.text}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Image Attachment */}
+                        {msg.imageUrl && (
+                          <div className="mb-2 rounded-xl overflow-hidden border border-black/10 bg-black/5 relative group/img cursor-pointer">
+                            <img
+                              src={msg.imageUrl}
+                              alt="Attached photo"
+                              onClick={() => setLightboxImage({ url: msg.imageUrl!, caption: msg.text })}
+                              className="w-full max-h-56 object-cover hover:scale-102 transition-transform duration-200"
+                            />
+                            <div className="absolute top-2 right-2 bg-black/60 text-white p-1 rounded-md opacity-0 group-hover/img:opacity-100 transition-opacity">
+                              <Eye className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Interactive Group Poll Card */}
+                        {msg.poll && (
+                          <div className={`p-2.5 rounded-xl space-y-2 my-1 ${
+                            isCurrentUser ? 'bg-black/15' : 'bg-rose-50/80 border border-rose-200/80'
+                          }`}>
+                            <div className="flex items-center gap-1.5 font-display font-black text-xs">
+                              <BarChart2 className="w-4 h-4 text-rose-500" />
+                              <span>{msg.poll.question}</span>
+                            </div>
+
+                            {/* Poll Options */}
+                            <div className="space-y-1.5 pt-1">
+                              {(() => {
+                                const totalVotes = msg.poll.options.reduce((acc, opt) => acc + opt.votes.length, 0);
+                                const currentVoter = currentUser?.name || profileNameInput || 'You';
+
+                                return msg.poll.options.map(opt => {
+                                  const voteCount = opt.votes.length;
+                                  const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+                                  const hasVoted = opt.votes.includes(currentVoter);
+
+                                  return (
+                                    <div
+                                      key={opt.id}
+                                      onClick={() => handleVotePoll(msg.id, opt.id)}
+                                      className={`p-2 rounded-xl text-xs cursor-pointer transition-all relative overflow-hidden border ${
+                                        hasVoted 
+                                          ? 'border-rose-400 font-bold' 
+                                          : 'border-stone-200/80 hover:border-rose-300'
+                                      }`}
+                                    >
+                                      {/* Animated percentage background bar */}
+                                      <div
+                                        className={`absolute inset-y-0 left-0 transition-all duration-300 opacity-20 ${
+                                          isCurrentUser ? 'bg-white' : 'bg-rose-500'
+                                        }`}
+                                        style={{ width: `${percentage}%` }}
+                                      />
+
+                                      <div className="relative flex items-center justify-between z-1">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center text-[9px] ${
+                                            hasVoted ? 'bg-rose-600 text-white border-rose-600' : 'border-stone-400'
+                                          }`}>
+                                            {hasVoted ? '✓' : ''}
+                                          </span>
+                                          <span>{opt.text}</span>
+                                        </div>
+                                        <span className="font-display font-bold text-[10px] opacity-80">
+                                          {percentage}% ({voteCount})
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Text Message */}
+                        {msg.text && !msg.poll && (
+                          <p className="whitespace-pre-wrap font-sans">
+                            {msg.text}
+                          </p>
+                        )}
+
+                        {/* Timestamp & Double checkmark */}
+                        <div className={`flex items-center justify-end gap-1 mt-1 text-[9px] font-medium ${isCurrentUser ? 'text-rose-100' : 'text-stone-400'}`}>
+                          <span>{msg.timestamp}</span>
+                          {isCurrentUser && (
+                            <CheckCheck className="w-3.5 h-3.5 text-white/90" />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Emoji Reactions at bottom of bubble */}
+                      {reactionsList.length > 0 && (
+                        <div className={`flex items-center gap-1 flex-wrap ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                          {reactionsList.map(([emoji, count]) => (
+                            <button
+                              key={emoji}
+                              onClick={() => {
+                                audioEngine.playSfx('pop');
+                                batchWallService.reactToChatMessage(msg.id, emoji);
+                              }}
+                              className="bg-white border border-stone-200 rounded-full px-1.5 py-0.2 text-[10px] font-bold shadow-2xs hover:scale-110 transition-transform cursor-pointer"
+                            >
+                              <span>{emoji}</span> <span>{count}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Hover Action Bar: Emoji Reactions & Reply */}
+                      {hoveredMessageId === msg.id && (
+                        <div className={`absolute -top-7 ${isCurrentUser ? 'right-0' : 'left-0'} bg-white border border-stone-200 rounded-full px-2 py-0.5 shadow-md flex items-center gap-1 z-10 animate-fade-in`}>
+                          {['❤️', '👍', '😂', '😮', '🍕', '👑'].map(emoji => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => {
+                                audioEngine.playSfx('pop');
+                                batchWallService.reactToChatMessage(msg.id, emoji);
+                              }}
+                              className="text-xs hover:scale-125 transition-transform cursor-pointer p-0.5"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              audioEngine.playSfx('pop');
+                              setReplyingToMessage(msg);
+                            }}
+                            className="text-xs hover:text-rose-600 font-bold flex items-center gap-0.5 p-0.5 pl-1 border-l border-stone-200 cursor-pointer"
+                            title="Reply to this message"
+                          >
+                            <Reply className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={chatBottomRef} />
+            </div>
+
+            {/* Quoted Message Preview Banner before sending */}
+            {replyingToMessage && (
+              <div className="bg-rose-50 p-2 px-3 border-t border-rose-200 flex items-center justify-between shrink-0 animate-fade-in">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Reply className="w-4 h-4 text-rose-600 shrink-0" />
+                  <div className="min-w-0 text-xs">
+                    <span className="font-display font-black text-rose-900 block truncate">
+                      Replying to {replyingToMessage.senderName}
+                    </span>
+                    <span className="text-[10px] text-stone-500 truncate block">
+                      {replyingToMessage.text || 'Photo attachment'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReplyingToMessage(null)}
+                  className="p-1 hover:bg-rose-200 rounded-full text-stone-600 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Chat Attachment Preview */}
+            {chatImageAttachment && (
+              <div className="bg-stone-100 p-2 px-3 border-t border-stone-200 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-lg overflow-hidden border border-stone-300 shadow-2xs">
+                    <img src={chatImageAttachment} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <span className="font-display font-bold text-xs text-stone-800 block">Photo attached 📸</span>
+                    <span className="text-[10px] text-stone-500">Send with or without message</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChatImageAttachment(null)}
+                  className="p-1 hover:bg-stone-200 rounded-full text-stone-600 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* @Mention Quick Pick List */}
+            {showMentionPicker && (
+              <div className="bg-white border-t border-stone-200 p-2 px-3 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0 shadow-inner animate-fade-in">
+                <span className="text-[10px] font-bold text-stone-400 shrink-0">@Mention:</span>
+                {classmates.map(cm => (
+                  <button
+                    key={cm.id}
+                    type="button"
+                    onClick={() => {
+                      setChatInput(prev => `${prev}@${cm.name.split(' ')[0]} `);
+                      setShowMentionPicker(false);
+                    }}
+                    className="px-2 py-1 bg-stone-100 hover:bg-rose-50 text-stone-800 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0"
+                  >
+                    @{cm.name.split(' ')[0]}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Chat Emoji Tray */}
+            {showChatEmojiPicker && (
+              <div className="bg-white border-t border-stone-200 p-2 px-3 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0 shadow-inner animate-fade-in">
+                <span className="text-[10px] font-bold text-stone-400 shrink-0">Emojis:</span>
+                {COMMON_EMOJIS.map(emoji => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => {
+                      setChatInput(prev => prev + emoji);
+                      audioEngine.playSfx('pop');
+                    }}
+                    className="w-7 h-7 rounded-xl hover:bg-rose-50 flex items-center justify-center text-sm transition-transform active:scale-90 cursor-pointer shrink-0"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* WhatsApp Group Chat Composer Form */}
+            <form onSubmit={handleSendChatMessage} className="bg-white p-2 px-3 border-t border-stone-200 flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowChatEmojiPicker(!showChatEmojiPicker);
+                  setShowMentionPicker(false);
+                }}
+                className="p-1.5 text-stone-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                title="Smileys"
+              >
+                <Smile className="w-5 h-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMentionPicker(!showMentionPicker);
+                  setShowChatEmojiPicker(false);
+                }}
+                className="p-1.5 text-stone-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                title="@Mention someone"
+              >
+                <AtSign className="w-5 h-5" />
+              </button>
+
+              <input
+                ref={chatFileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleChatImageSelect}
+                className="hidden"
+              />
+
+              <button
+                type="button"
+                onClick={() => chatFileInputRef.current?.click()}
+                className="p-1.5 text-stone-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                title="Attach photo"
+              >
+                <Paperclip className="w-5 h-5" />
+              </button>
+
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder={
+                  (currentUser?.name || profileNameInput).toLowerCase().includes('kritika')
+                    ? "Message Batch 41 as Kritika 👑..."
+                    : "Type a group message..."
+                }
+                className="flex-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm outline-none focus:border-rose-500 focus:bg-white transition-colors"
+              />
+
+              <button
+                type="submit"
+                disabled={isSendingChat || (!chatInput.trim() && !chatImageAttachment)}
+                className="p-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl transition-all shadow-2xs cursor-pointer shrink-0 flex items-center justify-center"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* ==================== 2. CONCISE POST FEED ==================== */}
         {activeMode === 'posts' && (
           <div className="space-y-3.5 animate-fade-in">
             {/* Story Mood Rings Bar */}
@@ -565,7 +1084,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
               </div>
 
               <div className="flex items-center gap-3 overflow-x-auto pb-1 pt-0.5 scrollbar-none">
-                {/* Create Story / Add Post Button */}
                 <div
                   onClick={() => setShowNewPhotoPostModal(true)}
                   className="flex flex-col items-center gap-1 cursor-pointer shrink-0 group"
@@ -581,7 +1099,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                   </span>
                 </div>
 
-                {/* Classmate Stories */}
                 {classmates.map(cm => (
                   <div
                     key={cm.id}
@@ -639,7 +1156,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                     key={post.id}
                     className="bg-white border border-stone-200/90 rounded-2xl overflow-hidden shadow-2xs space-y-2.5 transition-all hover:border-rose-300"
                   >
-                    {/* Header */}
                     <div className="p-3 px-3.5 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full p-0.5 bg-gradient-to-tr from-rose-400 to-amber-400">
@@ -671,7 +1187,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                       </span>
                     </div>
 
-                    {/* Photo with double-tap heart */}
                     <div 
                       className="relative w-full aspect-4/3 sm:aspect-16/10 bg-stone-950 overflow-hidden cursor-pointer select-none group"
                       onDoubleClick={() => handleDoubleTapPost(post)}
@@ -683,7 +1198,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                         className="w-full h-full object-cover group-hover:scale-101 transition-transform duration-300"
                       />
 
-                      {/* Double Tap Heart Burst Animation */}
                       {heartBurstId === post.id && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-scale-up">
                           <Heart className="w-20 h-20 text-white fill-rose-500 drop-shadow-lg" />
@@ -691,7 +1205,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                       )}
                     </div>
 
-                    {/* Action Bar */}
                     <div className="px-3.5 pt-0.5 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <button
@@ -736,7 +1249,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                       </button>
                     </div>
 
-                    {/* Caption & Hashtag Badges */}
                     <div className="px-3.5 space-y-1">
                       <p className="text-xs text-stone-800 font-sans leading-relaxed">
                         <span className="font-display font-black mr-1.5 text-stone-900">
@@ -759,7 +1271,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                       )}
                     </div>
 
-                    {/* Comments Section */}
                     <div className="px-3.5 pb-3 space-y-2">
                       {post.comments && post.comments.length > 0 && (
                         <button
@@ -772,7 +1283,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                         </button>
                       )}
 
-                      {/* Expanded Comments List */}
                       {isExpanded && post.comments && (
                         <div className="space-y-1.5 pt-1 border-t border-stone-100">
                           {post.comments.map(c => (
@@ -786,7 +1296,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                         </div>
                       )}
 
-                      {/* Quick Comment Composer */}
                       <div className="pt-1 flex items-center gap-2">
                         <input
                           type="text"
@@ -818,267 +1327,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
           </div>
         )}
 
-        {/* ==================== 2. LIVE GROUP CHAT WITH PROFILE REFLECTION ==================== */}
-        {activeMode === 'chat' && (
-          <div className="bg-white border border-stone-200/90 rounded-3xl overflow-hidden shadow-2xs flex flex-col h-[530px] animate-fade-in relative">
-            
-            {/* Person / Profile Active Status Bar Above Chat */}
-            <div className="bg-gradient-to-r from-rose-50 via-pink-50 to-purple-50 border-b border-rose-200/70 p-2.5 px-3.5 flex items-center justify-between shrink-0 shadow-2xs">
-              <div 
-                onClick={() => {
-                  audioEngine.playSfx('click');
-                  setShowProfileModal(true);
-                }}
-                className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-90 group"
-              >
-                <div className="relative shrink-0">
-                  <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-rose-400 bg-white shadow-2xs group-hover:scale-105 transition-transform">
-                    <img src={currentUser?.avatarUrl || profileAvatarInput} alt="Your profile" className="w-full h-full object-cover" />
-                  </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 text-xs bg-white rounded-full border border-stone-200 p-0.2 shadow-2xs">
-                    {currentUser?.currentMoodEmoji || profileMoodEmojiInput}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-display font-black text-xs text-stone-900 truncate">
-                      {currentUser?.name || profileNameInput}
-                    </span>
-                    <span className="bg-rose-100 text-rose-800 text-[9px] font-bold px-1.5 py-0.2 rounded-full border border-rose-200">
-                      You
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-stone-500 truncate font-handwritten font-bold">
-                    "{currentUser?.statusNote || profileStatusInput}"
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  audioEngine.playSfx('click');
-                  setShowProfileModal(true);
-                }}
-                className="px-2.5 py-1 bg-white hover:bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-[11px] font-display font-bold shadow-2xs transition-all cursor-pointer flex items-center gap-1 shrink-0"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>Edit Profile</span>
-              </button>
-            </div>
-
-            {/* Chat Stream */}
-            <div className="flex-1 overflow-y-auto p-3.5 space-y-3 scrollbar-thin bg-stone-50/50">
-              {chatMessages.map(msg => {
-                const isCurrentUser = currentUser?.name 
-                  ? msg.senderName.toLowerCase().includes(currentUser.name.toLowerCase())
-                  : msg.senderName.toLowerCase().includes(profileNameInput.toLowerCase());
-                const reactionsList = Object.entries(msg.reactions || {}).filter(([, count]) => count > 0);
-
-                return (
-                  <div
-                    key={msg.id}
-                    onMouseEnter={() => setHoveredMessageId(msg.id)}
-                    onMouseLeave={() => setHoveredMessageId(null)}
-                    className={`flex items-end gap-2 group ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
-                  >
-                    {!isCurrentUser && (
-                      <div className={`w-7 h-7 rounded-full overflow-hidden border shrink-0 mb-1 ${
-                        msg.isKritika ? 'border-amber-400 ring-2 ring-pink-300' : 'border-stone-300'
-                      }`}>
-                        <img src={msg.avatarUrl} alt={msg.senderName} className="w-full h-full object-cover" />
-                      </div>
-                    )}
-
-                    <div className="relative max-w-[82%] sm:max-w-[72%] space-y-1">
-                      <div
-                        className={`p-2.5 sm:p-3 rounded-2xl shadow-2xs text-xs sm:text-sm leading-relaxed relative ${
-                          isCurrentUser
-                            ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-br-xs'
-                            : msg.isKritika
-                              ? 'bg-gradient-to-br from-pink-50 via-white to-amber-50 text-stone-900 rounded-bl-xs border border-pink-300 ring-1 ring-pink-200'
-                              : 'bg-white text-stone-900 rounded-bl-xs border border-stone-200'
-                        }`}
-                      >
-                        {!isCurrentUser && (
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className="font-display font-black text-[11px] text-purple-900">
-                              {msg.senderName}
-                            </span>
-                            {msg.isKritika && (
-                              <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full">
-                                👑 QUEEN
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Image Attachment */}
-                        {msg.imageUrl && (
-                          <div className="mb-2 rounded-xl overflow-hidden border border-black/10 bg-black/5 relative group/img cursor-pointer">
-                            <img
-                              src={msg.imageUrl}
-                              alt="Attached photo"
-                              onClick={() => setLightboxImage({ url: msg.imageUrl!, caption: msg.text })}
-                              className="w-full max-h-56 object-cover hover:scale-102 transition-transform duration-200"
-                            />
-                            <div className="absolute top-2 right-2 bg-black/60 text-white p-1 rounded-md opacity-0 group-hover/img:opacity-100 transition-opacity">
-                              <Eye className="w-3.5 h-3.5" />
-                            </div>
-                          </div>
-                        )}
-
-                        {msg.text && (
-                          <p className="whitespace-pre-wrap font-sans">
-                            {msg.text}
-                          </p>
-                        )}
-
-                        <div className={`flex items-center justify-end gap-1 mt-1 text-[9px] font-medium ${isCurrentUser ? 'text-rose-100' : 'text-stone-400'}`}>
-                          <span>{msg.timestamp}</span>
-                          {isCurrentUser && (
-                            <CheckCheck className="w-3.5 h-3.5 text-white/90" />
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Emoji Reactions */}
-                      {reactionsList.length > 0 && (
-                        <div className={`flex items-center gap-1 flex-wrap ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
-                          {reactionsList.map(([emoji, count]) => (
-                            <button
-                              key={emoji}
-                              onClick={() => {
-                                audioEngine.playSfx('pop');
-                                batchWallService.reactToChatMessage(msg.id, emoji);
-                              }}
-                              className="bg-white border border-stone-200 rounded-full px-1.5 py-0.2 text-[10px] font-bold shadow-2xs hover:scale-110 transition-transform cursor-pointer"
-                            >
-                              <span>{emoji}</span> <span>{count}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Hover Emoji Reaction Bar */}
-                      {hoveredMessageId === msg.id && (
-                        <div className={`absolute -top-7 ${isCurrentUser ? 'right-0' : 'left-0'} bg-white border border-stone-200 rounded-full px-2 py-0.5 shadow-md flex items-center gap-1 z-10 animate-fade-in`}>
-                          {['❤️', '👍', '😂', '😮', '🍕', '👑'].map(emoji => (
-                            <button
-                              key={emoji}
-                              type="button"
-                              onClick={() => {
-                                audioEngine.playSfx('pop');
-                                batchWallService.reactToChatMessage(msg.id, emoji);
-                              }}
-                              className="text-xs hover:scale-125 transition-transform cursor-pointer p-0.5"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={chatBottomRef} />
-            </div>
-
-            {/* Chat Attachment Preview */}
-            {chatImageAttachment && (
-              <div className="bg-stone-100 p-2 px-3 border-t border-stone-200 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-lg overflow-hidden border border-stone-300 shadow-2xs">
-                    <img src={chatImageAttachment} alt="Preview" className="w-full h-full object-cover" />
-                  </div>
-                  <div>
-                    <span className="font-display font-bold text-xs text-stone-800 block">Photo attached 📸</span>
-                    <span className="text-[10px] text-stone-500">Send with or without message</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setChatImageAttachment(null)}
-                  className="p-1 hover:bg-stone-200 rounded-full text-stone-600 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            {/* Chat Emoji Tray */}
-            {showChatEmojiPicker && (
-              <div className="bg-white border-t border-stone-200 p-2 px-3 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0 shadow-inner animate-fade-in">
-                <span className="text-[10px] font-bold text-stone-400 shrink-0">Emojis:</span>
-                {COMMON_EMOJIS.map(emoji => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => {
-                      setChatInput(prev => prev + emoji);
-                      audioEngine.playSfx('pop');
-                    }}
-                    className="w-7 h-7 rounded-xl hover:bg-rose-50 flex items-center justify-center text-sm transition-transform active:scale-90 cursor-pointer shrink-0"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Chat Input Bar */}
-            <form onSubmit={handleSendChatMessage} className="bg-white p-2 px-3 border-t border-stone-200 flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowChatEmojiPicker(!showChatEmojiPicker)}
-                className="p-1.5 text-stone-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer shrink-0"
-              >
-                <Smile className="w-5 h-5" />
-              </button>
-
-              <input
-                ref={chatFileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleChatImageSelect}
-                className="hidden"
-              />
-
-              <button
-                type="button"
-                onClick={() => chatFileInputRef.current?.click()}
-                className="p-1.5 text-stone-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer shrink-0"
-              >
-                <Paperclip className="w-5 h-5" />
-              </button>
-
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder={
-                  (currentUser?.name || profileNameInput).toLowerCase().includes('kritika')
-                    ? "Message Batch 41 as Kritika 👑..."
-                    : "Type a live message..."
-                }
-                className="flex-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm outline-none focus:border-rose-500 focus:bg-white transition-colors"
-              />
-
-              <button
-                type="submit"
-                disabled={isSendingChat || (!chatInput.trim() && !chatImageAttachment)}
-                className="p-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl transition-all shadow-2xs cursor-pointer shrink-0 flex items-center justify-center"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
-        )}
-
         {/* ==================== 3. BULLETIN CORKBOARD ==================== */}
         {activeMode === 'bulletin' && (
           <div className="space-y-3.5 animate-fade-in">
-            {/* Header / Pin Button */}
             <div className="bg-gradient-to-r from-amber-50 via-rose-50 to-purple-50 border border-amber-200/80 rounded-2xl p-3 shadow-2xs flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-xl border border-amber-300 bg-white shadow-2xs shrink-0 flex items-center justify-center text-base">
@@ -1106,7 +1357,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
               </button>
             </div>
 
-            {/* Sticky Notes */}
             <div className="space-y-3">
               {allBulletinPosts.map(post => {
                 const sticker = STICKERS.find(s => s.alias === post.avatarPose) || STICKERS[0];
@@ -1175,7 +1425,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                       {post.text}
                     </p>
 
-                    {/* Emoji Reaction Tray */}
                     <div className="pt-2 border-t border-stone-100 space-y-2">
                       <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
                         <span className="text-[10px] font-bold text-stone-400 shrink-0">React:</span>
@@ -1216,7 +1465,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                       </div>
                     </div>
 
-                    {/* Threaded Replies */}
                     {isExpanded && (
                       <div className="mt-2 pt-2 border-t border-stone-100 space-y-2 bg-stone-50/80 p-3 rounded-xl">
                         {replies.map(r => (
@@ -1263,17 +1511,80 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
           </div>
         )}
 
+        {/* MODAL: CREATE GROUP POLL */}
+        {showCreatePollModal && (
+          <BaseModal
+            onClose={() => setShowCreatePollModal(false)}
+            title="CREATE BATCH GROUP POLL"
+            subtitle="Ask Batch 41 a question and see real-time votes"
+            icon={<BarChart2 className="w-5 h-5 text-rose-500" />}
+            maxWidth="max-w-md"
+          >
+            <form onSubmit={handleCreatePoll} className="space-y-3 text-left">
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  Poll Question:
+                </label>
+                <input
+                  type="text"
+                  value={pollQuestion}
+                  onChange={(e) => setPollQuestion(e.target.value)}
+                  placeholder="e.g. Tonight's comfort choice? 🍕 vs 🧀"
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white font-bold"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-display font-black text-xs text-stone-700 uppercase block">
+                  Options:
+                </label>
+                <input
+                  type="text"
+                  value={pollOption1}
+                  onChange={(e) => setPollOption1(e.target.value)}
+                  placeholder="Option 1 (e.g. Pizza Night 🍕)"
+                  className="w-full px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white"
+                  required
+                />
+                <input
+                  type="text"
+                  value={pollOption2}
+                  onChange={(e) => setPollOption2(e.target.value)}
+                  placeholder="Option 2 (e.g. Gourmet Macaroni 🧀)"
+                  className="w-full px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white"
+                  required
+                />
+                <input
+                  type="text"
+                  value={pollOption3}
+                  onChange={(e) => setPollOption3(e.target.value)}
+                  placeholder="Option 3 (Optional, e.g. Hot Chai ☕)"
+                  className="w-full px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:opacity-95 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 mt-2"
+              >
+                <BarChart2 className="w-4 h-4" />
+                <span>Publish Group Poll 📊</span>
+              </button>
+            </form>
+          </BaseModal>
+        )}
+
         {/* MODAL: PROFILE SETTINGS & AVATAR EDITOR */}
         {showProfileModal && (
           <BaseModal
             onClose={() => setShowProfileModal(false)}
             title="YOUR CHAT & SOCIAL PROFILE"
-            subtitle="Customize how your name and avatar appear in chat and posts"
+            subtitle="Customize how your name and avatar appear to all group members"
             icon={<UserCheck className="w-5 h-5 text-rose-500" />}
             maxWidth="max-w-md"
           >
             <form onSubmit={handleSaveProfile} className="space-y-4 text-left">
-              {/* Profile Avatar Selection */}
               <div>
                 <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1.5">
                   1. Profile Picture / Avatar:
@@ -1307,7 +1618,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                   </button>
                 </div>
 
-                {/* Preset Avatars */}
                 <div>
                   <span className="text-[10px] font-bold text-stone-400 block mb-1">Or choose a preset:</span>
                   <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -1332,10 +1642,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 </div>
               </div>
 
-              {/* Display Name */}
               <div>
                 <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
-                  2. Display Name:
+                  2. Display Name (Seen by all members):
                 </label>
                 <input
                   type="text"
@@ -1347,7 +1656,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 />
               </div>
 
-              {/* Status Note / Bio */}
               <div>
                 <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
                   3. Status Note / Bio:
@@ -1361,7 +1669,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 />
               </div>
 
-              {/* Mood Emoji & Label */}
               <div>
                 <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
                   4. Current Mood Emoji:
@@ -1388,13 +1695,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 </div>
               </div>
 
-              {/* Save Button */}
               <button
                 type="submit"
                 className="w-full py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:opacity-95 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <Check className="w-4 h-4" />
-                <span>Save Profile & Reflect in Chat</span>
+                <span>Save Profile & Reflect in Group Chat</span>
               </button>
             </form>
           </BaseModal>
@@ -1410,7 +1716,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
             maxWidth="max-w-md"
           >
             <form onSubmit={handleCreatePhotoPost} className="space-y-3.5 text-left">
-              {/* Photo Upload or Preset Selection */}
               <div>
                 <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
                   1. Choose / Upload Photo:
@@ -1453,7 +1758,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                       </p>
                     </div>
 
-                    {/* Quick Preset Photos */}
                     <div>
                       <span className="text-[10px] font-bold text-stone-400 block mb-1">Or pick a comfort preset:</span>
                       <div className="grid grid-cols-3 gap-1.5">
@@ -1475,7 +1779,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 )}
               </div>
 
-              {/* Photo Filter Selection */}
               {newPostImage && (
                 <div>
                   <label className="font-display font-black text-[11px] text-stone-700 uppercase block mb-1">
@@ -1501,7 +1804,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 </div>
               )}
 
-              {/* Location Tag */}
               <div>
                 <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
                   Location / Vibe:
@@ -1515,7 +1817,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 />
               </div>
 
-              {/* Caption */}
               <div>
                 <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
                   Caption:
@@ -1530,14 +1831,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 />
               </div>
 
-              {/* Tag Selector with Select / Unselect and Custom Tag Input */}
               <div className="space-y-1.5">
                 <label className="font-display font-black text-xs text-stone-700 uppercase flex items-center justify-between">
                   <span>Hashtags / Tags:</span>
                   <span className="text-[10px] text-stone-400 font-normal">Tap tag to select/unselect</span>
                 </label>
 
-                {/* Selected Tags Display */}
                 {selectedTags.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap p-2 bg-rose-50/60 border border-rose-200 rounded-xl">
                     <span className="text-[10px] font-bold text-rose-900 mr-1">Active:</span>
@@ -1554,7 +1853,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                   </div>
                 )}
 
-                {/* Suggested Tags to Toggle */}
                 <div className="flex items-center gap-1 flex-wrap">
                   {SUGGESTED_HASHTAGS.map(tag => {
                     const isSelected = selectedTags.includes(tag);
@@ -1575,7 +1873,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                   })}
                 </div>
 
-                {/* Custom Tag Input */}
                 <div className="flex items-center gap-1.5 pt-1">
                   <div className="relative flex-1">
                     <Tag className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
@@ -1604,7 +1901,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 </div>
               </div>
 
-              {/* Submit Post Button */}
               <button
                 type="submit"
                 disabled={isPublishingPost || !newPostImage}
@@ -1653,7 +1949,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 />
               </div>
 
-              {/* Quick Emojis Toolbar for Bulletin */}
               <div>
                 <span className="font-display font-black text-[10px] text-stone-500 uppercase block mb-1">
                   Add Emojis:
@@ -1733,24 +2028,38 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 </p>
               </div>
 
-              <button
-                onClick={() => {
-                  audioEngine.playSfx('fanfare');
-                  confetti({ particleCount: 45, spread: 60, origin: { y: 0.7 } });
-                  batchWallService.sendGroupChatMessage({
-                    senderId: currentUser?.id,
-                    senderName: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
-                    senderEmail: currentUser?.email,
-                    avatarUrl: currentUser?.avatarUrl || profileAvatarInput,
-                    text: `Sending a big warm cheer to ${selectedClassmateDetail.name}! Keep glowing! ✨💖`
-                  });
-                  setSelectedClassmateDetail(null);
-                  setActiveMode('chat');
-                }}
-                className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-colors cursor-pointer"
-              >
-                Send Cheer in Live Chat 💬✨
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    audioEngine.playSfx('fanfare');
+                    confetti({ particleCount: 45, spread: 60, origin: { y: 0.7 } });
+                    batchWallService.sendGroupChatMessage({
+                      senderId: currentUser?.id,
+                      senderName: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
+                      senderEmail: currentUser?.email,
+                      avatarUrl: currentUser?.avatarUrl || profileAvatarInput,
+                      text: `Sending a big warm cheer to @${selectedClassmateDetail.name}! Keep shining! ✨💖`
+                    });
+                    setSelectedClassmateDetail(null);
+                    setActiveMode('chat');
+                  }}
+                  className="py-2.5 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-colors cursor-pointer"
+                >
+                  Cheer in Chat 💬
+                </button>
+
+                <button
+                  onClick={() => {
+                    audioEngine.playSfx('pop');
+                    setChatInput(prev => `${prev}@${selectedClassmateDetail.name.split(' ')[0]} `);
+                    setSelectedClassmateDetail(null);
+                    setActiveMode('chat');
+                  }}
+                  className="py-2.5 px-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-display font-bold uppercase shadow-2xs transition-colors cursor-pointer"
+                >
+                  @Mention In Chat
+                </button>
+              </div>
             </div>
           </BaseModal>
         )}
