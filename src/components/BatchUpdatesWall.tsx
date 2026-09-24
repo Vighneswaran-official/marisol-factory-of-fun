@@ -9,7 +9,7 @@ import {
   Plus, Sparkles, Send, X, UserCheck, Heart, 
   MessageCircle, MessagesSquare, Pin, Camera, Paperclip, Smile,
   Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check,
-  Reply, BarChart2, AtSign, Video, Phone, MoreVertical, Mic,
+  Reply, BarChart2, AtSign, MoreVertical, Mic, Volume2, VolumeX, Headphones, MicOff, PhoneOff,
   Trash2, ChevronDown, Ban, Globe, Lock, Clock,
   Filter, AlertCircle, RefreshCw
 } from 'lucide-react';
@@ -261,6 +261,126 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   // Matched Message Table & Session Inspection State
   const [chatFilterMode, setChatFilterMode] = useState<'all' | 'my_messages'>('all');
+
+  // ==================== DISCORD-STYLE VOICE ROOM STATE ====================
+  const [isVoiceRoomConnected, setIsVoiceRoomConnected] = useState(false);
+  const [showVoiceRoomModal, setShowVoiceRoomModal] = useState(false);
+  const [isVoiceMuted, setIsVoiceMuted] = useState(false);
+  const [isVoiceDeafened, setIsVoiceDeafened] = useState(false);
+  const [userIsSpeaking, setUserIsSpeaking] = useState(false);
+  const [speakingPeerId, setSpeakingPeerId] = useState<string | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+
+  // Simulated ambient peer activity for classmates in the Discord Voice Room
+  useEffect(() => {
+    if (!isVoiceRoomConnected) return;
+    const interval = setInterval(() => {
+      const peers = ['kritika', 'aarindam', null, null];
+      const next = peers[Math.floor(Math.random() * peers.length)];
+      setSpeakingPeerId(next);
+      if (next && !isVoiceDeafened) {
+        audioEngine.playSfx('pop');
+      }
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [isVoiceRoomConnected, isVoiceDeafened]);
+
+  // Clean up Web Audio stream on unmount
+  useEffect(() => {
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+      }
+    };
+  }, []);
+
+  const handleJoinVoiceRoom = async () => {
+    setIsVoiceRoomConnected(true);
+    setShowVoiceRoomModal(true);
+    audioEngine.playSfx('levelup');
+    setShareToast('Joined Batch 41 Voice Room 🔊✨');
+    setTimeout(() => setShareToast(null), 2500);
+
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioStreamRef.current = stream;
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        const ctx = new AudioCtx();
+        audioContextRef.current = ctx;
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        analyserRef.current = analyser;
+        const source = ctx.createMediaStreamSource(stream);
+        source.connect(analyser);
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const checkAudioMeter = () => {
+          if (!analyserRef.current) return;
+          analyserRef.current.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+          }
+          const avg = sum / dataArray.length;
+          setUserIsSpeaking(!isVoiceMuted && avg > 14);
+          animFrameRef.current = requestAnimationFrame(checkAudioMeter);
+        };
+        checkAudioMeter();
+      }
+    } catch {
+      // Microphone access is optional, room works smoothly in presence mode
+    }
+  };
+
+  const toggleVoiceRoomMute = () => {
+    audioEngine.playSfx('pop');
+    setIsVoiceMuted(prev => {
+      const next = !prev;
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !next; });
+      }
+      if (next) setUserIsSpeaking(false);
+      setShareToast(next ? 'Microphone Muted 🔇' : 'Microphone Live 🎙️');
+      setTimeout(() => setShareToast(null), 1800);
+      return next;
+    });
+  };
+
+  const toggleVoiceRoomDeafen = () => {
+    audioEngine.playSfx('pop');
+    setIsVoiceDeafened(prev => {
+      const next = !prev;
+      setShareToast(next ? 'Audio Deafened 🎧' : 'Audio Active 🔊');
+      setTimeout(() => setShareToast(null), 1800);
+      return next;
+    });
+  };
+
+  const handleDisconnectVoiceRoom = () => {
+    audioEngine.playSfx('wrong');
+    setIsVoiceRoomConnected(false);
+    setShowVoiceRoomModal(false);
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach(t => t.stop());
+      audioStreamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    setUserIsSpeaking(false);
+    setShareToast('Disconnected from Voice Room 📞');
+    setTimeout(() => setShareToast(null), 2000);
+  };
 
   // Compute matched session user data by querying the message table
   const userMatchedSessionData = useMemo(() => {
@@ -977,53 +1097,99 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 </button>
               </div>
 
-              {/* Action Icons */}
-              <div className="flex items-center gap-1 text-stone-600">
+              {/* Action: Discord-Style Voice Room & Info */}
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     audioEngine.playSfx('pop');
-                    setShareToast('Video room connection ready 📹');
-                    setTimeout(() => setShareToast(null), 2000);
+                    if (!isVoiceRoomConnected) {
+                      handleJoinVoiceRoom();
+                    } else {
+                      setShowVoiceRoomModal(true);
+                    }
                   }}
-                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
-                  title="Video Call"
+                  className={`px-2.5 py-1 rounded-full text-xs font-display font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0 shadow-2xs ${
+                    isVoiceRoomConnected
+                      ? 'bg-emerald-600 text-white shadow-emerald-500/30 shadow-sm'
+                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  }`}
+                  title="Batch 41 Voice Room (Discord-style: speak anytime)"
                 >
-                  <Video className="w-4.5 h-4.5" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playSfx('pop');
-                    setShareToast('Voice lounge active 📞');
-                    setTimeout(() => setShareToast(null), 2000);
-                  }}
-                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
-                  title="Voice Call"
-                >
-                  <Phone className="w-4.5 h-4.5" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowCreatePollModal(true)}
-                  className="p-1.5 hover:bg-stone-100 hover:text-rose-600 rounded-full cursor-pointer text-stone-600 transition-colors"
-                  title="Group Poll"
-                >
-                  <BarChart2 className="w-4.5 h-4.5" />
+                  <Volume2 className={`w-3.5 h-3.5 ${isVoiceRoomConnected ? 'text-white animate-pulse' : 'text-emerald-600'}`} />
+                  <span className="text-[11px] sm:text-xs font-bold">Voice Room</span>
+                  {isVoiceRoomConnected ? (
+                    <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping" />
+                  ) : (
+                    <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-1 rounded-full font-mono font-bold">
+                      3
+                    </span>
+                  )}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setShowProfileModal(true)}
-                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors text-stone-600 shrink-0"
                   title="Group Info & Profile"
                 >
                   <MoreVertical className="w-4.5 h-4.5" />
                 </button>
               </div>
             </div>
+
+            {/* Discord-Style Persistent Active Voice Bar (Speak anytime while chatting) */}
+            {isVoiceRoomConnected && (
+              <div className="bg-[#2B2D31] text-white px-3 py-1.5 flex items-center justify-between text-xs shrink-0 shadow-xs border-b border-[#1E1F22] animate-fade-in">
+                <div 
+                  onClick={() => setShowVoiceRoomModal(true)}
+                  className="flex items-center gap-2 min-w-0 cursor-pointer hover:opacity-90 transition-opacity"
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <div className="min-w-0">
+                    <span className="font-display font-bold text-[11px] sm:text-xs text-emerald-400 block truncate">
+                      🔊 Voice Connected • Batch 41 Voice Room
+                    </span>
+                    <span className="text-[10px] text-stone-300 block truncate">
+                      {userIsSpeaking ? '🎙️ You are speaking...' : isVoiceMuted ? '🔇 You are muted' : '🎙️ Mic live (Speak anytime)'} • Tap for stage
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={toggleVoiceRoomMute}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      isVoiceMuted ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30'
+                    }`}
+                    title={isVoiceMuted ? 'Unmute Microphone' : 'Mute Microphone'}
+                  >
+                    {isVoiceMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={toggleVoiceRoomDeafen}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      isVoiceDeafened ? 'bg-rose-500/20 text-rose-400' : 'bg-stone-700 text-stone-300 hover:bg-stone-600'
+                    }`}
+                    title={isVoiceDeafened ? 'Undeafen Audio' : 'Deafen Audio'}
+                  >
+                    {isVoiceDeafened ? <VolumeX className="w-3.5 h-3.5" /> : <Headphones className="w-3.5 h-3.5" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDisconnectVoiceRoom}
+                    className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors cursor-pointer ml-1"
+                    title="Disconnect from Voice Room"
+                  >
+                    <PhoneOff className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Error Banner with Retry Button */}
             {chatStatus.status === 'error' && (
@@ -1668,25 +1834,16 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   </button>
                 </div>
 
-                {/* Right Floating Circular Send / Mic Button */}
+                {/* Right Circular Send Button (Always Send, Voice Recorder Removed) */}
                 <button
-                  type={chatInput.trim() || chatImageAttachment ? "submit" : "button"}
-                  disabled={isSendingChat}
-                  onClick={() => {
-                    if (!chatInput.trim() && !chatImageAttachment) {
-                      audioEngine.playSfx('fanfare');
-                      setShareToast('Voice cheer sent! 🎙️✨');
-                      setTimeout(() => setShareToast(null), 2000);
-                    }
-                  }}
-                  className={`w-9 h-9 sm:w-10 sm:h-10 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-full transition-all shadow-sm cursor-pointer shrink-0 flex items-center justify-center ${isSendingChat ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  title={chatInput.trim() || chatImageAttachment ? "Send" : "Hold for voice note"}
+                  type="submit"
+                  disabled={(!chatInput.trim() && !chatImageAttachment) || isSendingChat}
+                  className={`w-9 h-9 sm:w-10 sm:h-10 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-full transition-all shadow-sm cursor-pointer shrink-0 flex items-center justify-center ${
+                    (!chatInput.trim() && !chatImageAttachment) || isSendingChat ? 'opacity-40 cursor-not-allowed' : ''
+                  }`}
+                  title="Send message"
                 >
-                  {chatInput.trim() || chatImageAttachment ? (
-                    <Send className="w-4.5 h-4.5" />
-                  ) : (
-                    <Mic className="w-4.5 h-4.5" />
-                  )}
+                  <Send className="w-4 h-4 sm:w-4.5 sm:h-4.5 ml-0.5" />
                 </button>
               </form>
             )}
@@ -3047,6 +3204,255 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
         )}
 
       </div>
-    </div>
+    
+        {/* ==================== DISCORD-STYLE VOICE ROOM STAGE MODAL ==================== */}
+        {showVoiceRoomModal && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-50 bg-[#1E1F22]/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-fade-in"
+            onClick={() => setShowVoiceRoomModal(false)}
+          >
+            <div
+              className="bg-[#313338] text-white w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex flex-col max-h-[92dvh] animate-scale-up"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Discord Modal Header */}
+              <div className="bg-[#2B2D31] p-3 px-4 sm:px-5 border-b border-[#1E1F22] flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                    <Volume2 className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display font-black text-sm sm:text-base text-white truncate">
+                        🔊 Batch 41 Voice Room
+                      </h3>
+                      <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 shrink-0">
+                        LIVE STAGE
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-400 truncate">
+                      Discord-style voice channel • Speak anytime with classmates
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowVoiceRoomModal(false)}
+                    className="p-1.5 text-stone-400 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                    title="Minimize to Chat"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Stage Visual Area: Classmates Grid */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  {/* Participant 1: YOU */}
+                  <div className={`bg-[#2B2D31] border rounded-2xl p-3 sm:p-4 text-center space-y-2 transition-all relative overflow-hidden ${
+                    userIsSpeaking
+                      ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] bg-gradient-to-b from-[#2B2D31] to-emerald-950/20'
+                      : 'border-white/5'
+                  }`}>
+                    <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto">
+                      <img
+                        src={currentUser?.avatarUrl || profileAvatarInput || '/marisol/avatars/01_brighter_ideas.png'}
+                        alt={currentUser?.name || studentName || 'You'}
+                        className={`w-full h-full rounded-full object-cover transition-all ${
+                          userIsSpeaking
+                            ? 'ring-4 ring-emerald-500 shadow-[0_0_16px_rgba(16,185,129,0.8)] scale-105'
+                            : 'border-2 border-white/10'
+                        }`}
+                      />
+                      <span className={`absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] border-2 border-[#2B2D31] ${
+                        isVoiceMuted ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-white'
+                      }`}>
+                        {isVoiceMuted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-display font-black text-xs sm:text-sm text-white block truncate">
+                        {currentUser?.name || studentName || 'You'} (You)
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 ${
+                        userIsSpeaking ? 'bg-emerald-500 text-white animate-pulse' : isVoiceMuted ? 'bg-rose-500/20 text-rose-300' : 'bg-white/10 text-stone-300'
+                      }`}>
+                        {userIsSpeaking ? '🎙️ Speaking...' : isVoiceMuted ? 'Muted' : 'Mic Live'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Participant 2: KRITIKA */}
+                  <div className={`bg-[#2B2D31] border rounded-2xl p-3 sm:p-4 text-center space-y-2 transition-all relative overflow-hidden ${
+                    speakingPeerId === 'kritika'
+                      ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] bg-gradient-to-b from-[#2B2D31] to-emerald-950/20'
+                      : 'border-white/5'
+                  }`}>
+                    <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto">
+                      <img
+                        src="/marisol/avatars/01_brighter_ideas.png"
+                        alt="Kritika"
+                        className={`w-full h-full rounded-full object-cover transition-all ${
+                          speakingPeerId === 'kritika'
+                            ? 'ring-4 ring-emerald-500 shadow-[0_0_16px_rgba(16,185,129,0.8)] scale-105'
+                            : 'border-2 border-white/10'
+                        }`}
+                      />
+                      <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] bg-amber-500 text-white border-2 border-[#2B2D31]">
+                        👑
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-display font-black text-xs sm:text-sm text-white block truncate">
+                        Kritika
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 ${
+                        speakingPeerId === 'kritika' ? 'bg-emerald-500 text-white animate-pulse' : 'bg-amber-500/20 text-amber-300'
+                      }`}>
+                        {speakingPeerId === 'kritika' ? '🎙️ Speaking...' : 'Host 👑'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Participant 3: AARINDAM SRIVASTAVA */}
+                  <div className={`bg-[#2B2D31] border rounded-2xl p-3 sm:p-4 text-center space-y-2 transition-all relative overflow-hidden ${
+                    speakingPeerId === 'aarindam'
+                      ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] bg-gradient-to-b from-[#2B2D31] to-emerald-950/20'
+                      : 'border-white/5'
+                  }`}>
+                    <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto">
+                      <div className="w-full h-full rounded-full bg-teal-700 text-white flex items-center justify-center text-lg font-black border-2 border-white/10">
+                        AS
+                      </div>
+                      <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] bg-emerald-500 text-white border-2 border-[#2B2D31]">
+                        <Headphones className="w-3 h-3" />
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-display font-black text-xs sm:text-sm text-white block truncate">
+                        aarindam srivastava
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 ${
+                        speakingPeerId === 'aarindam' ? 'bg-emerald-500 text-white animate-pulse' : 'bg-white/10 text-stone-300'
+                      }`}>
+                        {speakingPeerId === 'aarindam' ? '🎙️ Speaking...' : 'Listening 🎧'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Participant 4: MAHI */}
+                  <div className="bg-[#2B2D31] border border-white/5 rounded-2xl p-3 sm:p-4 text-center space-y-2 transition-all">
+                    <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto">
+                      <div className="w-full h-full rounded-full bg-purple-700 text-white flex items-center justify-center text-lg font-black border-2 border-white/10">
+                        M
+                      </div>
+                      <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] bg-emerald-500 text-white border-2 border-[#2B2D31]">
+                        <Headphones className="w-3 h-3" />
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-display font-black text-xs sm:text-sm text-white block truncate">
+                        Mahi
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 bg-white/10 text-stone-300">
+                        Listening 🎧
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Cheers Soundboard */}
+                <div className="bg-[#2B2D31] border border-white/5 rounded-2xl p-3 space-y-2">
+                  <span className="font-display font-black text-[11px] uppercase tracking-wider text-stone-400 block text-left">
+                    Voice Soundboard Cheers:
+                  </span>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { emoji: '👏', label: 'Clap', sfx: 'fanfare' },
+                      { emoji: '🎉', label: 'Cheer', sfx: 'fanfare' },
+                      { emoji: '💖', label: 'Love', sfx: 'powerup' },
+                      { emoji: '🔥', label: 'Fire', sfx: 'pop' }
+                    ].map(snd => (
+                      <button
+                        key={snd.label}
+                        type="button"
+                        onClick={() => {
+                          audioEngine.playSfx(snd.sfx as any);
+                          if (snd.label === 'Cheer') confetti({ particleCount: 40, spread: 50, origin: { y: 0.6 } });
+                          setShareToast(`Sent voice cheer: ${snd.emoji} ${snd.label}!`);
+                          setTimeout(() => setShareToast(null), 1800);
+                        }}
+                        className="p-2 bg-white/5 hover:bg-white/15 active:scale-95 border border-white/10 rounded-xl flex flex-col items-center gap-0.5 transition-all cursor-pointer"
+                      >
+                        <span className="text-lg">{snd.emoji}</span>
+                        <span className="text-[10px] font-bold text-stone-300">{snd.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Discord Voice Controls */}
+              <div className="bg-[#2B2D31] p-3 px-4 border-t border-[#1E1F22] flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2">
+                  {/* Mute Button */}
+                  <button
+                    type="button"
+                    onClick={toggleVoiceRoomMute}
+                    className={`px-4 py-2.5 rounded-xl font-display font-bold text-xs flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
+                      isVoiceMuted
+                        ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-sm'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20 shadow-sm'
+                    }`}
+                  >
+                    {isVoiceMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    <span>{isVoiceMuted ? 'Unmute' : 'Mute'}</span>
+                  </button>
+
+                  {/* Deafen Button */}
+                  <button
+                    type="button"
+                    onClick={toggleVoiceRoomDeafen}
+                    className={`p-2.5 rounded-xl transition-all cursor-pointer border ${
+                      isVoiceDeafened
+                        ? 'bg-rose-600 text-white border-rose-500'
+                        : 'bg-white/5 hover:bg-white/10 text-stone-300 border-white/10'
+                    }`}
+                    title={isVoiceDeafened ? 'Undeafen' : 'Deafen'}
+                  >
+                    {isVoiceDeafened ? <VolumeX className="w-4 h-4" /> : <Headphones className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Minimize & Chat */}
+                  <button
+                    type="button"
+                    onClick={() => setShowVoiceRoomModal(false)}
+                    className="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-display font-bold transition-all cursor-pointer"
+                  >
+                    Chat & Speak
+                  </button>
+
+                  {/* Disconnect Button */}
+                  <button
+                    type="button"
+                    onClick={handleDisconnectVoiceRoom}
+                    className="p-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+                    title="Disconnect from Voice Room"
+                  >
+                    <PhoneOff className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+</div>
   );
 };
