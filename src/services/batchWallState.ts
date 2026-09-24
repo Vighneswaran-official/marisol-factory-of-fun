@@ -106,34 +106,55 @@ const QUEUE_KEY = 'marisol_batch_offline_queue_v2';
 const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
   {
     id: 'chat_init_1',
-    senderName: 'Kritika Gupta 👑',
-    senderEmail: 'kritika.gupta@mlp41.edu',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
-    text: 'Hey Batch 41 family! Welcome to our comfort hub! Savoring every sweet memory together ♡ ✨',
-    imageUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80',
-    timestamp: 'Today at 2:30 PM',
-    createdAt: Date.now() - 3600000 * 4,
-    isKritika: true,
-    reactionEmoji: '💖',
-    reactions: { '💖': 5, '✨': 4 }
+    senderName: 'Elangovan Knit Kingdom',
+    senderEmail: 'elangovan@knitkingdom.com',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',
+    text: '@Dhanashree Nykaa Fashion\nHi mam, Good Afternoon i have raised the ticket regarding GST Report, Ticket Id :#6855016',
+    timestamp: '12:28 pm',
+    createdAt: Date.now() - 3600000 * 24,
+    reactions: { '👍': 3 }
   },
   {
     id: 'chat_init_2',
-    senderName: 'Priyanshu Sharma',
-    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
-    text: 'Kritika queen!! The music player and food quiz are pure vibes! 🧀🍕',
-    timestamp: 'Today at 3:15 PM',
-    createdAt: Date.now() - 3600000 * 2,
-    reactions: { '🍕': 3, '🔥': 2 }
+    senderName: 'Dhanashree Nykaa Fashion',
+    senderEmail: 'dhanashree@nykaa.com',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+    text: 'GRAND FESTIVE SALE is going live tomorrow! ✨\n\nKindly upload the discounts for the below duration on seller panel and share the ticket id here.\n\nStart Date: 17th Sept\nEnd Date: 30th Sept',
+    timestamp: '12:52 pm',
+    createdAt: Date.now() - 3600000 * 18,
+    reactions: { '✨': 6, '🔥': 4 }
   },
   {
     id: 'chat_init_3',
-    senderName: 'Ananya Deshmukh',
-    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
-    text: 'Who wants to do the Chai Enthusiast movie quiz round together tonight? ☕🎬',
-    timestamp: 'Today at 3:45 PM',
-    createdAt: Date.now() - 3600000,
-    reactions: { '☕': 4, '👏': 3 }
+    senderName: 'Knit Kingdom Office',
+    senderEmail: 'office@knitkingdom.com',
+    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
+    text: '@Meher Mistry Nykaa Fashion\nHi Meher, I need to change the logistics OTP number for Tom Milton. Could you please update it to 8925073448?',
+    timestamp: 'Edited 9:53 am',
+    createdAt: Date.now() - 3600000 * 5,
+    reactions: { '👍': 2 }
+  },
+  {
+    id: 'chat_init_4',
+    senderName: 'Kritika Gupta 👑',
+    senderEmail: 'kritika.gupta@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+    text: 'Hey Batch 41 family! Welcome to our comfort lounge! Savoring every sweet memory together ♡ ✨',
+    imageUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80',
+    timestamp: 'Today at 2:30 PM',
+    createdAt: Date.now() - 3600000 * 3,
+    isKritika: true,
+    reactionEmoji: '💖',
+    reactions: { '💖': 8, '✨': 5 }
+  },
+  {
+    id: 'chat_init_5',
+    senderName: 'Priyanshu Sharma',
+    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
+    text: '@Kritika Gupta 👑 The music player and comfort arcade are pure vibes! 🧀🍕',
+    timestamp: 'Today at 3:15 PM',
+    createdAt: Date.now() - 3600000 * 2,
+    reactions: { '🍕': 4, '🔥': 3 }
   }
 ];
 
