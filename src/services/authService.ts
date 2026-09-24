@@ -333,7 +333,8 @@ class AuthService {
   }
 
   public isUserAllowedToChat(): boolean {
-    return this.isGoogleAuthenticated();
+    if (!this.currentUser) return false;
+    return Boolean(this.currentUser.email && this.currentUser.email.includes('@'));
   }
 
   public getClassmates(): StudentProfile[] {

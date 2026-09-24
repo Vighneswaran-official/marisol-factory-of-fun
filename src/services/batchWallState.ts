@@ -772,6 +772,9 @@ class BatchWallService {
       text: string;
     };
     poll?: ChatPoll;
+    isPinned?: boolean;
+    pinnedBy?: string;
+    pinnedAt?: number;
   }): Promise<GroupChatMessage> {
     const name = data.senderName.trim() || 'Batch 41 Student';
     const email = data.senderEmail || '';
@@ -800,6 +803,9 @@ class BatchWallService {
       timestamp: 'Just now',
       createdAt: Date.now(),
       isKritika,
+      isPinned: data.isPinned ?? false,
+      pinnedBy: data.pinnedBy,
+      pinnedAt: data.pinnedAt,
       reactions: {},
       seenBy: [
         {
@@ -1055,15 +1061,9 @@ class BatchWallService {
     if (!msg) return;
 
     const willPin = !msg.isPinned;
-    this.chatMessages.forEach(m => {
-      if (m.id === messageId) {
-        m.isPinned = willPin;
-        m.pinnedBy = willPin ? (pinnedBy || 'Classmate') : undefined;
-        m.pinnedAt = willPin ? Date.now() : undefined;
-      } else if (willPin) {
-        m.isPinned = false;
-      }
-    });
+    msg.isPinned = willPin;
+    msg.pinnedBy = willPin ? (pinnedBy || 'Classmate') : undefined;
+    msg.pinnedAt = willPin ? Date.now() : undefined;
 
     this.saveChatToStorage();
     try {
@@ -1083,6 +1083,12 @@ class BatchWallService {
     }
 
     this.notify();
+  }
+
+  public getPinnedMessages(): GroupChatMessage[] {
+    return this.chatMessages
+      .filter(m => m.isPinned)
+      .sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0));
   }
 
   public async unpinChatMessage(messageId: string) {
