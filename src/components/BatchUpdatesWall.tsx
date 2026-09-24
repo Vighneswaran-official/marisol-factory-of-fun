@@ -762,30 +762,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
         {/* ==================== 2. LIVE GROUP CHAT ==================== */}
         {activeMode === 'chat' && (
           <div className="bg-white border border-stone-200/90 rounded-3xl overflow-hidden shadow-2xs flex flex-col h-[520px] animate-fade-in relative">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-rose-500 via-pink-600 to-purple-600 text-white p-3 px-4 flex items-center justify-between shrink-0 shadow-2xs">
-              <div className="flex items-center gap-2.5">
-                <div className="relative">
-                  <div className="w-9 h-9 rounded-full bg-white/20 border border-white/40 flex items-center justify-center text-base">
-                    💬
-                  </div>
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border-2 border-pink-600 rounded-full" />
-                </div>
-                <div>
-                  <h3 className="font-display font-black text-xs sm:text-sm text-white">
-                    Batch 41 Live Lounge
-                  </h3>
-                  <p className="text-[10px] text-rose-100 font-medium">
-                    Kritika 👑 & {classmates.length} classmates connected
-                  </p>
-                </div>
-              </div>
-
-              <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold">
-                Real-time Sync
-              </span>
-            </div>
-
             {/* Chat Stream */}
             <div className="flex-1 overflow-y-auto p-3.5 space-y-3 scrollbar-thin bg-stone-50/50">
               {chatMessages.map(msg => {
