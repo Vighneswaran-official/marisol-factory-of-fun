@@ -168,7 +168,9 @@ export function App() {
   const quizStats = nonRepeatingQuizEngine.getStats();
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-stone-900 font-sans antialiased selection:bg-pink-200">
+    <div className={`bg-[#FAF8F5] text-stone-900 font-sans antialiased selection:bg-pink-200 ${
+      currentScreen === 'batch_wall' ? 'h-[100dvh] max-h-[100dvh] flex flex-col overflow-hidden' : 'min-h-screen'
+    }`}>
       {/* Top Navbar */}
       <Navbar
         currentScreen={currentScreen}
@@ -177,7 +179,11 @@ export function App() {
       />
 
       {/* Main Content Area */}
-      <main className="animate-fade-in pb-20">
+      <main className={`animate-fade-in ${
+        currentScreen === 'batch_wall' 
+          ? 'flex-1 min-h-0 flex flex-col overflow-hidden pb-0' 
+          : 'pb-20'
+      }`}>
         
         {/* 1. HOME SCREEN: Hero Video, 1-9 Mood Selector & Macaroni Preview */}
         {currentScreen === 'home' && (

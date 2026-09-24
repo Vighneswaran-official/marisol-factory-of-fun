@@ -795,8 +795,16 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   };
 
   return (
-    <div className={`min-h-screen bg-[#FAF8F5] p-2 sm:p-4 text-stone-900 ${activeMode === 'chat' ? 'pb-1 sm:pb-2' : 'pb-12 sm:pb-16'}`}>
-      <div className={`max-w-4xl lg:max-w-5xl mx-auto ${activeMode === 'chat' ? 'space-y-1.5' : 'space-y-3 sm:space-y-4'}`}>
+    <div className={`bg-[#FAF8F5] text-stone-900 w-full ${
+      activeMode === 'chat' 
+        ? 'h-full flex-1 min-h-0 flex flex-col overflow-hidden p-1.5 sm:p-2.5 pb-1' 
+        : 'min-h-screen p-2.5 sm:p-5 pb-20'
+    }`}>
+      <div className={`max-w-4xl lg:max-w-5xl mx-auto w-full ${
+        activeMode === 'chat' 
+          ? 'h-full flex-1 min-h-0 flex flex-col overflow-hidden' 
+          : 'space-y-3 sm:space-y-4'
+      }`}>
 
         {/* Sync Toast Notification */}
         {network.syncToast && (
@@ -831,7 +839,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
         )}
 
         {/* UNIFIED COHESIVE TAB SWITCHER */}
-        <div className="grid grid-cols-3 gap-1 bg-stone-200/70 p-1 rounded-2xl border border-stone-300/80 mb-2">
+        <div className="grid grid-cols-3 gap-1 bg-stone-200/70 p-1 rounded-2xl border border-stone-300/80 mb-1.5 shrink-0">
           <button
             onClick={() => {
               audioEngine.playSfx('click');
@@ -880,7 +888,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
         {/* ==================== 1. BATCH LOUNGE (Real-Time Group Chat) ==================== */}
         {activeMode === 'chat' && (
-          <div className="bg-white border border-stone-200/90 rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm flex flex-col h-[calc(100dvh-125px)] sm:h-[calc(100dvh-135px)] animate-fade-in relative">
+          <div className="bg-white border border-stone-200/90 rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm flex flex-col flex-1 min-h-0 animate-fade-in relative">
             {/* Clean Modern Lounge Top Bar */}
             <div className="bg-white border-b border-stone-200/80 text-stone-900 p-2.5 px-4 flex items-center justify-between shrink-0 shadow-2xs">
               <div 
@@ -1039,7 +1047,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
             )}
 
             {/* Clean Stream Area (Pure, Clean Minimal Surface) */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin bg-[#FAFAFA]">
+            <div className="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-3 space-y-3.5 scrollbar-thin overscroll-contain bg-[#FAFAFA]">
               {/* Active Filter Notice if in my_messages mode */}
               {chatFilterMode === 'my_messages' && (
                 <div className="bg-purple-50 border border-purple-200 text-purple-900 px-3 py-2 rounded-2xl flex items-center justify-between text-xs mb-2 shadow-2xs">
@@ -1576,9 +1584,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               </div>
             ) : (
               /* Bottom Input Bar with Pill & Circular Send (Clean Modern Lounge Style) */
-              <form onSubmit={handleSendChatMessage} className="p-2.5 px-3 flex items-center gap-2 shrink-0 bg-white border-t border-stone-200/80">
+              <form onSubmit={handleSendChatMessage} className="p-2 sm:p-2.5 px-2 sm:px-3 flex items-center gap-1.5 sm:gap-2 shrink-0 bg-white border-t border-stone-200/80 w-full max-w-full box-border">
                 {/* Left Rounded Pill Container */}
-                <div className="flex-1 bg-stone-50 focus-within:bg-white focus-within:border-rose-300 rounded-full flex items-center px-2 py-1 shadow-2xs border border-stone-200 transition-all">
+                <div className="flex-1 min-w-0 bg-stone-100/90 focus-within:bg-white focus-within:border-rose-400 focus-within:ring-2 focus-within:ring-rose-100 rounded-full flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 shadow-2xs border border-stone-200 transition-all">
                   {/* Emoji Smile Icon */}
                   <button
                     type="button"
@@ -1598,7 +1606,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     placeholder="Type a message..."
-                    className="flex-1 px-2.5 py-1 text-xs sm:text-sm outline-none bg-transparent text-stone-900"
+                    className="flex-1 min-w-0 px-1.5 sm:px-2 py-1 text-xs sm:text-sm outline-none bg-transparent text-stone-900 placeholder:text-stone-400"
                   />
 
                   {/* @Mention Trigger */}
@@ -1671,7 +1679,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                       setTimeout(() => setShareToast(null), 2000);
                     }
                   }}
-                  className={`w-10 h-10 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-full transition-all shadow-sm cursor-pointer shrink-0 flex items-center justify-center ${isSendingChat ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`w-9 h-9 sm:w-10 sm:h-10 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-full transition-all shadow-sm cursor-pointer shrink-0 flex items-center justify-center ${isSendingChat ? 'opacity-50 cursor-not-allowed' : ''}`}
                   title={chatInput.trim() || chatImageAttachment ? "Send" : "Hold for voice note"}
                 >
                   {chatInput.trim() || chatImageAttachment ? (
@@ -1687,7 +1695,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
         {/* ==================== 2. CONCISE POST FEED ==================== */}
         {activeMode === 'posts' && (
-          <div className="space-y-3.5 animate-fade-in">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pb-8 scrollbar-thin animate-fade-in pr-0.5">
             {/* Story Mood Rings Bar */}
             <div className="bg-white border border-stone-200/90 rounded-2xl p-3 shadow-2xs space-y-2">
               <div className="flex items-center justify-between text-xs px-1">
@@ -2023,7 +2031,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
         {/* ==================== 3. BULLETIN CORKBOARD ==================== */}
         {activeMode === 'bulletin' && (
-          <div className="space-y-3.5 animate-fade-in">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pb-8 scrollbar-thin animate-fade-in pr-0.5">
             <div className="bg-gradient-to-r from-amber-50 via-rose-50 to-purple-50 border border-amber-200/80 rounded-2xl p-3 shadow-2xs flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-xl border border-amber-300 bg-white shadow-2xs shrink-0 flex items-center justify-center text-base">
