@@ -117,6 +117,23 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
               <span>{player.streak}</span>
             </div>
 
+            {/* Direct Community Lounge Button */}
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onNavigate('batch_wall');
+              }}
+              className={`h-8 px-2.5 sm:px-3 rounded-full flex items-center gap-1 text-xs font-display font-black transition-all cursor-pointer shrink-0 ${
+                currentScreen === 'batch_wall'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs'
+              }`}
+              title="Open Batch 41 Lounge"
+            >
+              <span>💬</span>
+              <span className="hidden sm:inline">Lounge</span>
+            </button>
+
             {/* Responsive Main Menu Button (☰ MENU) */}
             <button
               onClick={() => {

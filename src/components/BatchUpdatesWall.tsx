@@ -6,7 +6,7 @@ import { STICKERS } from '../data/stickers';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
 import { 
-  ArrowLeft, Plus, Sparkles, Send, X, UserCheck, Heart, 
+  Plus, Sparkles, Send, X, UserCheck, Heart, 
   MessageCircle, MessagesSquare, Pin, Camera, Paperclip, Smile,
   Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check,
   Reply, BarChart2, AtSign, Video, Phone, MoreVertical, Mic,
@@ -17,7 +17,7 @@ import { BaseModal } from './BaseModal';
 import { GoogleSignInModal } from './GoogleSignInModal';
 
 interface BatchUpdatesWallProps {
-  onNavigate: (screen: ScreenState) => void;
+  onNavigate?: (screen: ScreenState) => void;
 }
 
 // Client-side image compression for fast sync and storage
@@ -156,7 +156,7 @@ const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
   });
 };
 
-export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }) => {
+export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: _onNavigate }) => {
   const [, setTick] = useState(0);
   const player = gameState.getPlayer();
   const currentUser = authService.getCurrentUser();
@@ -199,6 +199,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
   const [editingText, setEditingText] = useState('');
   const [activeActionMenuMsgId, setActiveActionMenuMsgId] = useState<string | null>(null);
   const [deleteModalMsg, setDeleteModalMsg] = useState<GroupChatMessage | null>(null);
+  const [deletionReaction, setDeletionReaction] = useState<{ text: string; emoji: string } | null>(null);
 
   // Group Poll Creation State
   const [pollQuestion, setPollQuestion] = useState('');
@@ -420,21 +421,21 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
   };
 
   const handleDeleteForMe = (msg: GroupChatMessage) => {
-    audioEngine.playSfx('click');
+    audioEngine.playSfx('pop');
     batchWallService.deleteChatMessageForMe(msg.id);
     setDeleteModalMsg(null);
     setActiveActionMenuMsgId(null);
-    setShareToast('Deleted for you 🗑️');
-    setTimeout(() => setShareToast(null), 2000);
+    setDeletionReaction({ text: 'Message deleted for you', emoji: '🗑️' });
+    setTimeout(() => setDeletionReaction(null), 2500);
   };
 
   const handleDeleteForEveryone = async (msg: GroupChatMessage) => {
-    audioEngine.playSfx('fanfare');
+    audioEngine.playSfx('pop');
     await batchWallService.deleteChatMessageForEveryone(msg.id);
     setDeleteModalMsg(null);
     setActiveActionMenuMsgId(null);
-    setShareToast('Deleted for everyone 🚫');
-    setTimeout(() => setShareToast(null), 2000);
+    setDeletionReaction({ text: 'Message deleted for everyone', emoji: '🗑️✨' });
+    setTimeout(() => setDeletionReaction(null), 2500);
   };
 
   // Create & Send Live Group Poll
@@ -635,45 +636,15 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
           </div>
         )}
 
-        {/* 1. TOP HEADER WITH PROFILE BUTTON */}
-        <div className="flex items-center justify-between gap-2 border-b border-stone-200/70 pb-2">
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onNavigate('home');
-            }}
-            className="py-1.5 px-3 bg-white border border-stone-200 rounded-xl flex items-center gap-1.5 shadow-2xs text-xs font-display font-bold hover:bg-stone-50 transition-all cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>HOME</span>
-          </button>
-
-          <div className="text-center min-w-0">
-            <div className="flex items-center justify-center gap-1 text-[10px] font-display font-black uppercase text-rose-600 tracking-wider">
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-              <span>COMMUNITY LOUNGE • MLP41PT</span>
-            </div>
-            <h1 className="font-display text-base sm:text-lg font-black text-stone-900 truncate">
-              Batch 41 Comfort Wall 🌸
-            </h1>
+        {/* Deletion Reaction Floating Toast */}
+        {deletionReaction && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-stone-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-full text-xs font-display font-black shadow-2xl border border-rose-500/40 flex items-center gap-2 animate-scale-up">
+            <span className="text-base">{deletionReaction.emoji}</span>
+            <span className="text-rose-200">{deletionReaction.text}</span>
           </div>
+        )}
 
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              setShowProfileModal(true);
-            }}
-            className="flex items-center gap-1.5 bg-white hover:bg-rose-50/80 border border-rose-200 px-3 py-1.5 rounded-xl text-xs font-display font-black shadow-2xs transition-all cursor-pointer shrink-0 text-rose-800"
-          >
-            <div className="w-4.5 h-4.5 rounded-full overflow-hidden border border-rose-300 shrink-0">
-              <img src={currentUser?.avatarUrl || profileAvatarInput} alt="" className="w-full h-full object-cover" />
-            </div>
-            <span className="max-w-[70px] truncate hidden sm:inline">
-              {(currentUser?.name || profileNameInput).split(' ')[0]}
-            </span>
-            <Edit3 className="w-3 h-3 text-rose-500" />
-          </button>
-        </div>
+
 
         {/* 2. UNIFIED COHESIVE TAB SWITCHER */}
         <div className="grid grid-cols-3 gap-1 bg-stone-200/70 p-1 rounded-2xl border border-stone-300/80">
