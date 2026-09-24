@@ -38,14 +38,52 @@ export interface GroupChatMessage {
   senderEmail?: string;
   avatarUrl?: string;
   text: string;
+  imageUrl?: string; // Image attachment for WhatsApp style chat
   timestamp: string;
   createdAt: number;
   isKritika?: boolean;
   reactionEmoji?: string;
+  reactions?: Record<string, number>; // emoji -> count
+}
+
+export interface InstagramComment {
+  id: string;
+  authorId?: string;
+  authorName: string;
+  authorEmail?: string;
+  avatarUrl?: string;
+  text: string;
+  timestamp: string;
+  createdAt: number;
+  likesCount?: number;
+  isKritika?: boolean;
+}
+
+export interface InstagramPost {
+  id: string;
+  userId?: string;
+  userEmail?: string;
+  authorName: string;
+  authorEmail?: string;
+  authorAvatarUrl: string;
+  location?: string;
+  imageUrl: string;
+  filter?: string; // 'none' | 'warm' | 'vintage' | 'pink' | 'golden' | 'bw'
+  caption: string;
+  hashtags: string[];
+  likesCount: number;
+  likedByCurrentUser?: boolean;
+  likedByUsers?: string[];
+  comments: InstagramComment[];
+  saved?: boolean;
+  timestamp: string;
+  createdAt: number;
+  isKritika?: boolean;
 }
 
 const STORAGE_KEY = 'marisol_batch_updates_v2';
 const CHAT_STORAGE_KEY = 'marisol_group_chat_messages_v2';
+const INSTA_STORAGE_KEY = 'marisol_instagram_posts_v2';
 const QUEUE_KEY = 'marisol_batch_offline_queue_v2';
 
 const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
@@ -55,10 +93,12 @@ const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
     senderEmail: 'kritika.gupta@mlp41.edu',
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
     text: 'Hey Batch 41 family! Welcome to our comfort hub! Savoring every sweet memory together ♡ ✨',
+    imageUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80',
     timestamp: 'Today at 2:30 PM',
     createdAt: Date.now() - 3600000 * 4,
     isKritika: true,
-    reactionEmoji: '💖'
+    reactionEmoji: '💖',
+    reactions: { '💖': 5, '✨': 4 }
   },
   {
     id: 'chat_init_2',
@@ -66,7 +106,8 @@ const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
     avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
     text: 'Kritika queen!! The music player and food quiz are pure vibes! 🧀🍕',
     timestamp: 'Today at 3:15 PM',
-    createdAt: Date.now() - 3600000 * 2
+    createdAt: Date.now() - 3600000 * 2,
+    reactions: { '🍕': 3, '🔥': 2 }
   },
   {
     id: 'chat_init_3',
@@ -74,13 +115,77 @@ const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
     avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
     text: 'Who wants to do the Chai Enthusiast movie quiz round together tonight? ☕🎬',
     timestamp: 'Today at 3:45 PM',
-    createdAt: Date.now() - 3600000
+    createdAt: Date.now() - 3600000,
+    reactions: { '☕': 4, '👏': 3 }
+  }
+];
+
+const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
+  {
+    id: 'insta_init_1',
+    authorName: 'Kritika Gupta 👑',
+    authorEmail: 'kritika.gupta@mlp41.edu',
+    authorAvatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+    location: 'Factory of Fun • Comfort Lounge 🌸',
+    imageUrl: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=900&auto=format&fit=crop&q=80',
+    filter: 'warm',
+    caption: 'Celebrating our amazing batch milestones together! Savoring warm chai, hot pizza, and sweet memories with everyone ♡ 👑✨',
+    hashtags: ['#Batch41', '#KritikaQueen', '#FactoryOfFun', '#ComfortVibes'],
+    likesCount: 38,
+    likedByCurrentUser: true,
+    comments: [
+      {
+        id: 'c1',
+        authorName: 'Priyanshu Sharma',
+        avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
+        text: 'Royal aesthetic as always! Keep shining Kritika! 👑🔥',
+        timestamp: '1 hour ago',
+        createdAt: Date.now() - 3600000
+      },
+      {
+        id: 'c2',
+        authorName: 'Ananya Deshmukh',
+        avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
+        text: 'Best batch memories ever! 💖✨',
+        timestamp: '30 mins ago',
+        createdAt: Date.now() - 1800000
+      }
+    ],
+    timestamp: '2 hours ago',
+    createdAt: Date.now() - 7200000,
+    isKritika: true
+  },
+  {
+    id: 'insta_init_2',
+    authorName: 'Rohan Mehra',
+    authorAvatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',
+    location: 'Pizza & Macaroni Hub 🍕🧀',
+    imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=900&auto=format&fit=crop&q=80',
+    filter: 'golden',
+    caption: 'Just unlocked the Gourmet Truffle Macaroni dish in the Mood Quiz! Best comfort meal ever 🧀🤤',
+    hashtags: ['#MacaroniMagic', '#MoodQuiz', '#Batch41Foodies'],
+    likesCount: 24,
+    likedByCurrentUser: false,
+    comments: [
+      {
+        id: 'c3',
+        authorName: 'Kritika Gupta 👑',
+        isKritika: true,
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+        text: 'Yummm! Save some for the entire batch next time! 🍕🧀',
+        timestamp: '15 mins ago',
+        createdAt: Date.now() - 900000
+      }
+    ],
+    timestamp: '4 hours ago',
+    createdAt: Date.now() - 14400000
   }
 ];
 
 class BatchWallService {
   private posts: BatchUpdatePost[] = [];
   private chatMessages: GroupChatMessage[] = [];
+  private instagramPosts: InstagramPost[] = [];
   private offlineQueue: BatchUpdatePost[] = [];
   private listeners: Set<() => void> = new Set();
   private isOnline: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -106,6 +211,9 @@ class BatchWallService {
             } else if (event.data?.type === 'SYNC_POSTS') {
               this.loadFromStorage();
               this.notify();
+            } else if (event.data?.type === 'SYNC_INSTA') {
+              this.loadFromStorage();
+              this.notify();
             }
           };
         }
@@ -124,6 +232,7 @@ class BatchWallService {
   private initFirestoreSync() {
     if (db) {
       try {
+        // Bulletin Posts
         const postsQuery = query(
           collection(db, 'batch_updates'),
           orderBy('createdAt', 'desc'),
@@ -149,7 +258,7 @@ class BatchWallService {
         const chatQuery = query(
           collection(db, 'group_chat_messages'),
           orderBy('createdAt', 'asc'),
-          limit(150)
+          limit(200)
         );
         onSnapshot(chatQuery, (snapshot) => {
           if (!snapshot.empty) {
@@ -163,6 +272,26 @@ class BatchWallService {
           }
         }, (err) => {
           console.warn('Firestore chat listener notice:', err);
+        });
+
+        // Instagram Posts Firestore Listener
+        const instaQuery = query(
+          collection(db, 'instagram_posts'),
+          orderBy('createdAt', 'desc'),
+          limit(100)
+        );
+        onSnapshot(instaQuery, (snapshot) => {
+          if (!snapshot.empty) {
+            const remoteInsta: InstagramPost[] = [];
+            snapshot.forEach((docSnap) => {
+              remoteInsta.push({ ...(docSnap.data() as InstagramPost), id: docSnap.id });
+            });
+            this.instagramPosts = remoteInsta.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            this.saveInstaToStorage();
+            this.notify();
+          }
+        }, (err) => {
+          console.warn('Firestore insta listener notice:', err);
         });
 
       } catch (err) {
@@ -190,6 +319,14 @@ class BatchWallService {
         this.saveChatToStorage();
       }
 
+      const storedInsta = localStorage.getItem(INSTA_STORAGE_KEY);
+      if (storedInsta) {
+        this.instagramPosts = JSON.parse(storedInsta);
+      } else {
+        this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
+        this.saveInstaToStorage();
+      }
+
       const queue = localStorage.getItem(QUEUE_KEY);
       if (queue) {
         this.offlineQueue = JSON.parse(queue);
@@ -197,6 +334,7 @@ class BatchWallService {
     } catch {
       this.posts = [];
       this.chatMessages = [...DEFAULT_GROUP_CHAT_MESSAGES];
+      this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
     }
   }
 
@@ -209,6 +347,12 @@ class BatchWallService {
   private saveChatToStorage() {
     try {
       localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(this.chatMessages));
+    } catch {}
+  }
+
+  private saveInstaToStorage() {
+    try {
+      localStorage.setItem(INSTA_STORAGE_KEY, JSON.stringify(this.instagramPosts));
     } catch {}
   }
 
@@ -260,6 +404,10 @@ class BatchWallService {
 
   public getChatMessages(): GroupChatMessage[] {
     return [...this.chatMessages];
+  }
+
+  public getInstagramPosts(): InstagramPost[] {
+    return [...this.instagramPosts];
   }
 
   public getOfflineQueue(): BatchUpdatePost[] {
@@ -329,6 +477,7 @@ class BatchWallService {
     senderEmail?: string;
     avatarUrl?: string;
     text: string;
+    imageUrl?: string;
   }): Promise<GroupChatMessage> {
     const name = data.senderName.trim() || 'Batch 41 Student';
     const email = data.senderEmail || '';
@@ -343,9 +492,11 @@ class BatchWallService {
       senderEmail: data.senderEmail,
       avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
       text: data.text.trim(),
+      imageUrl: data.imageUrl,
       timestamp: 'Just now',
       createdAt: Date.now(),
-      isKritika
+      isKritika,
+      reactions: {}
     };
 
     this.chatMessages.push(msg);
@@ -365,6 +516,184 @@ class BatchWallService {
 
     this.notify();
     return msg;
+  }
+
+  public reactToChatMessage(messageId: string, emoji: string) {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg) return;
+
+    if (!msg.reactions) {
+      msg.reactions = {};
+    }
+
+    msg.reactions[emoji] = (msg.reactions[emoji] || 0) + 1;
+    this.saveChatToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
+    if (db) {
+      try {
+        setDoc(doc(db, 'group_chat_messages', messageId), { reactions: msg.reactions }, { merge: true });
+      } catch {}
+    }
+
+    this.notify();
+  }
+
+  // =================== INSTAGRAM POSTS MANAGEMENT ===================
+  public async addInstagramPost(data: {
+    userId?: string;
+    userEmail?: string;
+    authorName: string;
+    authorAvatarUrl?: string;
+    location?: string;
+    imageUrl: string;
+    filter?: string;
+    caption: string;
+    hashtags?: string[];
+  }): Promise<InstagramPost> {
+    const name = data.authorName.trim() || 'Batch 41 Creator';
+    const isKritika = name.toLowerCase().includes('kritika') || 
+                      (data.userEmail && data.userEmail.toLowerCase().includes('kritika')) ||
+                      name.toLowerCase().includes('marisol');
+
+    const newPost: InstagramPost = {
+      id: `insta_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      userId: data.userId,
+      userEmail: data.userEmail,
+      authorName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
+      authorAvatarUrl: data.authorAvatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+      location: data.location || 'Batch 41 Comfort Hub 🌸',
+      imageUrl: data.imageUrl,
+      filter: data.filter || 'none',
+      caption: data.caption.trim(),
+      hashtags: data.hashtags && data.hashtags.length > 0 ? data.hashtags : ['#Batch41', '#FactoryOfFun'],
+      likesCount: 1,
+      likedByCurrentUser: true,
+      likedByUsers: [name],
+      comments: [],
+      saved: false,
+      timestamp: 'Just now',
+      createdAt: Date.now(),
+      isKritika
+    };
+
+    this.instagramPosts.unshift(newPost);
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await addDoc(collection(db, 'instagram_posts'), newPost);
+      } catch (err) {
+        console.warn('Failed to add insta post to Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return newPost;
+  }
+
+  public likeInstagramPost(postId: string, currentUserName?: string) {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return;
+
+    if (post.likedByCurrentUser) {
+      post.likedByCurrentUser = false;
+      post.likesCount = Math.max(0, post.likesCount - 1);
+      if (currentUserName && post.likedByUsers) {
+        post.likedByUsers = post.likedByUsers.filter(u => u !== currentUserName);
+      }
+    } else {
+      post.likedByCurrentUser = true;
+      post.likesCount += 1;
+      if (!post.likedByUsers) post.likedByUsers = [];
+      if (currentUserName && !post.likedByUsers.includes(currentUserName)) {
+        post.likedByUsers.push(currentUserName);
+      }
+    }
+
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        setDoc(doc(db, 'instagram_posts', postId), { 
+          likesCount: post.likesCount,
+          likedByUsers: post.likedByUsers || []
+        }, { merge: true });
+      } catch {}
+    }
+
+    this.notify();
+  }
+
+  public toggleBookmarkInstagramPost(postId: string) {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return;
+
+    post.saved = !post.saved;
+    this.saveInstaToStorage();
+    this.notify();
+  }
+
+  public async addInstagramComment(postId: string, commentData: {
+    authorId?: string;
+    authorName: string;
+    authorEmail?: string;
+    avatarUrl?: string;
+    text: string;
+  }): Promise<InstagramComment | null> {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return null;
+
+    if (!post.comments) {
+      post.comments = [];
+    }
+
+    const name = commentData.authorName.trim() || 'Classmate';
+    const email = commentData.authorEmail || '';
+    const isKritika = name.toLowerCase().includes('kritika') || 
+                      email.toLowerCase().includes('kritika') ||
+                      name.toLowerCase().includes('marisol');
+
+    const newComment: InstagramComment = {
+      id: `comm_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      authorId: commentData.authorId,
+      authorName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
+      authorEmail: commentData.authorEmail,
+      avatarUrl: commentData.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+      text: commentData.text.trim(),
+      timestamp: 'Just now',
+      createdAt: Date.now(),
+      isKritika
+    };
+
+    post.comments.push(newComment);
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'instagram_posts', postId), { comments: post.comments }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to sync insta comment to Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return newComment;
   }
 
   public async deletePost(postId: string) {
@@ -477,3 +806,4 @@ class BatchWallService {
 }
 
 export const batchWallService = new BatchWallService();
+
