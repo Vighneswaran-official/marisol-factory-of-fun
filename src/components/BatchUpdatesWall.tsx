@@ -767,9 +767,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
             >
               {/* WhatsApp Date Separators & Chat Stream */}
               {chatMessages.map((msg, index) => {
-                const isCurrentUser = currentUser?.name 
-                  ? msg.senderName.toLowerCase().includes(currentUser.name.toLowerCase())
-                  : msg.senderName.toLowerCase().includes(profileNameInput.toLowerCase());
+                const currentUserName = (currentUser?.name || profileNameInput || '').trim().toLowerCase();
+                const isCurrentUser = Boolean(
+                  (currentUser?.id && msg.senderId && currentUser.id === msg.senderId) ||
+                  (currentUser?.email && msg.senderEmail && currentUser.email.trim().toLowerCase() === msg.senderEmail.trim().toLowerCase()) ||
+                  (currentUserName !== '' && msg.senderName.trim().toLowerCase() === currentUserName && !msg.isKritika)
+                );
                 const reactionsList = Object.entries(msg.reactions || {}).filter(([, count]) => count > 0);
                 const senderColor = getWhatsAppSenderColor(msg.senderName, msg.isKritika);
 
@@ -803,7 +806,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                           }`}
                           title={`Click to view ${msg.senderName}`}
                         >
-                          <img src={msg.avatarUrl} alt={msg.senderName} className="w-full h-full object-cover" />
+                          <img src={msg.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop'} alt={msg.senderName} className="w-full h-full object-cover" />
                         </div>
                       )}
 
@@ -816,25 +819,23 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                               : 'bg-white text-stone-900 rounded-tl-xs border border-stone-200 shadow-2xs'
                           }`}
                         >
-                          {/* 1. Distinct Bold Sender Name (Always prominently displayed like WhatsApp) */}
-                          {!isCurrentUser && (
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <span 
-                                onClick={() => {
-                                  setChatInput((prev: string) => `${prev ? prev + ' ' : ''}@${msg.senderName} `);
-                                }}
-                                className={`font-display font-black text-xs sm:text-[13px] tracking-tight ${senderColor} hover:underline cursor-pointer`}
-                                title="Click to mention in chat"
-                              >
-                                {msg.senderName}
+                          {/* 1. Distinct Bold Sender Name (Always prominently displayed like in WhatsApp screenshot) */}
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span 
+                              onClick={() => {
+                                setChatInput((prev: string) => `${prev ? prev + ' ' : ''}@${msg.senderName} `);
+                              }}
+                              className={`font-display font-black text-xs sm:text-[13px] tracking-tight ${senderColor} hover:underline cursor-pointer`}
+                              title="Click to mention in chat"
+                            >
+                              {msg.senderName}
+                            </span>
+                            {msg.isKritika && (
+                              <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs">
+                                👑 QUEEN
                               </span>
-                              {msg.isKritika && (
-                                <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs">
-                                  👑 QUEEN
-                                </span>
-                              )}
-                            </div>
-                          )}
+                            )}
+                          </div>
 
                         {/* Quoted Reply Banner */}
                         {msg.replyTo && (
