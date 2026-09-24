@@ -249,6 +249,31 @@ const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
   }
 ];
 
+/**
+ * Recursively removes all `undefined` fields from an object/array so Firestore SDK
+ * never throws "Unsupported field value: undefined".
+ */
+export function cleanForFirestore<T>(val: T): T {
+  if (val === null || val === undefined) {
+    return null as any;
+  }
+  if (Array.isArray(val)) {
+    return val
+      .filter(item => item !== undefined)
+      .map(item => cleanForFirestore(item)) as any;
+  }
+  if (typeof val === 'object' && val.constructor === Object) {
+    const res: Record<string, any> = {};
+    for (const [k, v] of Object.entries(val)) {
+      if (v !== undefined) {
+        res[k] = cleanForFirestore(v);
+      }
+    }
+    return res as any;
+  }
+  return val;
+}
+
 class BatchWallService {
   private posts: BatchUpdatePost[] = [];
   private chatMessages: GroupChatMessage[] = [];
@@ -535,7 +560,7 @@ class BatchWallService {
       this.chatOfflineQueue.forEach(async (msg) => {
         if (db) {
           try {
-            await setDoc(doc(db, 'group_chat_messages', msg.id), msg);
+            await setDoc(doc(db, 'group_chat_messages', msg.id), cleanForFirestore(msg));
           } catch (e) {
             console.warn('[Batch 41 Group Chat] Error syncing queued message:', e);
           }
@@ -692,7 +717,8 @@ class BatchWallService {
 
     // Write authoritative record directly to Firestore
     try {
-      await setDoc(messageRef, message);
+      const payload = cleanForFirestore(message);
+      await setDoc(messageRef, payload);
     } catch (err) {
       console.error('[Batch 41 Group Chat] Firestore error sending message:', err);
       // Queue offline on network failure
@@ -722,7 +748,7 @@ class BatchWallService {
     try {
       await setDoc(
         doc(db, 'group_chat_messages', messageId),
-        { reactions: updatedReactions },
+        cleanForFirestore({ reactions: updatedReactions }),
         { merge: true }
       );
     } catch (err) {
@@ -735,11 +761,11 @@ class BatchWallService {
     try {
       await setDoc(
         doc(db, 'group_chat_messages', messageId),
-        {
+        cleanForFirestore({
           isPinned: true,
           pinnedBy: pinnedByUid || 'Classmate',
           pinnedAt: Date.now()
-        },
+        }),
         { merge: true }
       );
     } catch (err) {
@@ -787,7 +813,7 @@ class BatchWallService {
     try {
       await setDoc(
         doc(db, 'group_chat_messages', messageId),
-        { poll: msg.poll },
+        cleanForFirestore({ poll: msg.poll }),
         { merge: true }
       );
     } catch (err) {
@@ -900,7 +926,7 @@ class BatchWallService {
     try {
       await setDoc(
         doc(db, 'group_chat_messages', msg.id),
-        { seenBy: msg.seenBy },
+        cleanForFirestore({ seenBy: msg.seenBy }),
         { merge: true }
       );
     } catch {}
@@ -924,7 +950,7 @@ class BatchWallService {
         try {
           await setDoc(
             doc(db, 'group_chat_messages', msg.id),
-            { seenBy: msg.seenBy },
+            cleanForFirestore({ seenBy: msg.seenBy }),
             { merge: true }
           );
         } catch {}

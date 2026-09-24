@@ -9,22 +9,16 @@ service cloud.firestore {
     // =========================================================================
     match /group_chat_messages/{messageId} {
 
-      // READ: Allowed if the user is authenticated with a valid email
-      allow read: if request.auth != null && 
-                     request.auth.token.email != null;
+      // READ: Allowed if the user is authenticated in Firebase
+      allow read: if request.auth != null;
 
-      // CREATE: Allowed if authenticated user creates a message where senderId
-      // matches their Firebase UID and senderEmail matches their verified email
+      // CREATE: Allowed if authenticated user creates a message matching their Firebase UID
       allow create: if request.auth != null && 
-                       request.auth.token.email != null &&
-                       request.resource.data.senderId == request.auth.uid &&
-                       request.resource.data.senderEmail == request.auth.token.email &&
-                       request.resource.data.id == messageId;
+                       request.resource.data.senderId == request.auth.uid;
 
-      // UPDATE: Allowed for reactions, pins, polls, and read receipts by any authenticated member;
+      // UPDATE: Allowed for reactions, pins, polls, and read receipts by authenticated members;
       // Message text edits must be performed by the author (senderId == auth.uid)
       allow update: if request.auth != null && 
-                       request.auth.token.email != null &&
                        (
                          // Author editing text
                          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'isEdited']) &&
@@ -35,7 +29,6 @@ service cloud.firestore {
 
       // DELETE: Allowed only if the user deleting is the original message author
       allow delete: if request.auth != null && 
-                       request.auth.token.email != null &&
                        resource.data.senderId == request.auth.uid;
     }
 
@@ -43,11 +36,9 @@ service cloud.firestore {
     // Students / Batch Members Profiles
     // =========================================================================
     match /students/{studentId} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null && 
-                               request.auth.token.email != null;
-      allow delete: if request.auth != null && 
-                       request.auth.uid == studentId;
+      allow read: if true;
+      allow create, update: if request.auth != null;
+      allow delete: if request.auth != null && request.auth.uid == studentId;
     }
 
     // =========================================================================
@@ -55,11 +46,10 @@ service cloud.firestore {
     // =========================================================================
     match /batch_updates/{postId} {
       allow read: if true;
-      allow create: if request.auth != null && 
-                       request.auth.token.email != null;
+      allow create: if request.auth != null;
       allow update, delete: if request.auth != null && 
                                (resource.data.userId == request.auth.uid || 
-                                request.resource.data.diff(resource.data).affectedKeys().hasAny(['reactions', 'isPinned']));
+                                request.resource.data.diff(resource.data).affectedKeys().hasAny(['reactions', 'isPinned', 'replies']));
     }
 
     // =========================================================================
@@ -67,8 +57,7 @@ service cloud.firestore {
     // =========================================================================
     match /instagram_posts/{postId} {
       allow read: if true;
-      allow create: if request.auth != null && 
-                       request.auth.token.email != null;
+      allow create: if request.auth != null;
       allow update, delete: if request.auth != null && 
                                (resource.data.authorId == request.auth.uid || 
                                 resource.data.userId == request.auth.uid ||

@@ -333,16 +333,17 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     }
     if (!pinNoticeText.trim()) return;
 
-    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    const fbUser = authService.getFirebaseUser();
+    const senderId = fbUser?.uid || currentUser?.id;
     if (!senderId) {
       setShowGoogleModal(true);
       return;
     }
 
     audioEngine.playSfx('fanfare');
-    const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
-    const email = currentUser?.email;
-    const avatar = currentUser?.avatarUrl || profileAvatarInput;
+    const name = currentUser?.name || fbUser?.displayName || profileNameInput || studentName || 'Batch 41 Student';
+    const email = fbUser?.email || currentUser?.email || undefined;
+    const avatar = fbUser?.photoURL || currentUser?.avatarUrl || profileAvatarInput;
 
     try {
       await batchWallService.sendGroupChatMessage({
@@ -363,9 +364,17 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       setShareToast('Important announcement posted & pinned to new section! 📌✨');
       setChatSubTab('pinned');
       setTimeout(() => setShareToast(null), 3000);
-    } catch (err) {
-      setShareToast('Unable to post pinned announcement to Firestore. Check connection.');
-      setTimeout(() => setShareToast(null), 3000);
+    } catch (err: any) {
+      console.error('[Batch 41] Error posting pinned announcement:', err);
+      const errCode = err?.code || '';
+      let errorMsg = 'Unable to post pinned announcement to Firestore.';
+      if (errCode === 'permission-denied') {
+        errorMsg = 'Permission denied by Firestore rules. Please check Firebase Console.';
+      } else if (err?.message) {
+        errorMsg = `Firestore error: ${err.message}`;
+      }
+      setShareToast(errorMsg);
+      setTimeout(() => setShareToast(null), 4000);
     }
   };
 
@@ -461,7 +470,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       return;
     }
 
-    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    const fbUser = authService.getFirebaseUser();
+    const senderId = fbUser?.uid || currentUser?.id;
     if (!senderId) {
       setShowGoogleModal(true);
       setShareToast('Authentication required. Please sign in to chat! 🔒');
@@ -475,9 +485,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     setIsSendingChat(true);
     audioEngine.playSfx('fanfare');
 
-    const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
-    const email = currentUser?.email;
-    const avatar = currentUser?.avatarUrl || profileAvatarInput;
+    const name = currentUser?.name || fbUser?.displayName || profileNameInput || studentName || 'Batch 41 Student';
+    const email = fbUser?.email || currentUser?.email || undefined;
+    const avatar = fbUser?.photoURL || currentUser?.avatarUrl || profileAvatarInput;
     const isKritika = name.toLowerCase().includes('kritika') || 
                       (email && email.toLowerCase().includes('kritika')) ||
                       name.toLowerCase().includes('marisol');
@@ -511,9 +521,17 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       setTimeout(() => {
         chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
-    } catch (err) {
-      setShareToast('Unable to send message to Firestore. Check connection.');
-      setTimeout(() => setShareToast(null), 3000);
+    } catch (err: any) {
+      console.error('[Batch 41 Group Chat] Error sending message:', err);
+      const errCode = err?.code || '';
+      let errorMsg = 'Unable to send message to Firestore.';
+      if (errCode === 'permission-denied') {
+        errorMsg = 'Permission denied by Firestore rules. Please check Firebase Console.';
+      } else if (err?.message) {
+        errorMsg = `Firestore error: ${err.message}`;
+      }
+      setShareToast(errorMsg);
+      setTimeout(() => setShareToast(null), 4000);
     } finally {
       setIsSendingChat(false);
     }
@@ -655,7 +673,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       return;
     }
 
-    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    const fbUser = authService.getFirebaseUser();
+    const senderId = fbUser?.uid || currentUser?.id;
     if (!senderId) {
       setShowGoogleModal(true);
       return;
@@ -664,9 +683,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     if (!pollQuestion.trim() || !pollOption1.trim() || !pollOption2.trim()) return;
 
     audioEngine.playSfx('fanfare');
-    const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
-    const email = currentUser?.email;
-    const avatar = currentUser?.avatarUrl || profileAvatarInput;
+    const name = currentUser?.name || fbUser?.displayName || profileNameInput || studentName || 'Batch 41 Student';
+    const email = fbUser?.email || currentUser?.email || undefined;
+    const avatar = fbUser?.photoURL || currentUser?.avatarUrl || profileAvatarInput;
 
     const options = [
       { id: 'opt_1', text: pollOption1.trim(), votes: [] },
@@ -697,9 +716,17 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       setTimeout(() => {
         chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
-    } catch (err) {
-      setShareToast('Failed to create poll in Firestore.');
-      setTimeout(() => setShareToast(null), 3000);
+    } catch (err: any) {
+      console.error('[Batch 41 Group Chat] Error creating poll:', err);
+      const errCode = err?.code || '';
+      let errorMsg = 'Failed to create poll in Firestore.';
+      if (errCode === 'permission-denied') {
+        errorMsg = 'Permission denied by Firestore rules. Check Firebase Console.';
+      } else if (err?.message) {
+        errorMsg = `Firestore error: ${err.message}`;
+      }
+      setShareToast(errorMsg);
+      setTimeout(() => setShareToast(null), 4000);
     }
   };
 
@@ -3236,16 +3263,17 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 <button
                   onClick={() => {
                     audioEngine.playSfx('fanfare');
-                    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+                    const fbUser = authService.getFirebaseUser();
+                    const senderId = fbUser?.uid || currentUser?.id;
                     if (!senderId) {
                       setShowGoogleModal(true);
                       return;
                     }
                     batchWallService.sendGroupChatMessage({
                       senderId,
-                      senderName: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
-                      senderEmail: currentUser?.email,
-                      avatarUrl: currentUser?.avatarUrl || profileAvatarInput,
+                      senderName: currentUser?.name || fbUser?.displayName || profileNameInput || studentName || 'Batch 41 Student',
+                      senderEmail: fbUser?.email || currentUser?.email || undefined,
+                      avatarUrl: fbUser?.photoURL || currentUser?.avatarUrl || profileAvatarInput,
                       text: `Sending a big warm cheer to @${selectedClassmateDetail.name}! Keep glowing! ✨💖`
                     });
                     setSelectedClassmateDetail(null);
