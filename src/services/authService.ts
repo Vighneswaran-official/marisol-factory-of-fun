@@ -377,6 +377,10 @@ class AuthService {
     return this.loginStudentProfile(formattedName, trimmedEmail);
   }
 
+  public getFirebaseUser(): FirebaseUser | null {
+    return auth?.currentUser || null;
+  }
+
   /**
    * Multi-User: Add or Login Student / Mail Profile
    */
@@ -388,9 +392,9 @@ class AuthService {
       c.name.toLowerCase() === trimmed.toLowerCase()
     );
 
-    const resolvedId = email 
+    const resolvedId = auth?.currentUser?.uid || (email 
       ? `user_${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
-      : `student_${Date.now()}`;
+      : `student_${Date.now()}`);
 
     const profile: StudentProfile = existing ? {
       ...existing,

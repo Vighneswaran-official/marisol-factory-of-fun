@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { ScreenState } from '../types/game';
-import { batchWallService, type InstagramPost, type GroupChatMessage } from '../services/batchWallState';
+import { batchWallService, type InstagramPost, type GroupChatMessage, formatChatTimestamp } from '../services/batchWallState';
 import { authService, type StudentProfile } from '../services/authService';
 import { STICKERS } from '../data/stickers';
 import { gameState } from '../services/gameState';
@@ -11,7 +11,7 @@ import {
   Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check,
   Reply, BarChart2, AtSign, Video, Phone, MoreVertical, Mic,
   Trash2, ChevronDown, Ban, Globe, Lock, Clock,
-  Filter
+  Filter, AlertCircle, RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { BaseModal } from './BaseModal';
@@ -252,7 +252,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   // Data state
   const allBulletinPosts = batchWallService.getPosts();
-  const chatMessages = batchWallService.getChatMessages();
+  const chatMessages = batchWallService.getChatMessages(currentUser?.id);
+  const chatStatus = batchWallService.getChatConnectionStatus();
   const photoPosts = batchWallService.getInstagramPosts();
   const network = batchWallService.getNetworkStatus();
   const classmates = authService.getClassmates();
@@ -332,29 +333,40 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     }
     if (!pinNoticeText.trim()) return;
 
+    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    if (!senderId) {
+      setShowGoogleModal(true);
+      return;
+    }
+
     audioEngine.playSfx('fanfare');
     const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
     const email = currentUser?.email;
     const avatar = currentUser?.avatarUrl || profileAvatarInput;
 
-    await batchWallService.sendGroupChatMessage({
-      senderId: currentUser?.id,
-      senderName: name,
-      senderEmail: email,
-      avatarUrl: avatar,
-      senderIsNewUser: currentUser?.isNewUser ?? true,
-      senderUserTag: currentUser?.userTag || 'New User',
-      text: `${pinNoticeCategory}: ${pinNoticeText.trim()}`,
-      isPinned: true,
-      pinnedBy: name,
-      pinnedAt: Date.now()
-    });
+    try {
+      await batchWallService.sendGroupChatMessage({
+        senderId,
+        senderName: name,
+        senderEmail: email,
+        avatarUrl: avatar,
+        senderIsNewUser: currentUser?.isNewUser ?? true,
+        senderUserTag: currentUser?.userTag || 'New User',
+        text: `${pinNoticeCategory}: ${pinNoticeText.trim()}`,
+        isPinned: true,
+        pinnedBy: senderId,
+        pinnedAt: Date.now()
+      });
 
-    setPinNoticeText('');
-    setShowPinAnnouncementModal(false);
-    setShareToast('Important announcement posted & pinned to new section! 📌✨');
-    setChatSubTab('pinned');
-    setTimeout(() => setShareToast(null), 3000);
+      setPinNoticeText('');
+      setShowPinAnnouncementModal(false);
+      setShareToast('Important announcement posted & pinned to new section! 📌✨');
+      setChatSubTab('pinned');
+      setTimeout(() => setShareToast(null), 3000);
+    } catch (err) {
+      setShareToast('Unable to post pinned announcement to Firestore. Check connection.');
+      setTimeout(() => setShareToast(null), 3000);
+    }
   };
 
   // Chat Image Upload
@@ -442,12 +454,21 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   // Send WhatsApp Group Message (with replyTo support)
   const handleSendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!authService.isGoogleAuthenticated()) {
+    if (!authService.isUserAllowedToChat()) {
       setShowGoogleModal(true);
-      setShareToast('Please sign in with a Google account to chat! 🔒');
+      setShareToast('Please connect with your Email ID to chat! 🔒');
       setTimeout(() => setShareToast(null), 3000);
       return;
     }
+
+    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    if (!senderId) {
+      setShowGoogleModal(true);
+      setShareToast('Authentication required. Please sign in to chat! 🔒');
+      setTimeout(() => setShareToast(null), 3000);
+      return;
+    }
+
     const text = chatInput.trim();
     if (!text && !chatImageAttachment) return;
 
@@ -471,25 +492,31 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       text: replyingToMessage.text.slice(0, 80)
     } : undefined;
 
-    await batchWallService.sendGroupChatMessage({
-      senderId: currentUser?.id,
-      senderName: name,
-      senderEmail: email,
-      avatarUrl: avatar,
-      text: text || (chatImageAttachment ? '📷 Photo' : ''),
-      imageUrl: chatImageAttachment || undefined,
-      replyTo: replyData
-    });
+    try {
+      await batchWallService.sendGroupChatMessage({
+        senderId,
+        senderName: name,
+        senderEmail: email,
+        avatarUrl: avatar,
+        text: text || (chatImageAttachment ? '📷 Photo' : ''),
+        imageUrl: chatImageAttachment || undefined,
+        replyTo: replyData
+      });
 
-    setChatInput('');
-    setChatImageAttachment(null);
-    setReplyingToMessage(null);
-    setShowChatEmojiPicker(false);
-    setShowMentionPicker(false);
-    setIsSendingChat(false);
-    setTimeout(() => {
-      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+      setChatInput('');
+      setChatImageAttachment(null);
+      setReplyingToMessage(null);
+      setShowChatEmojiPicker(false);
+      setShowMentionPicker(false);
+      setTimeout(() => {
+        chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (err) {
+      setShareToast('Unable to send message to Firestore. Check connection.');
+      setTimeout(() => setShareToast(null), 3000);
+    } finally {
+      setIsSendingChat(false);
+    }
   };
 
   const handleOpenEditMessage = (msg: GroupChatMessage) => {
@@ -502,11 +529,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     e.preventDefault();
     if (!editingMessage || !editingText.trim()) return;
     audioEngine.playSfx('click');
-    const result = await batchWallService.editChatMessage(editingMessage.id, editingText, {
-      id: currentUser?.id,
-      email: currentUser?.email,
-      name: currentUser?.name || profileNameInput
-    });
+    const authorId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    const result = await batchWallService.editChatMessage(editingMessage.id, editingText, authorId);
     if (!result.success) {
       setShareToast(result.error || 'Failed to edit message');
     } else {
@@ -523,7 +547,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       await batchWallService.unpinChatMessage(msg.id);
       setShareToast('Message unpinned 📌');
     } else {
-      const pinner = currentUser?.name || profileNameInput || 'Batch Member';
+      const pinner = currentUser?.id || authService.getFirebaseUser()?.uid || currentUser?.name || 'Classmate';
       await batchWallService.pinChatMessage(msg.id, pinner);
       setShareToast('Message pinned to top 📌✨');
     }
@@ -542,7 +566,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   const handleDeleteForMe = (msg: GroupChatMessage) => {
     audioEngine.playSfx('pop');
-    batchWallService.deleteChatMessageForMe(msg.id);
+    const uid = currentUser?.id || authService.getFirebaseUser()?.uid || 'guest';
+    batchWallService.deleteChatMessageForMe(msg.id, uid);
     setDeleteModalMsg(null);
     setActiveActionMenuMsgId(null);
     setDeletionReaction({ text: 'Message deleted for you', emoji: '🗑️' });
@@ -551,11 +576,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   const handleDeleteForEveryone = async (msg: GroupChatMessage) => {
     audioEngine.playSfx('pop');
-    const result = await batchWallService.deleteChatMessageForEveryone(msg.id, {
-      id: currentUser?.id,
-      email: currentUser?.email,
-      name: currentUser?.name || profileNameInput
-    });
+    const authorId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    const result = await batchWallService.deleteChatMessageForEveryone(msg.id, authorId);
     if (!result.success) {
       setShareToast(result.error || 'Failed to delete message');
       setTimeout(() => setShareToast(null), 2500);
@@ -626,12 +648,19 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   // Create & Send Live Group Poll
   const handleCreatePoll = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!authService.isGoogleAuthenticated()) {
+    if (!authService.isUserAllowedToChat()) {
       setShowGoogleModal(true);
-      setShareToast('Please sign in with a Google account to create polls! 🔒');
+      setShareToast('Please connect with your Email ID to create polls! 🔒');
       setTimeout(() => setShareToast(null), 3000);
       return;
     }
+
+    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    if (!senderId) {
+      setShowGoogleModal(true);
+      return;
+    }
+
     if (!pollQuestion.trim() || !pollOption1.trim() || !pollOption2.trim()) return;
 
     audioEngine.playSfx('fanfare');
@@ -647,39 +676,48 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       options.push({ id: 'opt_3', text: pollOption3.trim(), votes: [] });
     }
 
-    await batchWallService.sendGroupChatMessage({
-      senderId: currentUser?.id,
-      senderName: name,
-      senderEmail: email,
-      avatarUrl: avatar,
-      text: `📊 Group Poll: ${pollQuestion.trim()}`,
-      poll: {
-        question: pollQuestion.trim(),
-        options
-      }
-    });
+    try {
+      await batchWallService.sendGroupChatMessage({
+        senderId,
+        senderName: name,
+        senderEmail: email,
+        avatarUrl: avatar,
+        text: `📊 Group Poll: ${pollQuestion.trim()}`,
+        poll: {
+          question: pollQuestion.trim(),
+          options
+        }
+      });
 
-    setPollQuestion('');
-    setPollOption1('');
-    setPollOption2('');
-    setPollOption3('');
-    setShowCreatePollModal(false);
-    setTimeout(() => {
-      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+      setPollQuestion('');
+      setPollOption1('');
+      setPollOption2('');
+      setPollOption3('');
+      setShowCreatePollModal(false);
+      setTimeout(() => {
+        chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (err) {
+      setShareToast('Failed to create poll in Firestore.');
+      setTimeout(() => setShareToast(null), 3000);
+    }
   };
 
   // Vote on Poll
   const handleVotePoll = (messageId: string, optionId: string) => {
-    if (!authService.isGoogleAuthenticated()) {
+    if (!authService.isUserAllowedToChat()) {
       setShowGoogleModal(true);
-      setShareToast('Please sign in with a Google account to vote! 🔒');
+      setShareToast('Please connect with your Email ID to vote! 🔒');
       setTimeout(() => setShareToast(null), 3000);
       return;
     }
+    const voterId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    if (!voterId) {
+      setShowGoogleModal(true);
+      return;
+    }
     audioEngine.playSfx('pop');
-    const voter = currentUser?.name || profileNameInput || 'You';
-    batchWallService.votePoll(messageId, optionId, voter);
+    batchWallService.votePoll(messageId, optionId, voterId, currentUser?.name);
   };
 
   // Double tap to like Photo Post
@@ -1064,9 +1102,36 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-display font-black text-sm text-stone-900 leading-tight truncate">
-                    Batch 41 Connected Group Chat
-                  </h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-display font-black text-sm text-stone-900 leading-tight truncate">
+                      Batch 41 Connected Group Chat
+                    </h3>
+                    {/* Real-time Status Badge */}
+                    {chatStatus.status === 'connecting' && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
+                        <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping" />
+                        <span>Connecting to Batch 41...</span>
+                      </span>
+                    )}
+                    {chatStatus.status === 'connected' && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                        <span>Connected ✓</span>
+                      </span>
+                    )}
+                    {chatStatus.status === 'offline' && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded-full border border-stone-200 shrink-0">
+                        <span className="w-1.5 h-1.5 bg-stone-400 rounded-full" />
+                        <span>Offline — showing cached messages</span>
+                      </span>
+                    )}
+                    {chatStatus.status === 'error' && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 shrink-0">
+                        <AlertCircle className="w-3 h-3 text-rose-500" />
+                        <span>Connection issue</span>
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-stone-500 font-medium truncate">
                     {currentUser?.email ? `Chatting as ${currentUser.name} (${currentUser.email})` : 'Connected email users chatting together'}
                   </p>
@@ -1160,6 +1225,27 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               </div>
             </div>
 
+            {/* Error Banner with Retry Button */}
+            {chatStatus.status === 'error' && (
+              <div className="bg-rose-50 border-b border-rose-200 px-4 py-2 flex items-center justify-between text-xs text-rose-800 shrink-0">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{chatStatus.errorMessage || 'Unable to connect to the group chat. Please check your internet connection.'}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    batchWallService.initChatListener();
+                  }}
+                  className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-[10px] cursor-pointer transition-colors flex items-center gap-1 shrink-0"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Retry</span>
+                </button>
+              </div>
+            )}
+
             {/* Interactive Pinned Message Banner leading to Important Section */}
             {(() => {
               const pinnedCount = chatMessages.filter(m => m.isPinned).length;
@@ -1248,14 +1334,47 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 </div>
               )}
 
+              {/* Empty / Loading State for All Messages */}
+              {chatFilterMode === 'all' && chatMessages.length === 0 && (
+                <div className="p-12 text-center space-y-3 my-8">
+                  {chatStatus.status === 'connecting' ? (
+                    <div className="space-y-2.5">
+                      <div className="w-9 h-9 border-3 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                      <h4 className="font-display font-bold text-sm text-stone-700">Connecting to Batch 41...</h4>
+                      <p className="text-xs text-stone-400">Loading real-time group messages</p>
+                    </div>
+                  ) : chatStatus.status === 'error' ? (
+                    <div className="p-6 bg-rose-50/70 border border-rose-200 rounded-2xl max-w-sm mx-auto space-y-2">
+                      <AlertCircle className="w-8 h-8 text-rose-600 mx-auto" />
+                      <h4 className="font-display font-bold text-sm text-rose-900">Unable to connect to the group chat</h4>
+                      <p className="text-xs text-rose-700">Please check your internet connection.</p>
+                      <button
+                        type="button"
+                        onClick={() => batchWallService.initChatListener()}
+                        className="mt-2 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        Retry Connection
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <div className="w-14 h-14 rounded-full bg-rose-50 text-rose-500 mx-auto flex items-center justify-center font-bold text-2xl border border-rose-200 shadow-2xs">
+                        👋
+                      </div>
+                      <h4 className="font-display font-black text-sm sm:text-base text-stone-800">No messages yet.</h4>
+                      <p className="text-xs text-stone-500 max-w-xs mx-auto">
+                        Be the first to say hello 👋
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Date Separators & Chat Stream */}
               {(chatFilterMode === 'my_messages' ? userMatchedSessionData.matchedMessages : chatMessages).map((msg, index) => {
-                const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
-                const msgSenderName = (msg.senderName || '').replace(' 👑', '').trim().toLowerCase();
                 const isCurrentUser = Boolean(
                   (currentUser?.id && msg.senderId && currentUser.id === msg.senderId) ||
-                  (currentUser?.email && msg.senderEmail && currentUser.email.trim().toLowerCase() === msg.senderEmail.trim().toLowerCase()) ||
-                  (currentUserName !== '' && currentUserName === msgSenderName)
+                  (currentUser?.email && msg.senderEmail && currentUser.email.trim().toLowerCase() === msg.senderEmail.trim().toLowerCase())
                 );
                 const reactionsList = Object.entries(msg.reactions || {}).filter(([, count]) => count > 0);
                 const senderColor = getWhatsAppSenderColor(msg.senderName, msg.isKritika);
@@ -1543,7 +1662,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                               {msg.isEdited && !msg.isDeletedForEveryone && (
                                 <span className="italic text-stone-400">Edited</span>
                               )}
-                              <span>{msg.timestamp}</span>
+                              <span>{formatChatTimestamp(msg.createdAt)}</span>
                               
                               <button
                                 type="button"
@@ -3117,9 +3236,13 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 <button
                   onClick={() => {
                     audioEngine.playSfx('fanfare');
-                    confetti({ particleCount: 45, spread: 60, origin: { y: 0.7 } });
+                    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+                    if (!senderId) {
+                      setShowGoogleModal(true);
+                      return;
+                    }
                     batchWallService.sendGroupChatMessage({
-                      senderId: currentUser?.id,
+                      senderId,
                       senderName: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
                       senderEmail: currentUser?.email,
                       avatarUrl: currentUser?.avatarUrl || profileAvatarInput,
@@ -3241,14 +3364,10 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
         {/* MODAL: DELETE MESSAGE (WHATSAPP STYLE) */}
         {deleteModalMsg && (() => {
-          const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
-          const msgSenderName = (deleteModalMsg.senderName || '').replace(' 👑', '').trim().toLowerCase();
+          const currentUserId = currentUser?.id || authService.getFirebaseUser()?.uid;
           const isAuthor = Boolean(
-            (currentUser?.id && deleteModalMsg.senderId && currentUser.id === deleteModalMsg.senderId) ||
-            (currentUser?.email && deleteModalMsg.senderEmail && currentUser.email.trim().toLowerCase() === deleteModalMsg.senderEmail.trim().toLowerCase()) ||
-            (currentUserName !== '' && currentUserName === msgSenderName)
+            currentUserId && deleteModalMsg.senderId && currentUserId === deleteModalMsg.senderId
           );
-          const isKritika = currentUserName.includes('kritika') || (currentUser?.email || '').toLowerCase().includes('kritika');
 
           return (
             <BaseModal
@@ -3265,8 +3384,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 </div>
 
                 <div className="space-y-2 pt-1">
-                  {/* Delete for Everyone: ONLY visible to message author or Kritika */}
-                  {(isAuthor || isKritika) && (
+                  {/* Delete for Everyone: ONLY visible to message author by Firebase UID */}
+                  {isAuthor && (
                     <button
                       type="button"
                       onClick={() => handleDeleteForEveryone(deleteModalMsg)}

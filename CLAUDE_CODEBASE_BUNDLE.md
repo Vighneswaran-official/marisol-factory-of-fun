@@ -32,6 +32,7 @@ CLAUDE_MOOD_RECOMMENDATION_PROMPT.md
 README.md
 api/
 capacitor.config.ts
+firestore.rules
 index.html
 marisol-factory-of-fun.zip
 package-lock.json
@@ -1730,7 +1731,7 @@ export const BaseModal: React.FC<BaseModalProps> = ({
 ```tsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { ScreenState } from '../types/game';
-import { batchWallService, type InstagramPost, type GroupChatMessage } from '../services/batchWallState';
+import { batchWallService, type InstagramPost, type GroupChatMessage, formatChatTimestamp } from '../services/batchWallState';
 import { authService, type StudentProfile } from '../services/authService';
 import { STICKERS } from '../data/stickers';
 import { gameState } from '../services/gameState';
@@ -1741,7 +1742,7 @@ import {
   Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check,
   Reply, BarChart2, AtSign, Video, Phone, MoreVertical, Mic,
   Trash2, ChevronDown, Ban, Globe, Lock, Clock,
-  Filter
+  Filter, AlertCircle, RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { BaseModal } from './BaseModal';
@@ -1982,7 +1983,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   // Data state
   const allBulletinPosts = batchWallService.getPosts();
-  const chatMessages = batchWallService.getChatMessages();
+  const chatMessages = batchWallService.getChatMessages(currentUser?.id);
+  const chatStatus = batchWallService.getChatConnectionStatus();
   const photoPosts = batchWallService.getInstagramPosts();
   const network = batchWallService.getNetworkStatus();
   const classmates = authService.getClassmates();
@@ -2062,29 +2064,40 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     }
     if (!pinNoticeText.trim()) return;
 
+    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    if (!senderId) {
+      setShowGoogleModal(true);
+      return;
+    }
+
     audioEngine.playSfx('fanfare');
     const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
     const email = currentUser?.email;
     const avatar = currentUser?.avatarUrl || profileAvatarInput;
 
-    await batchWallService.sendGroupChatMessage({
-      senderId: currentUser?.id,
-      senderName: name,
-      senderEmail: email,
-      avatarUrl: avatar,
-      senderIsNewUser: currentUser?.isNewUser ?? true,
-      senderUserTag: currentUser?.userTag || 'New User',
-      text: `${pinNoticeCategory}: ${pinNoticeText.trim()}`,
-      isPinned: true,
-      pinnedBy: name,
-      pinnedAt: Date.now()
-    });
+    try {
+      await batchWallService.sendGroupChatMessage({
+        senderId,
+        senderName: name,
+        senderEmail: email,
+        avatarUrl: avatar,
+        senderIsNewUser: currentUser?.isNewUser ?? true,
+        senderUserTag: currentUser?.userTag || 'New User',
+        text: `${pinNoticeCategory}: ${pinNoticeText.trim()}`,
+        isPinned: true,
+        pinnedBy: senderId,
+        pinnedAt: Date.now()
+      });
 
-    setPinNoticeText('');
-    setShowPinAnnouncementModal(false);
-    setShareToast('Important announcement posted & pinned to new section! 📌✨');
-    setChatSubTab('pinned');
-    setTimeout(() => setShareToast(null), 3000);
+      setPinNoticeText('');
+      setShowPinAnnouncementModal(false);
+      setShareToast('Important announcement posted & pinned to new section! 📌✨');
+      setChatSubTab('pinned');
+      setTimeout(() => setShareToast(null), 3000);
+    } catch (err) {
+      setShareToast('Unable to post pinned announcement to Firestore. Check connection.');
+      setTimeout(() => setShareToast(null), 3000);
+    }
   };
 
   // Chat Image Upload
@@ -2172,12 +2185,21 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   // Send WhatsApp Group Message (with replyTo support)
   const handleSendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!authService.isGoogleAuthenticated()) {
+    if (!authService.isUserAllowedToChat()) {
       setShowGoogleModal(true);
-      setShareToast('Please sign in with a Google account to chat! 🔒');
+      setShareToast('Please connect with your Email ID to chat! 🔒');
       setTimeout(() => setShareToast(null), 3000);
       return;
     }
+
+    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    if (!senderId) {
+      setShowGoogleModal(true);
+      setShareToast('Authentication required. Please sign in to chat! 🔒');
+      setTimeout(() => setShareToast(null), 3000);
+      return;
+    }
+
     const text = chatInput.trim();
     if (!text && !chatImageAttachment) return;
 
@@ -2201,25 +2223,31 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       text: replyingToMessage.text.slice(0, 80)
     } : undefined;
 
-    await batchWallService.sendGroupChatMessage({
-      senderId: currentUser?.id,
-      senderName: name,
-      senderEmail: email,
-      avatarUrl: avatar,
-      text: text || (chatImageAttachment ? '📷 Photo' : ''),
-      imageUrl: chatImageAttachment || undefined,
-      replyTo: replyData
-    });
+    try {
+      await batchWallService.sendGroupChatMessage({
+        senderId,
+        senderName: name,
+        senderEmail: email,
+        avatarUrl: avatar,
+        text: text || (chatImageAttachment ? '📷 Photo' : ''),
+        imageUrl: chatImageAttachment || undefined,
+        replyTo: replyData
+      });
 
-    setChatInput('');
-    setChatImageAttachment(null);
-    setReplyingToMessage(null);
-    setShowChatEmojiPicker(false);
-    setShowMentionPicker(false);
-    setIsSendingChat(false);
-    setTimeout(() => {
-      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+      setChatInput('');
+      setChatImageAttachment(null);
+      setReplyingToMessage(null);
+      setShowChatEmojiPicker(false);
+      setShowMentionPicker(false);
+      setTimeout(() => {
+        chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (err) {
+      setShareToast('Unable to send message to Firestore. Check connection.');
+      setTimeout(() => setShareToast(null), 3000);
+    } finally {
+      setIsSendingChat(false);
+    }
   };
 
   const handleOpenEditMessage = (msg: GroupChatMessage) => {
@@ -2232,11 +2260,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     e.preventDefault();
     if (!editingMessage || !editingText.trim()) return;
     audioEngine.playSfx('click');
-    const result = await batchWallService.editChatMessage(editingMessage.id, editingText, {
-      id: currentUser?.id,
-      email: currentUser?.email,
-      name: currentUser?.name || profileNameInput
-    });
+    const authorId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    const result = await batchWallService.editChatMessage(editingMessage.id, editingText, authorId);
     if (!result.success) {
       setShareToast(result.error || 'Failed to edit message');
     } else {
@@ -2253,7 +2278,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       await batchWallService.unpinChatMessage(msg.id);
       setShareToast('Message unpinned 📌');
     } else {
-      const pinner = currentUser?.name || profileNameInput || 'Batch Member';
+      const pinner = currentUser?.id || authService.getFirebaseUser()?.uid || currentUser?.name || 'Classmate';
       await batchWallService.pinChatMessage(msg.id, pinner);
       setShareToast('Message pinned to top 📌✨');
     }
@@ -2272,7 +2297,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   const handleDeleteForMe = (msg: GroupChatMessage) => {
     audioEngine.playSfx('pop');
-    batchWallService.deleteChatMessageForMe(msg.id);
+    const uid = currentUser?.id || authService.getFirebaseUser()?.uid || 'guest';
+    batchWallService.deleteChatMessageForMe(msg.id, uid);
     setDeleteModalMsg(null);
     setActiveActionMenuMsgId(null);
     setDeletionReaction({ text: 'Message deleted for you', emoji: '🗑️' });
@@ -2281,11 +2307,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   const handleDeleteForEveryone = async (msg: GroupChatMessage) => {
     audioEngine.playSfx('pop');
-    const result = await batchWallService.deleteChatMessageForEveryone(msg.id, {
-      id: currentUser?.id,
-      email: currentUser?.email,
-      name: currentUser?.name || profileNameInput
-    });
+    const authorId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    const result = await batchWallService.deleteChatMessageForEveryone(msg.id, authorId);
     if (!result.success) {
       setShareToast(result.error || 'Failed to delete message');
       setTimeout(() => setShareToast(null), 2500);
@@ -2356,12 +2379,19 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   // Create & Send Live Group Poll
   const handleCreatePoll = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!authService.isGoogleAuthenticated()) {
+    if (!authService.isUserAllowedToChat()) {
       setShowGoogleModal(true);
-      setShareToast('Please sign in with a Google account to create polls! 🔒');
+      setShareToast('Please connect with your Email ID to create polls! 🔒');
       setTimeout(() => setShareToast(null), 3000);
       return;
     }
+
+    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    if (!senderId) {
+      setShowGoogleModal(true);
+      return;
+    }
+
     if (!pollQuestion.trim() || !pollOption1.trim() || !pollOption2.trim()) return;
 
     audioEngine.playSfx('fanfare');
@@ -2377,39 +2407,48 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       options.push({ id: 'opt_3', text: pollOption3.trim(), votes: [] });
     }
 
-    await batchWallService.sendGroupChatMessage({
-      senderId: currentUser?.id,
-      senderName: name,
-      senderEmail: email,
-      avatarUrl: avatar,
-      text: `📊 Group Poll: ${pollQuestion.trim()}`,
-      poll: {
-        question: pollQuestion.trim(),
-        options
-      }
-    });
+    try {
+      await batchWallService.sendGroupChatMessage({
+        senderId,
+        senderName: name,
+        senderEmail: email,
+        avatarUrl: avatar,
+        text: `📊 Group Poll: ${pollQuestion.trim()}`,
+        poll: {
+          question: pollQuestion.trim(),
+          options
+        }
+      });
 
-    setPollQuestion('');
-    setPollOption1('');
-    setPollOption2('');
-    setPollOption3('');
-    setShowCreatePollModal(false);
-    setTimeout(() => {
-      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+      setPollQuestion('');
+      setPollOption1('');
+      setPollOption2('');
+      setPollOption3('');
+      setShowCreatePollModal(false);
+      setTimeout(() => {
+        chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (err) {
+      setShareToast('Failed to create poll in Firestore.');
+      setTimeout(() => setShareToast(null), 3000);
+    }
   };
 
   // Vote on Poll
   const handleVotePoll = (messageId: string, optionId: string) => {
-    if (!authService.isGoogleAuthenticated()) {
+    if (!authService.isUserAllowedToChat()) {
       setShowGoogleModal(true);
-      setShareToast('Please sign in with a Google account to vote! 🔒');
+      setShareToast('Please connect with your Email ID to vote! 🔒');
       setTimeout(() => setShareToast(null), 3000);
       return;
     }
+    const voterId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    if (!voterId) {
+      setShowGoogleModal(true);
+      return;
+    }
     audioEngine.playSfx('pop');
-    const voter = currentUser?.name || profileNameInput || 'You';
-    batchWallService.votePoll(messageId, optionId, voter);
+    batchWallService.votePoll(messageId, optionId, voterId, currentUser?.name);
   };
 
   // Double tap to like Photo Post
@@ -2794,9 +2833,36 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-display font-black text-sm text-stone-900 leading-tight truncate">
-                    Batch 41 Connected Group Chat
-                  </h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-display font-black text-sm text-stone-900 leading-tight truncate">
+                      Batch 41 Connected Group Chat
+                    </h3>
+                    {/* Real-time Status Badge */}
+                    {chatStatus.status === 'connecting' && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
+                        <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping" />
+                        <span>Connecting to Batch 41...</span>
+                      </span>
+                    )}
+                    {chatStatus.status === 'connected' && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                        <span>Connected ✓</span>
+                      </span>
+                    )}
+                    {chatStatus.status === 'offline' && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded-full border border-stone-200 shrink-0">
+                        <span className="w-1.5 h-1.5 bg-stone-400 rounded-full" />
+                        <span>Offline — showing cached messages</span>
+                      </span>
+                    )}
+                    {chatStatus.status === 'error' && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 shrink-0">
+                        <AlertCircle className="w-3 h-3 text-rose-500" />
+                        <span>Connection issue</span>
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-stone-500 font-medium truncate">
                     {currentUser?.email ? `Chatting as ${currentUser.name} (${currentUser.email})` : 'Connected email users chatting together'}
                   </p>
@@ -2890,6 +2956,27 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               </div>
             </div>
 
+            {/* Error Banner with Retry Button */}
+            {chatStatus.status === 'error' && (
+              <div className="bg-rose-50 border-b border-rose-200 px-4 py-2 flex items-center justify-between text-xs text-rose-800 shrink-0">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{chatStatus.errorMessage || 'Unable to connect to the group chat. Please check your internet connection.'}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    batchWallService.initChatListener();
+                  }}
+                  className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-[10px] cursor-pointer transition-colors flex items-center gap-1 shrink-0"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Retry</span>
+                </button>
+              </div>
+            )}
+
             {/* Interactive Pinned Message Banner leading to Important Section */}
             {(() => {
               const pinnedCount = chatMessages.filter(m => m.isPinned).length;
@@ -2978,14 +3065,47 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 </div>
               )}
 
+              {/* Empty / Loading State for All Messages */}
+              {chatFilterMode === 'all' && chatMessages.length === 0 && (
+                <div className="p-12 text-center space-y-3 my-8">
+                  {chatStatus.status === 'connecting' ? (
+                    <div className="space-y-2.5">
+                      <div className="w-9 h-9 border-3 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                      <h4 className="font-display font-bold text-sm text-stone-700">Connecting to Batch 41...</h4>
+                      <p className="text-xs text-stone-400">Loading real-time group messages</p>
+                    </div>
+                  ) : chatStatus.status === 'error' ? (
+                    <div className="p-6 bg-rose-50/70 border border-rose-200 rounded-2xl max-w-sm mx-auto space-y-2">
+                      <AlertCircle className="w-8 h-8 text-rose-600 mx-auto" />
+                      <h4 className="font-display font-bold text-sm text-rose-900">Unable to connect to the group chat</h4>
+                      <p className="text-xs text-rose-700">Please check your internet connection.</p>
+                      <button
+                        type="button"
+                        onClick={() => batchWallService.initChatListener()}
+                        className="mt-2 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        Retry Connection
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <div className="w-14 h-14 rounded-full bg-rose-50 text-rose-500 mx-auto flex items-center justify-center font-bold text-2xl border border-rose-200 shadow-2xs">
+                        👋
+                      </div>
+                      <h4 className="font-display font-black text-sm sm:text-base text-stone-800">No messages yet.</h4>
+                      <p className="text-xs text-stone-500 max-w-xs mx-auto">
+                        Be the first to say hello 👋
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Date Separators & Chat Stream */}
               {(chatFilterMode === 'my_messages' ? userMatchedSessionData.matchedMessages : chatMessages).map((msg, index) => {
-                const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
-                const msgSenderName = (msg.senderName || '').replace(' 👑', '').trim().toLowerCase();
                 const isCurrentUser = Boolean(
                   (currentUser?.id && msg.senderId && currentUser.id === msg.senderId) ||
-                  (currentUser?.email && msg.senderEmail && currentUser.email.trim().toLowerCase() === msg.senderEmail.trim().toLowerCase()) ||
-                  (currentUserName !== '' && currentUserName === msgSenderName)
+                  (currentUser?.email && msg.senderEmail && currentUser.email.trim().toLowerCase() === msg.senderEmail.trim().toLowerCase())
                 );
                 const reactionsList = Object.entries(msg.reactions || {}).filter(([, count]) => count > 0);
                 const senderColor = getWhatsAppSenderColor(msg.senderName, msg.isKritika);
@@ -3273,7 +3393,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                               {msg.isEdited && !msg.isDeletedForEveryone && (
                                 <span className="italic text-stone-400">Edited</span>
                               )}
-                              <span>{msg.timestamp}</span>
+                              <span>{formatChatTimestamp(msg.createdAt)}</span>
                               
                               <button
                                 type="button"
@@ -4847,9 +4967,13 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 <button
                   onClick={() => {
                     audioEngine.playSfx('fanfare');
-                    confetti({ particleCount: 45, spread: 60, origin: { y: 0.7 } });
+                    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+                    if (!senderId) {
+                      setShowGoogleModal(true);
+                      return;
+                    }
                     batchWallService.sendGroupChatMessage({
-                      senderId: currentUser?.id,
+                      senderId,
                       senderName: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
                       senderEmail: currentUser?.email,
                       avatarUrl: currentUser?.avatarUrl || profileAvatarInput,
@@ -4971,14 +5095,10 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
         {/* MODAL: DELETE MESSAGE (WHATSAPP STYLE) */}
         {deleteModalMsg && (() => {
-          const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
-          const msgSenderName = (deleteModalMsg.senderName || '').replace(' 👑', '').trim().toLowerCase();
+          const currentUserId = currentUser?.id || authService.getFirebaseUser()?.uid;
           const isAuthor = Boolean(
-            (currentUser?.id && deleteModalMsg.senderId && currentUser.id === deleteModalMsg.senderId) ||
-            (currentUser?.email && deleteModalMsg.senderEmail && currentUser.email.trim().toLowerCase() === deleteModalMsg.senderEmail.trim().toLowerCase()) ||
-            (currentUserName !== '' && currentUserName === msgSenderName)
+            currentUserId && deleteModalMsg.senderId && currentUserId === deleteModalMsg.senderId
           );
-          const isKritika = currentUserName.includes('kritika') || (currentUser?.email || '').toLowerCase().includes('kritika');
 
           return (
             <BaseModal
@@ -4995,8 +5115,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 </div>
 
                 <div className="space-y-2 pt-1">
-                  {/* Delete for Everyone: ONLY visible to message author or Kritika */}
-                  {(isAuthor || isKritika) && (
+                  {/* Delete for Everyone: ONLY visible to message author by Firebase UID */}
+                  {isAuthor && (
                     <button
                       type="button"
                       onClick={() => handleDeleteForEveryone(deleteModalMsg)}
@@ -17452,6 +17572,10 @@ class AuthService {
     return this.loginStudentProfile(formattedName, trimmedEmail);
   }
 
+  public getFirebaseUser(): FirebaseUser | null {
+    return auth?.currentUser || null;
+  }
+
   /**
    * Multi-User: Add or Login Student / Mail Profile
    */
@@ -17463,9 +17587,9 @@ class AuthService {
       c.name.toLowerCase() === trimmed.toLowerCase()
     );
 
-    const resolvedId = email 
+    const resolvedId = auth?.currentUser?.uid || (email 
       ? `user_${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
-      : `student_${Date.now()}`;
+      : `student_${Date.now()}`);
 
     const profile: StudentProfile = existing ? {
       ...existing,
@@ -17679,7 +17803,16 @@ export const authService = new AuthService();
 
 ```ts
 // Shared Batch Wall State Service for MLP41PT Batch Students with Firebase Firestore
-import { db, collection, onSnapshot, query, orderBy, limit, doc, setDoc, deleteDoc } from './firebase';
+import { 
+  db, 
+  collection, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  doc, 
+  setDoc, 
+  deleteDoc 
+} from './firebase';
 
 export interface BulletinReply {
   id: string;
@@ -17761,7 +17894,7 @@ export const KNOWN_BATCH_MEMBERS: BatchMember[] = [
 export interface ChatPollOption {
   id: string;
   text: string;
-  votes: string[]; // array of voter names
+  votes: string[]; // array of voter Firebase UIDs (or legacy names)
 }
 
 export interface ChatPoll {
@@ -17771,58 +17904,54 @@ export interface ChatPoll {
 
 export interface GroupChatMessage {
   id: string;
-  senderId?: string;
+  senderId: string; // Firebase Auth UID
   senderName: string;
   senderEmail?: string;
   avatarUrl?: string;
+
   text: string;
-  imageUrl?: string; // Image attachment for WhatsApp style chat
+  imageUrl?: string;
+
   senderIsNewUser?: boolean;
   senderUserTag?: string;
+
   replyTo?: {
     id: string;
     senderName: string;
     text: string;
   };
-  poll?: ChatPoll;
+
+  poll?: {
+    question: string;
+    options: {
+      id: string;
+      text: string;
+      votes: string[];
+    }[];
+  };
+
   timestamp: string;
   createdAt: number;
+
   isKritika?: boolean;
+
   isEdited?: boolean;
   isDeletedForEveryone?: boolean;
-  reactionEmoji?: string;
-  reactions?: Record<string, number>; // emoji -> count
-  seenBy?: MessageReceipt[]; // Read receipts tracking who has seen this message
+
+  reactions?: Record<string, number>;
+
+  seenBy?: {
+    userId: string;
+    userName: string;
+    userEmail?: string;
+    avatarUrl?: string;
+    seenAt: number;
+  }[];
+
   isPinned?: boolean;
   pinnedBy?: string;
   pinnedAt?: number;
 }
-
-export interface DirectChatMessage {
-  id: string;
-  conversationId: string;
-  senderId: string;
-  senderName: string;
-  senderEmail?: string;
-  senderAvatarUrl?: string;
-  senderIsNewUser?: boolean;
-  senderUserTag?: string;
-  recipientId: string;
-  recipientName: string;
-  recipientEmail?: string;
-  recipientAvatarUrl?: string;
-  text: string;
-  imageUrl?: string;
-  timestamp: string;
-  createdAt: number;
-  isRead?: boolean;
-}
-
-export const getDirectConversationId = (userA: string, userB: string): string => {
-  const cleanA = (userA || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
-  const cleanB = (userB || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
-  return [cleanA, cleanB].sort().join('___');
-};
 
 export interface InstagramComment {
   id: string;
@@ -17864,64 +17993,26 @@ export interface InstagramPost {
   isEdited?: boolean;
 }
 
+export const formatChatTimestamp = (createdAt: number): string => {
+  if (!createdAt) return 'Just now';
+  const now = Date.now();
+  const diff = now - createdAt;
+  if (diff < 60000) return 'Just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  const date = new Date(createdAt);
+  const isToday = new Date().toDateString() === date.toDateString();
+  const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (isToday) return `Today at ${timeStr}`;
+  const yesterday = new Date(now - 86400000);
+  if (yesterday.toDateString() === date.toDateString()) return `Yesterday at ${timeStr}`;
+  return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
+};
+
 const STORAGE_KEY = 'marisol_batch_updates_v2';
 const CHAT_STORAGE_KEY = 'marisol_group_chat_messages_v2';
+const CHAT_QUEUE_KEY = 'marisol_chat_offline_queue_v2';
 const INSTA_STORAGE_KEY = 'marisol_instagram_posts_v2';
-const DM_STORAGE_KEY = 'marisol_direct_chat_messages_v2';
 const QUEUE_KEY = 'marisol_batch_offline_queue_v2';
-
-const nowTs = Date.now();
-
-const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
-  {
-    id: 'chat_init_1',
-    senderId: 'member_kritika',
-    senderName: 'Kritika Gupta 👑',
-    senderEmail: 'kritika.gupta@mlp41.edu',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
-    text: 'Hey Batch 41 family! Welcome to our comfort lounge! Savoring every sweet memory together ♡ ✨',
-    imageUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80',
-    timestamp: 'Today at 2:30 PM',
-    createdAt: nowTs - 3600000 * 3,
-    isKritika: true,
-    reactionEmoji: '💖',
-    reactions: { '💖': 8, '✨': 5 },
-    seenBy: [
-      { userId: 'member_kritika', userName: 'Kritika Gupta 👑', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 3 },
-      { userId: 'member_priyanshu', userName: 'Priyanshu Sharma', avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 2.8 },
-      { userId: 'member_ananya', userName: 'Ananya Deshmukh', avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 2.5 },
-      { userId: 'member_rohan', userName: 'Rohan Mehra', avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 2.1 }
-    ]
-  },
-  {
-    id: 'chat_init_2',
-    senderId: 'member_priyanshu',
-    senderName: 'Priyanshu Sharma',
-    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
-    text: '@Kritika Gupta 👑 The music player and comfort arcade are pure vibes! 🧀🍕',
-    timestamp: 'Today at 3:15 PM',
-    createdAt: nowTs - 3600000 * 2,
-    reactions: { '🍕': 4, '🔥': 3 },
-    seenBy: [
-      { userId: 'member_priyanshu', userName: 'Priyanshu Sharma', avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 2 },
-      { userId: 'member_kritika', userName: 'Kritika Gupta 👑', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 1.8 }
-    ]
-  },
-  {
-    id: 'chat_init_3',
-    senderId: 'member_ananya',
-    senderName: 'Ananya Deshmukh',
-    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
-    text: 'Who wants to do the Chai Enthusiast movie quiz round together tonight? ☕🎬',
-    timestamp: 'Today at 3:45 PM',
-    createdAt: nowTs - 3600000,
-    reactions: { '☕': 5, '👏': 3 },
-    seenBy: [
-      { userId: 'member_ananya', userName: 'Ananya Deshmukh', avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 },
-      { userId: 'member_kritika', userName: 'Kritika Gupta 👑', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop', seenAt: nowTs - 1800000 }
-    ]
-  }
-];
 
 const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
   {
@@ -17937,6 +18028,7 @@ const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
     hashtags: ['#Batch41', '#KritikaQueen', '#FactoryOfFun', '#ComfortVibes'],
     likesCount: 38,
     likedByCurrentUser: true,
+    likedByUsers: ['Kritika Gupta 👑'],
     comments: [
       {
         id: 'c1',
@@ -17958,55 +18050,33 @@ const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
     timestamp: '2 hours ago',
     createdAt: Date.now() - 7200000,
     isKritika: true
-  },
-  {
-    id: 'insta_init_2',
-    authorId: 'member_rohan',
-    authorName: 'Rohan Mehra',
-    authorAvatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',
-    location: 'Pizza & Macaroni Hub 🍕🧀',
-    imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=900&auto=format&fit=crop&q=80',
-    filter: 'golden',
-    caption: 'Just unlocked the Gourmet Truffle Macaroni dish in the Mood Quiz! Best comfort meal ever 🧀🤤',
-    hashtags: ['#MacaroniMagic', '#MoodQuiz', '#Batch41Foodies'],
-    likesCount: 24,
-    likedByCurrentUser: false,
-    comments: [
-      {
-        id: 'c3',
-        authorName: 'Kritika Gupta 👑',
-        isKritika: true,
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
-        text: 'Yummm! Save some for the entire batch next time! 🍕🧀',
-        timestamp: '15 mins ago',
-        createdAt: Date.now() - 900000
-      }
-    ],
-    timestamp: '4 hours ago',
-    createdAt: Date.now() - 14400000
   }
 ];
 
 class BatchWallService {
   private posts: BatchUpdatePost[] = [];
   private chatMessages: GroupChatMessage[] = [];
-  private directMessages: DirectChatMessage[] = [];
   private instagramPosts: InstagramPost[] = [];
   private offlineQueue: BatchUpdatePost[] = [];
+  private chatOfflineQueue: GroupChatMessage[] = [];
   private listeners: Set<() => void> = new Set();
   private isOnline: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
   private lastSyncToast: string | null = null;
-
   private broadcastChannel: BroadcastChannel | null = null;
+
+  // Real-Time Group Chat State
+  private chatConnectionStatus: 'connecting' | 'connected' | 'offline' | 'error' = 'connecting';
+  private chatErrorMessage: string | null = null;
+  private chatUnsubscribe: (() => void) | null = null;
 
   constructor() {
     this.cleanLegacyStorage();
     this.loadFromStorage();
+
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => this.handleOnline());
       window.addEventListener('offline', () => this.handleOffline());
-      
-      // Multi-client real-time sync across windows/tabs
+
       try {
         if ('BroadcastChannel' in window) {
           this.broadcastChannel = new BroadcastChannel('marisol_multiuser_sync');
@@ -18016,9 +18086,6 @@ class BatchWallService {
               this.saveChatToStorage();
               this.notify();
             } else if (event.data?.type === 'SYNC_CHAT') {
-              this.loadFromStorage();
-              this.notify();
-            } else if (event.data?.type === 'SYNC_DM') {
               this.loadFromStorage();
               this.notify();
             } else if (event.data?.type === 'SYNC_POSTS') {
@@ -18032,24 +18099,25 @@ class BatchWallService {
         }
       } catch {}
     }
+
     this.initFirestoreSync();
   }
 
-  // Purge unwanted old mock posts from v1 storage
   private cleanLegacyStorage() {
     try {
       localStorage.removeItem('marisol_batch_updates_v1');
+      localStorage.removeItem('marisol_direct_chat_messages_v1');
+      localStorage.removeItem('marisol_direct_chat_messages_v2');
     } catch {}
   }
 
   private initFirestoreSync() {
     if (db) {
       try {
-        // Bulletin Posts
+        // 1. Bulletin Corkboard Posts
         const postsQuery = query(
           collection(db, 'batch_updates'),
-          orderBy('createdAt', 'desc'),
-          limit(100)
+          orderBy('createdAt', 'desc')
         );
         onSnapshot(postsQuery, (snapshot) => {
           if (!snapshot.empty) {
@@ -18068,54 +18136,16 @@ class BatchWallService {
             this.notify();
           }
         }, (err) => {
-          console.warn('Firestore posts sync notice:', err);
+          console.warn('[BatchWall] Firestore posts sync notice:', err);
         });
 
-        // Group Chat Firestore Listener
-        const chatQuery = query(
-          collection(db, 'group_chat_messages'),
-          orderBy('createdAt', 'asc'),
-          limit(200)
-        );
-        onSnapshot(chatQuery, (snapshot) => {
-          if (!snapshot.empty) {
-            const remoteChat: GroupChatMessage[] = [];
-            snapshot.forEach((docSnap) => {
-              remoteChat.push({ ...(docSnap.data() as GroupChatMessage), id: docSnap.id });
-            });
-            this.chatMessages = remoteChat.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-            this.saveChatToStorage();
-            this.notify();
-          }
-        }, (err) => {
-          console.warn('Firestore chat listener notice:', err);
-        });
+        // 2. Authoritative Group Chat Listener
+        this.initChatListener();
 
-        // Direct Messages (1-on-1 between each user) Firestore Listener
-        const dmQuery = query(
-          collection(db, 'direct_chat_messages'),
-          orderBy('createdAt', 'asc'),
-          limit(300)
-        );
-        onSnapshot(dmQuery, (snapshot) => {
-          if (!snapshot.empty) {
-            const remoteDMs: DirectChatMessage[] = [];
-            snapshot.forEach((docSnap) => {
-              remoteDMs.push({ ...(docSnap.data() as DirectChatMessage), id: docSnap.id });
-            });
-            this.directMessages = remoteDMs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-            this.saveDirectMessagesToStorage();
-            this.notify();
-          }
-        }, (err) => {
-          console.warn('Firestore direct messages sync notice:', err);
-        });
-
-        // Instagram Posts Firestore Listener
+        // 3. Instagram / Photo Wall Posts Listener
         const instaQuery = query(
           collection(db, 'instagram_posts'),
-          orderBy('createdAt', 'desc'),
-          limit(100)
+          orderBy('createdAt', 'desc')
         );
         onSnapshot(instaQuery, (snapshot) => {
           if (!snapshot.empty) {
@@ -18132,12 +18162,82 @@ class BatchWallService {
             this.notify();
           }
         }, (err) => {
-          console.warn('Firestore insta listener notice:', err);
+          console.warn('[BatchWall] Firestore insta listener notice:', err);
         });
 
       } catch (err) {
-        console.warn('Firestore sync setup error:', err);
+        console.warn('[BatchWall] Firestore sync setup error:', err);
       }
+    } else {
+      this.chatConnectionStatus = 'offline';
+      this.chatErrorMessage = 'Firebase Firestore is not configured.';
+      this.notify();
+    }
+  }
+
+  /**
+   * Initializes exactly ONE authoritative group-chat Firestore listener.
+   * If called again, cleans up previous listener to prevent duplicates.
+   */
+  public initChatListener() {
+    if (this.chatUnsubscribe) {
+      this.chatUnsubscribe();
+      this.chatUnsubscribe = null;
+    }
+
+    if (!db) {
+      this.chatConnectionStatus = 'offline';
+      this.chatErrorMessage = 'Firebase Firestore is not configured.';
+      this.notify();
+      return;
+    }
+
+    this.chatConnectionStatus = 'connecting';
+    this.chatErrorMessage = null;
+    this.notify();
+
+    try {
+      const chatQuery = query(
+        collection(db, 'group_chat_messages'),
+        orderBy('createdAt', 'asc')
+      );
+
+      this.chatUnsubscribe = onSnapshot(
+        chatQuery,
+        (snapshot) => {
+          const remoteChat: GroupChatMessage[] = [];
+
+          snapshot.forEach((docSnap) => {
+            remoteChat.push({
+              ...(docSnap.data() as GroupChatMessage),
+              id: docSnap.id,
+            });
+          });
+
+          remoteChat.sort(
+            (a, b) => (a.createdAt || 0) - (b.createdAt || 0)
+          );
+
+          // Overwrite local chat state unconditionally — authoritative from Firestore
+          this.chatMessages = remoteChat;
+          this.chatConnectionStatus = 'connected';
+          this.chatErrorMessage = null;
+
+          this.saveChatToStorage();
+          this.notify();
+        },
+        (error) => {
+          console.error('[Batch 41 Group Chat] Firestore listener error:', error);
+          this.chatConnectionStatus = 'error';
+          this.chatErrorMessage = 'Unable to connect to the group chat. Please check your internet connection.';
+          this.notify();
+        }
+      );
+    } catch (err: any) {
+      console.error('[Batch 41 Group Chat] Firestore init error:', err);
+      this.chatConnectionStatus = 'error';
+      this.chatErrorMessage = 'Unable to connect to the group chat. Please check your internet connection.';
+      this.notify();
     }
   }
 
@@ -18152,20 +18252,12 @@ class BatchWallService {
         this.saveToStorage();
       }
 
+      // Startup / Offline Cache for Group Chat (begins empty if no cache, never seeds fake mock chat messages)
       const storedChat = localStorage.getItem(CHAT_STORAGE_KEY);
       if (storedChat) {
         this.chatMessages = JSON.parse(storedChat);
       } else {
-        this.chatMessages = [...DEFAULT_GROUP_CHAT_MESSAGES];
-        this.saveChatToStorage();
-      }
-
-      const storedDMs = localStorage.getItem(DM_STORAGE_KEY);
-      if (storedDMs) {
-        this.directMessages = JSON.parse(storedDMs);
-      } else {
-        this.directMessages = [];
-        this.saveDirectMessagesToStorage();
+        this.chatMessages = [];
       }
 
       const storedInsta = localStorage.getItem(INSTA_STORAGE_KEY);
@@ -18180,11 +18272,17 @@ class BatchWallService {
       if (queue) {
         this.offlineQueue = JSON.parse(queue);
       }
+
+      const chatQueue = localStorage.getItem(CHAT_QUEUE_KEY);
+      if (chatQueue) {
+        this.chatOfflineQueue = JSON.parse(chatQueue);
+      }
     } catch {
       this.posts = [];
-      this.chatMessages = [...DEFAULT_GROUP_CHAT_MESSAGES];
-      this.directMessages = [];
+      this.chatMessages = [];
       this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
+      this.offlineQueue = [];
+      this.chatOfflineQueue = [];
     }
   }
 
@@ -18200,9 +18298,9 @@ class BatchWallService {
     } catch {}
   }
 
-  private saveDirectMessagesToStorage() {
+  private saveChatQueueToStorage() {
     try {
-      localStorage.setItem(DM_STORAGE_KEY, JSON.stringify(this.directMessages));
+      localStorage.setItem(CHAT_QUEUE_KEY, JSON.stringify(this.chatOfflineQueue));
     } catch {}
   }
 
@@ -18220,6 +18318,9 @@ class BatchWallService {
 
   private handleOnline() {
     this.isOnline = true;
+    this.chatConnectionStatus = 'connecting';
+
+    // Flush queued bulletin posts
     if (this.offlineQueue.length > 0) {
       const count = this.offlineQueue.length;
       this.offlineQueue.forEach(p => {
@@ -18230,14 +18331,33 @@ class BatchWallService {
       this.saveToStorage();
       this.saveQueueToStorage();
       this.lastSyncToast = `Back online! Synced ${count} update${count > 1 ? 's' : ''} to Batch Wall 📡`;
-    } else {
-      this.lastSyncToast = 'Back online! Connected to Batch 41 Wall 📡';
     }
+
+    // Flush queued group chat messages
+    if (this.chatOfflineQueue.length > 0) {
+      const chatCount = this.chatOfflineQueue.length;
+      this.chatOfflineQueue.forEach(async (msg) => {
+        if (db) {
+          try {
+            await setDoc(doc(db, 'group_chat_messages', msg.id), msg);
+          } catch (e) {
+            console.warn('[Batch 41 Group Chat] Error syncing queued message:', e);
+          }
+        }
+      });
+      this.chatOfflineQueue = [];
+      this.saveChatQueueToStorage();
+      this.lastSyncToast = `Back online! Synced ${chatCount} chat message${chatCount > 1 ? 's' : ''} 📡`;
+    }
+
+    // Re-establish authoritative chat listener
+    this.initChatListener();
     this.notify();
   }
 
   private handleOffline() {
     this.isOnline = false;
+    this.chatConnectionStatus = 'offline';
     this.notify();
   }
 
@@ -18251,6 +18371,375 @@ class BatchWallService {
     }
   }
 
+  // =========================================================================
+  // GROUP CHAT METHODS (Authoritative Real-Time Architecture)
+  // =========================================================================
+
+  public getChatConnectionStatus(): {
+    status: 'connecting' | 'connected' | 'offline' | 'error';
+    errorMessage: string | null;
+  } {
+    return {
+      status: !this.isOnline ? 'offline' : this.chatConnectionStatus,
+      errorMessage: this.chatErrorMessage
+    };
+  }
+
+  public getChatMessages(currentUserId?: string): GroupChatMessage[] {
+    if (!currentUserId) {
+      return [...this.chatMessages];
+    }
+    try {
+      const hiddenKey = `marisol_chat_hidden_${currentUserId}`;
+      const stored = localStorage.getItem(hiddenKey);
+      if (stored) {
+        const hiddenIds: string[] = JSON.parse(stored);
+        const hiddenSet = new Set(hiddenIds);
+        return this.chatMessages.filter(m => !hiddenSet.has(m.id));
+      }
+    } catch {}
+    return [...this.chatMessages];
+  }
+
+  public getPinnedMessages(): GroupChatMessage[] {
+    return this.chatMessages
+      .filter(m => m.isPinned)
+      .sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0));
+  }
+
+  public getPinnedChatMessage(): GroupChatMessage | null {
+    return this.chatMessages.slice().reverse().find(m => m.isPinned) || null;
+  }
+
+  /**
+   * Writes a new group chat message to Firestore.
+   * Does NOT manually push permanently to local chat state; onSnapshot distributes it.
+   */
+  public async sendGroupChatMessage(data: {
+    senderId: string; // Firebase Auth UID
+    senderName: string;
+    senderEmail?: string;
+    avatarUrl?: string;
+    senderIsNewUser?: boolean;
+    senderUserTag?: string;
+    text: string;
+    imageUrl?: string;
+    replyTo?: {
+      id: string;
+      senderName: string;
+      text: string;
+    };
+    poll?: ChatPoll;
+    isPinned?: boolean;
+    pinnedBy?: string;
+    pinnedAt?: number;
+  }): Promise<GroupChatMessage> {
+    if (!db) {
+      throw new Error('Firebase Firestore is not configured.');
+    }
+
+    const text = data.text.trim();
+    if (!text && !data.imageUrl && !data.poll) {
+      throw new Error('Message cannot be empty.');
+    }
+
+    if (!data.senderId) {
+      throw new Error('Authenticated user ID (Firebase UID) is required to chat.');
+    }
+
+    const messageRef = doc(collection(db, 'group_chat_messages'));
+    const now = Date.now();
+
+    const isKritika = data.senderName.toLowerCase().includes('kritika') ||
+                      Boolean(data.senderEmail && data.senderEmail.toLowerCase().includes('kritika')) ||
+                      data.senderName.toLowerCase().includes('marisol');
+
+    const message: GroupChatMessage = {
+      id: messageRef.id,
+      senderId: data.senderId,
+      senderName: isKritika && !data.senderName.includes('👑') ? `${data.senderName.trim()} 👑` : data.senderName.trim(),
+      senderEmail: data.senderEmail,
+      avatarUrl: data.avatarUrl || '/marisol/avatars/01_brighter_ideas.png',
+      senderIsNewUser: data.senderIsNewUser ?? false,
+      senderUserTag: data.senderUserTag || (isKritika ? 'Founder 👑' : 'New User'),
+      text,
+      imageUrl: data.imageUrl,
+      replyTo: data.replyTo,
+      poll: data.poll,
+      timestamp: new Date(now).toISOString(),
+      createdAt: now,
+      isKritika,
+      isPinned: data.isPinned ?? false,
+      pinnedBy: data.pinnedBy,
+      pinnedAt: data.pinnedAt,
+      reactions: {},
+      seenBy: [
+        {
+          userId: data.senderId,
+          userName: data.senderName,
+          userEmail: data.senderEmail,
+          avatarUrl: data.avatarUrl || '/marisol/avatars/01_brighter_ideas.png',
+          seenAt: now,
+        }
+      ]
+    };
+
+    // If offline, queue message and display optimistically
+    if (!this.isOnline) {
+      this.chatOfflineQueue.push(message);
+      this.saveChatQueueToStorage();
+      this.chatMessages.push(message);
+      this.saveChatToStorage();
+      this.notify();
+      return message;
+    }
+
+    // Write authoritative record directly to Firestore
+    try {
+      await setDoc(messageRef, message);
+    } catch (err) {
+      console.error('[Batch 41 Group Chat] Firestore error sending message:', err);
+      // Queue offline on network failure
+      this.chatOfflineQueue.push(message);
+      this.saveChatQueueToStorage();
+      this.chatMessages.push(message);
+      this.saveChatToStorage();
+      this.notify();
+      throw err;
+    }
+
+    // Note: onSnapshot listener receives the Firestore doc and updates this.chatMessages authoritatively
+    return message;
+  }
+
+  public async reactToChatMessage(messageId: string, emoji: string) {
+    if (!db) return;
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg) return;
+
+    const currentReactions = msg.reactions || {};
+    const updatedReactions = {
+      ...currentReactions,
+      [emoji]: (currentReactions[emoji] || 0) + 1
+    };
+
+    try {
+      await setDoc(
+        doc(db, 'group_chat_messages', messageId),
+        { reactions: updatedReactions },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error('[Batch 41 Group Chat] Firestore error reacting to message:', err);
+    }
+  }
+
+  public async pinChatMessage(messageId: string, pinnedByUid?: string) {
+    if (!db) return;
+    try {
+      await setDoc(
+        doc(db, 'group_chat_messages', messageId),
+        {
+          isPinned: true,
+          pinnedBy: pinnedByUid || 'Classmate',
+          pinnedAt: Date.now()
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error('[Batch 41 Group Chat] Firestore error pinning message:', err);
+    }
+  }
+
+  public async unpinChatMessage(messageId: string) {
+    if (!db) return;
+    try {
+      await setDoc(
+        doc(db, 'group_chat_messages', messageId),
+        {
+          isPinned: false,
+          pinnedBy: null,
+          pinnedAt: null
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error('[Batch 41 Group Chat] Firestore error unpinning message:', err);
+    }
+  }
+
+  public async votePoll(messageId: string, optionId: string, voterId: string, voterName?: string) {
+    if (!db) return;
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg || !msg.poll) return;
+
+    const voter = (voterId || voterName || '').trim();
+    if (!voter) return;
+
+    msg.poll.options.forEach(opt => {
+      if (opt.id === optionId) {
+        if (opt.votes.includes(voter)) {
+          opt.votes = opt.votes.filter(v => v !== voter);
+        } else {
+          opt.votes.push(voter);
+        }
+      } else {
+        opt.votes = opt.votes.filter(v => v !== voter);
+      }
+    });
+
+    try {
+      await setDoc(
+        doc(db, 'group_chat_messages', messageId),
+        { poll: msg.poll },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error('[Batch 41 Group Chat] Firestore error voting on poll:', err);
+    }
+  }
+
+  /**
+   * Edit chat message with strict Firebase UID author verification.
+   */
+  public async editChatMessage(
+    messageId: string, 
+    newText: string,
+    currentUserId?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg || msg.isDeletedForEveryone) {
+      return { success: false, error: 'Message not found or deleted.' };
+    }
+
+    if (!currentUserId || msg.senderId !== currentUserId) {
+      return { success: false, error: 'Permission denied: You can only edit your own messages.' };
+    }
+
+    const trimmed = newText.trim();
+    if (!trimmed) {
+      return { success: false, error: 'Message text cannot be empty.' };
+    }
+
+    if (db) {
+      try {
+        await setDoc(
+          doc(db, 'group_chat_messages', messageId),
+          { text: trimmed, isEdited: true },
+          { merge: true }
+        );
+      } catch (err) {
+        console.error('[Batch 41 Group Chat] Firestore error editing message:', err);
+        return { success: false, error: 'Failed to edit message in Firestore.' };
+      }
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Delete for me: hides message locally on this client for current user.
+   */
+  public deleteChatMessageForMe(messageId: string, currentUserId: string) {
+    if (!currentUserId) return;
+    const hiddenKey = `marisol_chat_hidden_${currentUserId}`;
+    try {
+      const stored = localStorage.getItem(hiddenKey);
+      const hiddenIds: string[] = stored ? JSON.parse(stored) : [];
+      if (!hiddenIds.includes(messageId)) {
+        hiddenIds.push(messageId);
+        localStorage.setItem(hiddenKey, JSON.stringify(hiddenIds));
+      }
+    } catch {}
+    this.notify();
+  }
+
+  /**
+   * Delete for everyone: deletes document from Firestore (strictly author-only by UID).
+   */
+  public async deleteChatMessageForEveryone(
+    messageId: string,
+    currentUserId?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg) return { success: false, error: 'Message not found.' };
+
+    if (!currentUserId || msg.senderId !== currentUserId) {
+      return { success: false, error: 'Permission denied: Only the author can delete this message for everyone.' };
+    }
+
+    if (db) {
+      try {
+        await deleteDoc(doc(db, 'group_chat_messages', messageId));
+      } catch (err) {
+        console.error('[Batch 41 Group Chat] Firestore error deleting message for everyone:', err);
+        return { success: false, error: 'Failed to delete message from Firestore.' };
+      }
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Read receipts: updates seenBy in Firestore using Firebase UID.
+   */
+  public async markMessageAsSeen(messageId: string, user: { userId: string; userName: string; userEmail?: string; avatarUrl?: string }) {
+    if (!user.userId || !db) return;
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg) return;
+
+    if (!msg.seenBy) msg.seenBy = [];
+    const alreadySeen = msg.seenBy.some(s => s.userId === user.userId);
+    if (alreadySeen) return;
+
+    const receipt: MessageReceipt = {
+      userId: user.userId,
+      userName: user.userName,
+      userEmail: user.userEmail,
+      avatarUrl: user.avatarUrl || '/marisol/avatars/01_brighter_ideas.png',
+      seenAt: Date.now()
+    };
+    msg.seenBy.push(receipt);
+
+    try {
+      await setDoc(
+        doc(db, 'group_chat_messages', msg.id),
+        { seenBy: msg.seenBy },
+        { merge: true }
+      );
+    } catch {}
+  }
+
+  public async markAllMessagesAsSeen(user: { userId: string; userName: string; userEmail?: string; avatarUrl?: string }) {
+    if (!user.userId || !db) return;
+    const now = Date.now();
+
+    for (const msg of this.chatMessages) {
+      if (!msg.seenBy) msg.seenBy = [];
+      const alreadySeen = msg.seenBy.some(s => s.userId === user.userId);
+      if (!alreadySeen) {
+        msg.seenBy.push({
+          userId: user.userId,
+          userName: user.userName,
+          userEmail: user.userEmail,
+          avatarUrl: user.avatarUrl || '/marisol/avatars/01_brighter_ideas.png',
+          seenAt: now
+        });
+        try {
+          await setDoc(
+            doc(db, 'group_chat_messages', msg.id),
+            { seenBy: msg.seenBy },
+            { merge: true }
+          );
+        } catch {}
+      }
+    }
+  }
+
+  // =========================================================================
+  // BULLETIN & INSTAGRAM POSTS MANAGEMENT
+  // =========================================================================
+
   public getPosts(onlyCurrentUser?: boolean, currentUserId?: string): BatchUpdatePost[] {
     let list = [...this.posts];
     if (onlyCurrentUser && currentUserId) {
@@ -18261,14 +18750,6 @@ class BatchWallService {
       if (!a.isPinned && b.isPinned) return 1;
       return (b.createdAt || 0) - (a.createdAt || 0);
     });
-  }
-
-  public getChatMessages(): GroupChatMessage[] {
-    return [...this.chatMessages];
-  }
-
-  public getPinnedChatMessage(): GroupChatMessage | null {
-    return this.chatMessages.slice().reverse().find(m => m.isPinned) || null;
   }
 
   public getAllBatchMembers(additionalClassmates: Array<{ id?: string; name?: string; email?: string; avatarUrl?: string }> = []): BatchMember[] {
@@ -18293,81 +18774,6 @@ class BatchWallService {
     return Array.from(memberMap.values());
   }
 
-  public markAllMessagesAsSeen(user: { userId: string; userName: string; userEmail?: string; avatarUrl?: string }) {
-    if (!user.userName) return;
-    const now = Date.now();
-    let changed = false;
-
-    this.chatMessages.forEach(msg => {
-      if (!msg.seenBy) {
-        msg.seenBy = [];
-      }
-
-      const alreadySeen = msg.seenBy.some(s =>
-        (user.userId && s.userId === user.userId) ||
-        (user.userEmail && s.userEmail && s.userEmail.toLowerCase() === user.userEmail.toLowerCase()) ||
-        (s.userName && s.userName.toLowerCase().trim() === user.userName.toLowerCase().trim())
-      );
-
-      if (!alreadySeen) {
-        msg.seenBy.push({
-          userId: user.userId || `user_${Date.now()}`,
-          userName: user.userName,
-          userEmail: user.userEmail,
-          avatarUrl: user.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
-          seenAt: now
-        });
-        changed = true;
-
-        if (db && msg.id) {
-          try {
-            setDoc(doc(db, 'group_chat_messages', msg.id), { seenBy: msg.seenBy }, { merge: true });
-          } catch {}
-        }
-      }
-    });
-
-    if (changed) {
-      this.saveChatToStorage();
-      try {
-        this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
-      } catch {}
-      this.notify();
-    }
-  }
-
-  public markMessageAsSeen(messageId: string, user: { userId: string; userName: string; userEmail?: string; avatarUrl?: string }) {
-    const msg = this.chatMessages.find(m => m.id === messageId);
-    if (!msg || !user.userName) return;
-
-    if (!msg.seenBy) msg.seenBy = [];
-    const alreadySeen = msg.seenBy.some(s =>
-      (user.userId && s.userId === user.userId) ||
-      (user.userEmail && s.userEmail && s.userEmail.toLowerCase() === user.userEmail.toLowerCase()) ||
-      (s.userName && s.userName.toLowerCase().trim() === user.userName.toLowerCase().trim())
-    );
-
-    if (!alreadySeen) {
-      msg.seenBy.push({
-        userId: user.userId || `user_${Date.now()}`,
-        userName: user.userName,
-        userEmail: user.userEmail,
-        avatarUrl: user.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
-        seenAt: Date.now()
-      });
-      this.saveChatToStorage();
-      try {
-        this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
-      } catch {}
-      if (db && msg.id) {
-        try {
-          setDoc(doc(db, 'group_chat_messages', msg.id), { seenBy: msg.seenBy }, { merge: true });
-        } catch {}
-      }
-      this.notify();
-    }
-  }
-
   public getInstagramPosts(): InstagramPost[] {
     return [...this.instagramPosts].sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
@@ -18376,14 +18782,10 @@ class BatchWallService {
     });
   }
 
-  public getOfflineQueue(): BatchUpdatePost[] {
-    return [...this.offlineQueue];
-  }
-
   public getNetworkStatus(): { isOnline: boolean; queuedCount: number; syncToast: string | null } {
     return {
       isOnline: this.isOnline,
-      queuedCount: this.offlineQueue.length,
+      queuedCount: this.offlineQueue.length + this.chatOfflineQueue.length,
       syncToast: this.lastSyncToast
     };
   }
@@ -18429,530 +18831,11 @@ class BatchWallService {
       this.posts.unshift(newPost);
       this.saveToStorage();
       this.syncPostToFirestore(newPost);
-      try {
-        this.broadcastChannel?.postMessage({ type: 'SYNC_POSTS' });
-      } catch {}
       this.notify();
       return { queued: false, post: newPost };
     }
   }
 
-  public async sendGroupChatMessage(data: {
-    senderId?: string;
-    senderName: string;
-    senderEmail?: string;
-    avatarUrl?: string;
-    senderIsNewUser?: boolean;
-    senderUserTag?: string;
-    text: string;
-    imageUrl?: string;
-    replyTo?: {
-      id: string;
-      senderName: string;
-      text: string;
-    };
-    poll?: ChatPoll;
-    isPinned?: boolean;
-    pinnedBy?: string;
-    pinnedAt?: number;
-  }): Promise<GroupChatMessage> {
-    const name = data.senderName.trim() || 'Batch 41 Student';
-    const email = data.senderEmail || '';
-    const isKritika = name.toLowerCase().includes('kritika') || 
-                      email.toLowerCase().includes('kritika') ||
-                      name.toLowerCase().includes('marisol');
-
-    const resolvedSenderId = data.senderId?.trim() || 
-      (email ? `user_${email.split('@')[0]}` : `user_${name.toLowerCase().replace(/\s+/g, '_')}`);
-
-    const isNewUser = data.senderIsNewUser ?? true;
-    const userTag = data.senderUserTag || (isKritika ? 'Founder 👑' : 'New User');
-
-    const msg: GroupChatMessage = {
-      id: `chat_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      senderId: resolvedSenderId,
-      senderName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
-      senderEmail: data.senderEmail,
-      avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
-      senderIsNewUser: isNewUser,
-      senderUserTag: userTag,
-      text: data.text.trim(),
-      imageUrl: data.imageUrl,
-      replyTo: data.replyTo,
-      poll: data.poll,
-      timestamp: 'Just now',
-      createdAt: Date.now(),
-      isKritika,
-      isPinned: data.isPinned ?? false,
-      pinnedBy: data.pinnedBy,
-      pinnedAt: data.pinnedAt,
-      reactions: {},
-      seenBy: [
-        {
-          userId: resolvedSenderId,
-          userName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
-          userEmail: data.senderEmail,
-          avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
-          seenAt: Date.now()
-        }
-      ]
-    };
-
-    this.chatMessages.push(msg);
-    this.saveChatToStorage();
-
-    try {
-      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
-    } catch {}
-
-    if (db) {
-      try {
-        await setDoc(doc(db, 'group_chat_messages', msg.id), msg);
-      } catch (err) {
-        console.warn('Failed to sync chat message to Firestore:', err);
-      }
-    }
-
-    this.notify();
-    return msg;
-  }
-
-  // =========================================================================
-  // DIRECT MESSAGING (Chat With Each Other User)
-  // =========================================================================
-
-  public getDirectMessages(
-    convIdOrUserA: string,
-    userB?: string,
-    emailA?: string,
-    emailB?: string
-  ): DirectChatMessage[] {
-    let convId = convIdOrUserA;
-    if (userB) {
-      convId = getDirectConversationId(emailA || convIdOrUserA, emailB || userB);
-    }
-    return this.directMessages
-      .filter(m => m.conversationId === convId)
-      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-  }
-
-  public getAllDirectConversations(myUserId?: string, myUserEmail?: string): {
-    conversationId: string;
-    partnerId: string;
-    partnerName: string;
-    partnerEmail?: string;
-    partnerAvatarUrl?: string;
-    partnerIsNewUser?: boolean;
-    lastMessage: DirectChatMessage;
-    unreadCount: number;
-  }[] {
-    const cleanMyId = (myUserId || '').toLowerCase();
-    const cleanMyEmail = (myUserEmail || '').toLowerCase();
-
-    const conversationMap = new Map<string, DirectChatMessage[]>();
-
-    this.directMessages.forEach(msg => {
-      const sId = (msg.senderId || '').toLowerCase();
-      const sEmail = (msg.senderEmail || '').toLowerCase();
-      const rId = (msg.recipientId || '').toLowerCase();
-      const rEmail = (msg.recipientEmail || '').toLowerCase();
-
-      const involvesMe = (cleanMyId && (sId === cleanMyId || rId === cleanMyId)) ||
-                         (cleanMyEmail && (sEmail === cleanMyEmail || rEmail === cleanMyEmail));
-
-      if (involvesMe) {
-        if (!conversationMap.has(msg.conversationId)) {
-          conversationMap.set(msg.conversationId, []);
-        }
-        conversationMap.get(msg.conversationId)!.push(msg);
-      }
-    });
-
-    const result: {
-      conversationId: string;
-      partnerId: string;
-      partnerName: string;
-      partnerEmail?: string;
-      partnerAvatarUrl?: string;
-      partnerIsNewUser?: boolean;
-      lastMessage: DirectChatMessage;
-      unreadCount: number;
-    }[] = [];
-
-    conversationMap.forEach((msgs, convId) => {
-      const sorted = msgs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-      const lastMsg = sorted[sorted.length - 1];
-      const isSender = (lastMsg.senderId.toLowerCase() === cleanMyId) || (Boolean(cleanMyEmail) && lastMsg.senderEmail?.toLowerCase() === cleanMyEmail);
-      
-      const partnerId = isSender ? lastMsg.recipientId : lastMsg.senderId;
-      const partnerName = isSender ? lastMsg.recipientName : lastMsg.senderName;
-      const partnerEmail = isSender ? lastMsg.recipientEmail : lastMsg.senderEmail;
-      const partnerAvatarUrl = isSender ? lastMsg.recipientAvatarUrl : lastMsg.senderAvatarUrl;
-      const partnerIsNewUser = isSender ? undefined : lastMsg.senderIsNewUser;
-
-      const unreadCount = sorted.filter(m => {
-        const fromOther = (m.senderId.toLowerCase() !== cleanMyId) && (!cleanMyEmail || m.senderEmail?.toLowerCase() !== cleanMyEmail);
-        return fromOther && !m.isRead;
-      }).length;
-
-      result.push({
-        conversationId: convId,
-        partnerId,
-        partnerName,
-        partnerEmail,
-        partnerAvatarUrl,
-        partnerIsNewUser,
-        lastMessage: lastMsg,
-        unreadCount
-      });
-    });
-
-    return result.sort((a, b) => (b.lastMessage.createdAt || 0) - (a.lastMessage.createdAt || 0));
-  }
-
-  public async sendDirectMessage(data: {
-    senderId: string;
-    senderName: string;
-    senderEmail?: string;
-    senderAvatarUrl?: string;
-    senderIsNewUser?: boolean;
-    senderUserTag?: string;
-    recipientId: string;
-    recipientName: string;
-    recipientEmail?: string;
-    recipientAvatarUrl?: string;
-    text: string;
-    imageUrl?: string;
-  }): Promise<DirectChatMessage> {
-    const convId = getDirectConversationId(
-      data.senderEmail || data.senderId,
-      data.recipientEmail || data.recipientId
-    );
-
-    const msg: DirectChatMessage = {
-      id: `dm_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      conversationId: convId,
-      senderId: data.senderId,
-      senderName: data.senderName,
-      senderEmail: data.senderEmail,
-      senderAvatarUrl: data.senderAvatarUrl || '/marisol/avatars/01_brighter_ideas.png',
-      senderIsNewUser: data.senderIsNewUser ?? true,
-      senderUserTag: data.senderUserTag || 'New User',
-      recipientId: data.recipientId,
-      recipientName: data.recipientName,
-      recipientEmail: data.recipientEmail,
-      recipientAvatarUrl: data.recipientAvatarUrl,
-      text: data.text.trim(),
-      imageUrl: data.imageUrl,
-      timestamp: 'Just now',
-      createdAt: Date.now(),
-      isRead: false
-    };
-
-    this.directMessages.push(msg);
-    this.saveDirectMessagesToStorage();
-
-    try {
-      this.broadcastChannel?.postMessage({ type: 'SYNC_DM' });
-    } catch {}
-
-    if (db) {
-      try {
-        await setDoc(doc(db, 'direct_chat_messages', msg.id), msg);
-      } catch (err) {
-        console.warn('Failed to sync DM to Firestore:', err);
-      }
-    }
-
-    this.notify();
-
-    // Friendly automated comforting reply from built-in batch members for instant interactivity
-    const rLower = (data.recipientName || '').toLowerCase();
-    const isBotRecipient = rLower.includes('kritika') || rLower.includes('priyanshu') || rLower.includes('ananya') || rLower.includes('rohan');
-    
-    if (isBotRecipient) {
-      setTimeout(async () => {
-        let replyText = `Hey ${data.senderName.split(' ')[0]}! Great to hear from you. Welcome to Factory of Fun as our new user! ♡ 🌸`;
-        if (rLower.includes('kritika')) {
-          replyText = `Hey ${data.senderName.split(' ')[0]}! 👑 So wonderful chatting with you! Welcome as a New User to our Factory of Fun comfort hub ♡ Savoring sweet memories together! ✨`;
-        } else if (rLower.includes('priyanshu')) {
-          replyText = `Hey ${data.senderName.split(' ')[0]}! 🍕 Welcome! Ready for a quick round of 1,000+ Food & Movie trivia anytime!`;
-        } else if (rLower.includes('ananya')) {
-          replyText = `Hi ${data.senderName.split(' ')[0]}! ☕ Enjoying a warm cup of chai right now. So happy you reached out and joined us!`;
-        } else if (rLower.includes('rohan')) {
-          replyText = `Hey ${data.senderName.split(' ')[0]}! 🎸 Welcome! Listening to some relaxing music on the jukebox. Hope you have a wonderful day!`;
-        }
-
-        const autoMsg: DirectChatMessage = {
-          id: `dm_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-          conversationId: convId,
-          senderId: data.recipientId,
-          senderName: data.recipientName,
-          senderEmail: data.recipientEmail,
-          senderAvatarUrl: data.recipientAvatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
-          recipientId: data.senderId,
-          recipientName: data.senderName,
-          recipientEmail: data.senderEmail,
-          recipientAvatarUrl: data.senderAvatarUrl,
-          text: replyText,
-          timestamp: 'Just now',
-          createdAt: Date.now(),
-          isRead: false
-        };
-
-        this.directMessages.push(autoMsg);
-        this.saveDirectMessagesToStorage();
-        try {
-          this.broadcastChannel?.postMessage({ type: 'SYNC_DM' });
-        } catch {}
-        if (db) {
-          try {
-            await setDoc(doc(db, 'direct_chat_messages', autoMsg.id), autoMsg);
-          } catch {}
-        }
-        this.notify();
-      }, 1200);
-    }
-
-    return msg;
-  }
-
-  public async markDirectMessagesAsRead(conversationId: string, currentUserId: string) {
-    let changed = false;
-    this.directMessages.forEach(m => {
-      if (m.conversationId === conversationId && m.recipientId === currentUserId && !m.isRead) {
-        m.isRead = true;
-        changed = true;
-        if (db) {
-          try {
-            setDoc(doc(db, 'direct_chat_messages', m.id), { isRead: true }, { merge: true });
-          } catch {}
-        }
-      }
-    });
-    if (changed) {
-      this.saveDirectMessagesToStorage();
-      this.notify();
-    }
-  }
-
-  public async pinChatMessage(messageId: string, pinnedBy?: string) {
-    const msg = this.chatMessages.find(m => m.id === messageId);
-    if (!msg) return;
-
-    const willPin = !msg.isPinned;
-    msg.isPinned = willPin;
-    msg.pinnedBy = willPin ? (pinnedBy || 'Classmate') : undefined;
-    msg.pinnedAt = willPin ? Date.now() : undefined;
-
-    this.saveChatToStorage();
-    try {
-      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
-    } catch {}
-
-    if (db) {
-      try {
-        await setDoc(doc(db, 'group_chat_messages', messageId), {
-          isPinned: willPin,
-          pinnedBy: willPin ? (pinnedBy || 'Classmate') : null,
-          pinnedAt: willPin ? Date.now() : null
-        }, { merge: true });
-      } catch (err) {
-        console.warn('Failed to update pin on Firestore:', err);
-      }
-    }
-
-    this.notify();
-  }
-
-  public getPinnedMessages(): GroupChatMessage[] {
-    return this.chatMessages
-      .filter(m => m.isPinned)
-      .sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0));
-  }
-
-  public async unpinChatMessage(messageId: string) {
-    const msg = this.chatMessages.find(m => m.id === messageId);
-    if (!msg) return;
-
-    msg.isPinned = false;
-    msg.pinnedBy = undefined;
-    msg.pinnedAt = undefined;
-    this.saveChatToStorage();
-
-    try {
-      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
-    } catch {}
-
-    if (db) {
-      try {
-        await setDoc(doc(db, 'group_chat_messages', messageId), {
-          isPinned: false,
-          pinnedBy: null,
-          pinnedAt: null
-        }, { merge: true });
-      } catch (err) {
-        console.warn('Failed to unpin message on Firestore:', err);
-      }
-    }
-
-    this.notify();
-  }
-
-  public votePoll(messageId: string, optionId: string, voterName: string) {
-    const msg = this.chatMessages.find(m => m.id === messageId);
-    if (!msg || !msg.poll) return;
-
-    const voter = voterName.trim() || 'You';
-    msg.poll.options.forEach(opt => {
-      // Toggle or switch vote
-      if (opt.id === optionId) {
-        if (opt.votes.includes(voter)) {
-          opt.votes = opt.votes.filter(v => v !== voter);
-        } else {
-          opt.votes.push(voter);
-        }
-      } else {
-        opt.votes = opt.votes.filter(v => v !== voter);
-      }
-    });
-
-    this.saveChatToStorage();
-
-    try {
-      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
-    } catch {}
-
-    if (db) {
-      try {
-        setDoc(doc(db, 'group_chat_messages', messageId), { poll: msg.poll }, { merge: true });
-      } catch {}
-    }
-
-    this.notify();
-  }
-
-  public reactToChatMessage(messageId: string, emoji: string) {
-    const msg = this.chatMessages.find(m => m.id === messageId);
-    if (!msg) return;
-
-    if (!msg.reactions) {
-      msg.reactions = {};
-    }
-
-    msg.reactions[emoji] = (msg.reactions[emoji] || 0) + 1;
-    this.saveChatToStorage();
-
-    try {
-      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
-    } catch {}
-
-    if (db) {
-      try {
-        setDoc(doc(db, 'group_chat_messages', messageId), { reactions: msg.reactions }, { merge: true });
-      } catch {}
-    }
-
-    this.notify();
-  }
-
-  public async editChatMessage(
-    messageId: string, 
-    newText: string,
-    editor?: { id?: string; email?: string; name?: string }
-  ): Promise<{ success: boolean; error?: string }> {
-    const msg = this.chatMessages.find(m => m.id === messageId);
-    if (!msg || msg.isDeletedForEveryone) {
-      return { success: false, error: 'Message not found or deleted.' };
-    }
-
-    // Strict author verification: ONLY author can edit their own message!
-    if (editor) {
-      const editorNameClean = (editor.name || '').replace(' 👑', '').trim().toLowerCase();
-      const senderNameClean = (msg.senderName || '').replace(' 👑', '').trim().toLowerCase();
-      const isAuthor = Boolean(
-        (editor.id && msg.senderId && editor.id === msg.senderId) ||
-        (editor.email && msg.senderEmail && editor.email.toLowerCase().trim() === msg.senderEmail.toLowerCase().trim()) ||
-        (editorNameClean !== '' && editorNameClean === senderNameClean)
-      );
-
-      if (!isAuthor) {
-        return { success: false, error: 'Permission denied: You can only edit your own messages.' };
-      }
-    }
-
-    msg.text = newText.trim();
-    msg.isEdited = true;
-    this.saveChatToStorage();
-
-    try {
-      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
-    } catch {}
-
-    if (db) {
-      try {
-        await setDoc(doc(db, 'group_chat_messages', messageId), { text: msg.text, isEdited: true }, { merge: true });
-      } catch (err) {
-        console.warn('Failed to edit chat message on Firestore:', err);
-      }
-    }
-
-    this.notify();
-    return { success: true };
-  }
-
-  public deleteChatMessageForMe(messageId: string) {
-    this.chatMessages = this.chatMessages.filter(m => m.id !== messageId);
-    this.saveChatToStorage();
-    this.notify();
-  }
-
-  public async deleteChatMessageForEveryone(
-    messageId: string,
-    deleter?: { id?: string; email?: string; name?: string }
-  ): Promise<{ success: boolean; error?: string }> {
-    const msg = this.chatMessages.find(m => m.id === messageId);
-    if (!msg) return { success: false, error: 'Message not found.' };
-
-    if (deleter) {
-      const isKritika = (deleter.name || '').toLowerCase().includes('kritika') || (deleter.email || '').toLowerCase().includes('kritika');
-      const deleterNameClean = (deleter.name || '').replace(' 👑', '').trim().toLowerCase();
-      const senderNameClean = (msg.senderName || '').replace(' 👑', '').trim().toLowerCase();
-      const isAuthor = Boolean(
-        (deleter.id && msg.senderId && deleter.id === msg.senderId) ||
-        (deleter.email && msg.senderEmail && deleter.email.toLowerCase().trim() === msg.senderEmail.toLowerCase().trim()) ||
-        (deleterNameClean !== '' && deleterNameClean === senderNameClean)
-      );
-
-      if (!isAuthor && !isKritika) {
-        return { success: false, error: 'Permission denied: Only the author can delete this message for everyone.' };
-      }
-    }
-
-    // Remove from local in-memory message list
-    this.chatMessages = this.chatMessages.filter(m => m.id !== messageId);
-    this.saveChatToStorage();
-
-    // Broadcast instant removal to all tabs/windows
-    try {
-      this.broadcastChannel?.postMessage({ type: 'DELETE_CHAT_MESSAGE', messageId });
-      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
-    } catch {}
-
-    // Delete document directly from Firebase Firestore
-    if (db) {
-      try {
-        await deleteDoc(doc(db, 'group_chat_messages', messageId));
-      } catch (err) {
-        console.warn('Failed to delete for everyone on Firestore:', err);
-      }
-    }
-
-    this.notify();
-    return { success: true };
-  }
-
-  // =================== INSTAGRAM POSTS MANAGEMENT ===================
   public async addInstagramPost(data: {
     userId?: string;
     userEmail?: string;
@@ -19289,9 +19172,6 @@ class BatchWallService {
     this.notify();
   }
 
-  /**
-   * Post an async reply to a bulletin note (allows Kritika or classmates to reply at their own time)
-   */
   public async addReply(postId: string, replyData: {
     authorId?: string;
     authorName: string;
@@ -19398,7 +19278,6 @@ class BatchWallService {
 }
 
 export const batchWallService = new BatchWallService();
-
 
 ```
 

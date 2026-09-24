@@ -1,0 +1,78 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // Batch 41 Group Chat Messages
+    // Authoritative real-time collection for group messages
+    // =========================================================================
+    match /group_chat_messages/{messageId} {
+
+      // READ: Allowed if the user is authenticated with a valid email
+      allow read: if request.auth != null && 
+                     request.auth.token.email != null;
+
+      // CREATE: Allowed if authenticated user creates a message where senderId
+      // matches their Firebase UID and senderEmail matches their verified email
+      allow create: if request.auth != null && 
+                       request.auth.token.email != null &&
+                       request.resource.data.senderId == request.auth.uid &&
+                       request.resource.data.senderEmail == request.auth.token.email &&
+                       request.resource.data.id == messageId;
+
+      // UPDATE: Allowed for reactions, pins, polls, and read receipts by any authenticated member;
+      // Message text edits must be performed by the author (senderId == auth.uid)
+      allow update: if request.auth != null && 
+                       request.auth.token.email != null &&
+                       (
+                         // Author editing text
+                         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'isEdited']) &&
+                          resource.data.senderId == request.auth.uid) ||
+                         // Any authenticated member reacting, voting, seeing, or pinning
+                         request.resource.data.diff(resource.data).affectedKeys().hasAny(['reactions', 'poll', 'seenBy', 'isPinned', 'pinnedBy', 'pinnedAt'])
+                       );
+
+      // DELETE: Allowed only if the user deleting is the original message author
+      allow delete: if request.auth != null && 
+                       request.auth.token.email != null &&
+                       resource.data.senderId == request.auth.uid;
+    }
+
+    // =========================================================================
+    // Students / Batch Members Profiles
+    // =========================================================================
+    match /students/{studentId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && 
+                               request.auth.token.email != null;
+      allow delete: if request.auth != null && 
+                       request.auth.uid == studentId;
+    }
+
+    // =========================================================================
+    // Batch Wall Updates / Bulletin Board
+    // =========================================================================
+    match /batch_updates/{postId} {
+      allow read: if true;
+      allow create: if request.auth != null && 
+                       request.auth.token.email != null;
+      allow update, delete: if request.auth != null && 
+                               (resource.data.userId == request.auth.uid || 
+                                request.resource.data.diff(resource.data).affectedKeys().hasAny(['reactions', 'isPinned']));
+    }
+
+    // =========================================================================
+    // Instagram / Photo Feed Posts
+    // =========================================================================
+    match /instagram_posts/{postId} {
+      allow read: if true;
+      allow create: if request.auth != null && 
+                       request.auth.token.email != null;
+      allow update, delete: if request.auth != null && 
+                               (resource.data.authorId == request.auth.uid || 
+                                resource.data.userId == request.auth.uid ||
+                                request.resource.data.diff(resource.data).affectedKeys().hasAny(['likesCount', 'likedByUsers', 'comments', 'isPinned']));
+    }
+  }
+}
