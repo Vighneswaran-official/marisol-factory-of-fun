@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { ScreenState } from '../types/game';
 import { batchWallService, type InstagramPost, type GroupChatMessage, formatChatTimestamp } from '../services/batchWallState';
 import { authService, type StudentProfile } from '../services/authService';
@@ -11,7 +11,7 @@ import {
   Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check,
   Reply, BarChart2, AtSign, MoreVertical, Mic, Volume2, VolumeX, Headphones, MicOff, PhoneOff,
   Trash2, ChevronDown, Ban, Globe, Lock, Clock,
-  Filter, AlertCircle, RefreshCw
+  AlertCircle, RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { BaseModal } from './BaseModal';
@@ -259,10 +259,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const network = batchWallService.getNetworkStatus();
   const classmates = authService.getClassmates();
 
-
-  // Matched Message Table & Session Inspection State
-  const [chatFilterMode, setChatFilterMode] = useState<'all' | 'my_messages'>('all');
-
   // ==================== DISCORD-STYLE VOICE ROOM STATE ====================
   const [, setVoiceTick] = useState(0);
   const [showVoiceRoomModal, setShowVoiceRoomModal] = useState(false);
@@ -331,15 +327,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     setShareToast(`Sent voice cheer: ${emoji} ${label}!`);
     setTimeout(() => setShareToast(null), 1800);
   };
-
-  // Compute matched session user data by querying the message table
-  const userMatchedSessionData = useMemo(() => {
-    return batchWallService.getUserMatchedChatData({
-      id: currentUser?.id,
-      email: currentUser?.email,
-      name: currentUser?.name || profileNameInput || studentName
-    });
-  }, [currentUser, profileNameInput, studentName, chatMessages]);
 
   useEffect(() => {
     const unsubWall = batchWallService.subscribe(() => setTick(t => t + 1));
@@ -1008,45 +995,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 </div>
               </div>
 
-              {/* Chat Message Table Filter (All vs My Messages Matched) */}
-              <div className="flex items-center gap-1 bg-stone-100 p-0.5 rounded-xl border border-stone-200 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playSfx('click');
-                    setChatFilterMode('all');
-                  }}
-                  className={`px-2 py-1 rounded-lg font-display font-bold text-[10px] sm:text-[11px] transition-colors cursor-pointer ${
-                    chatFilterMode === 'all'
-                      ? 'bg-white text-stone-900 shadow-2xs'
-                      : 'text-stone-500 hover:text-stone-800'
-                  }`}
-                  title="Show all messages in the chat lounge"
-                >
-                  All ({chatMessages.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playSfx('click');
-                    setChatFilterMode('my_messages');
-                  }}
-                  className={`px-2 py-1 rounded-lg font-display font-bold text-[10px] sm:text-[11px] transition-colors cursor-pointer flex items-center gap-1 ${
-                    chatFilterMode === 'my_messages'
-                      ? 'bg-purple-600 text-white shadow-2xs'
-                      : 'text-stone-500 hover:text-stone-800'
-                  }`}
-                  title={`Show only messages matching your session User ID: ${userMatchedSessionData.userId}`}
-                >
-                  <span>My Messages</span>
-                  <span className={`text-[9px] px-1 rounded-full ${
-                    chatFilterMode === 'my_messages' ? 'bg-purple-800 text-white' : 'bg-stone-200 text-stone-700'
-                  }`}>
-                    {userMatchedSessionData.totalMatched}
-                  </span>
-                </button>
-              </div>
-
               {/* Action: Discord-Style Voice Room & Info */}
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
@@ -1164,46 +1112,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
             {/* Clean Stream Area (Pure, Clean Minimal Surface) */}
             <div className="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-3 space-y-3.5 scrollbar-thin overscroll-contain bg-[#FAFAFA]">
-              {/* Active Filter Notice if in my_messages mode */}
-              {chatFilterMode === 'my_messages' && (
-                <div className="bg-purple-50 border border-purple-200 text-purple-900 px-3 py-2 rounded-2xl flex items-center justify-between text-xs mb-2 shadow-2xs">
-                  <div className="flex items-center gap-2">
-                    <Filter className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                    <span>Showing <strong>{userMatchedSessionData.totalMatched}</strong> message(s) matched for User ID: <code className="bg-white px-1.5 py-0.5 rounded border border-purple-200 font-mono text-[11px] font-bold text-purple-950">{userMatchedSessionData.userId}</code></span>
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => setChatFilterMode('all')}
-                    className="text-xs font-bold text-purple-700 hover:text-purple-950 underline cursor-pointer shrink-0 ml-2"
-                  >
-                    Show All
-                  </button>
-                </div>
-              )}
+              
 
-              {/* Empty state if my_messages has 0 items */}
-              {chatFilterMode === 'my_messages' && userMatchedSessionData.matchedMessages.length === 0 && (
-                <div className="p-8 text-center space-y-2.5 my-8">
-                  <div className="w-12 h-12 rounded-full bg-purple-50 text-purple-600 mx-auto flex items-center justify-center font-bold text-xl border border-purple-200">
-                    💬
-                  </div>
-                  <h4 className="font-display font-black text-sm text-stone-800">No Messages Matched in Table</h4>
-                  <p className="text-xs text-stone-500 max-w-sm mx-auto">
-                    No messages found matching your session User ID: <code className="font-mono bg-stone-100 px-1 py-0.5 rounded">{userMatchedSessionData.userId}</code>.
-                    Send a message below and it will immediately match!
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setChatFilterMode('all')}
-                    className="mt-2 py-1.5 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    View All Messages
-                  </button>
-                </div>
-              )}
+              
 
               {/* Empty / Loading State for All Messages */}
-              {chatFilterMode === 'all' && chatMessages.length === 0 && (
+              {chatMessages.length === 0 && (
                 <div className="p-12 text-center space-y-3 my-8">
                   {chatStatus.status === 'connecting' ? (
                     <div className="space-y-2.5">
@@ -1239,7 +1153,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               )}
 
               {/* Date Separators & Chat Stream */}
-              {(chatFilterMode === 'my_messages' ? userMatchedSessionData.matchedMessages : chatMessages).map((msg, index) => {
+              {chatMessages.map((msg, index) => {
                 const isCurrentUser = Boolean(
                   (currentUser?.id && msg.senderId && currentUser.id === msg.senderId) ||
                   (currentUser?.email && msg.senderEmail && currentUser.email.trim().toLowerCase() === msg.senderEmail.trim().toLowerCase())
