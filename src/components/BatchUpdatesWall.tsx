@@ -723,34 +723,34 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
           </button>
         </div>
 
-        {/* ==================== 1. BATCH COMFORT LOUNGE CHAT ==================== */}
+        {/* ==================== 1. BATCH LOUNGE CHAT ==================== */}
         {activeMode === 'chat' && (
-          <div className="bg-[#FFF8F3] border border-rose-200/80 rounded-3xl overflow-hidden shadow-sm flex flex-col h-[570px] animate-fade-in relative">
+          <div className="bg-white border border-stone-200/90 rounded-3xl overflow-hidden shadow-xs flex flex-col h-[570px] animate-fade-in relative">
             
-            {/* Comfort Lounge Top Bar */}
-            <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500 text-white p-2.5 px-3.5 flex items-center justify-between shrink-0 shadow-xs">
+            {/* Clean Modern Lounge Top Bar */}
+            <div className="bg-white border-b border-stone-200/80 text-stone-900 p-2.5 px-4 flex items-center justify-between shrink-0 shadow-2xs">
               <div 
                 onClick={() => setShowProfileModal(true)}
-                className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-95"
+                className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-85 transition-opacity"
               >
                 <div className="relative shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-xs border-2 border-white/60 overflow-hidden flex items-center justify-center text-lg font-bold shadow-2xs">
+                  <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-200 overflow-hidden flex items-center justify-center text-lg font-bold shadow-2xs">
                     🌸
                   </div>
-                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-rose-500 rounded-full" />
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-display font-black text-sm text-white leading-tight truncate">
-                    Batch 41 Comfort Lounge
+                  <h3 className="font-display font-black text-sm text-stone-900 leading-tight truncate">
+                    Batch 41 Lounge
                   </h3>
-                  <p className="text-[11px] text-rose-100 font-medium truncate">
+                  <p className="text-[11px] text-stone-500 font-medium truncate">
                     Kritika Gupta 👑, Priyanshu, Ananya, You
                   </p>
                 </div>
               </div>
 
               {/* Action Icons */}
-              <div className="flex items-center gap-1 text-white">
+              <div className="flex items-center gap-1 text-stone-600">
                 <button
                   type="button"
                   onClick={() => {
@@ -758,7 +758,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                     setShareToast('Video room connection ready 📹');
                     setTimeout(() => setShareToast(null), 2000);
                   }}
-                  className="p-1.5 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
                   title="Video Call"
                 >
                   <Video className="w-4.5 h-4.5" />
@@ -771,7 +771,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                     setShareToast('Voice lounge active 📞');
                     setTimeout(() => setShareToast(null), 2000);
                   }}
-                  className="p-1.5 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
                   title="Voice Call"
                 >
                   <Phone className="w-4.5 h-4.5" />
@@ -780,7 +780,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 <button
                   type="button"
                   onClick={() => setShowCreatePollModal(true)}
-                  className="p-1.5 hover:bg-white/20 rounded-full cursor-pointer text-amber-200 transition-colors"
+                  className="p-1.5 hover:bg-stone-100 hover:text-rose-600 rounded-full cursor-pointer text-stone-600 transition-colors"
                   title="Group Poll"
                 >
                   <BarChart2 className="w-4.5 h-4.5" />
@@ -789,7 +789,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 <button
                   type="button"
                   onClick={() => setShowProfileModal(true)}
-                  className="p-1.5 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
                   title="Group Info & Profile"
                 >
                   <MoreVertical className="w-4.5 h-4.5" />
@@ -797,14 +797,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
               </div>
             </div>
 
-            {/* Comfort Wallpaper Stream Area */}
-            <div 
-              className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin bg-gradient-to-b from-[#FFFDF9] to-[#FFF5ED]"
-              style={{
-                backgroundImage: 'radial-gradient(#FBCFE8 1px, transparent 1px)',
-                backgroundSize: '20px 20px'
-              }}
-            >
+            {/* Clean Stream Area (Pure, Clean Minimal Surface) */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin bg-[#FAFAFA]">
               {/* Date Separators & Chat Stream */}
               {chatMessages.map((msg, index) => {
                 const currentUserName = (currentUser?.name || profileNameInput || '').trim().toLowerCase();
@@ -823,7 +817,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                     {/* Date separator pill */}
                     {showDatePill && (
                       <div className="flex justify-center my-1.5">
-                        <span className="bg-white/90 backdrop-blur-xs text-rose-800 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs border border-rose-200/80">
+                        <span className="bg-white text-stone-600 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs border border-stone-200">
                           {showDatePill}
                         </span>
                       </div>
@@ -842,7 +836,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                             if (cm) setSelectedClassmateDetail(cm);
                           }}
                           className={`w-7.5 h-7.5 rounded-full overflow-hidden border shrink-0 mt-0.5 cursor-pointer hover:scale-105 transition-transform ${
-                            msg.isKritika ? 'border-amber-400 ring-2 ring-pink-300' : 'border-rose-200'
+                            msg.isKritika ? 'border-amber-400 ring-2 ring-pink-300' : 'border-stone-200'
                           }`}
                           title={`Click to view ${msg.senderName}`}
                         >
@@ -853,10 +847,10 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                       {/* Speech Bubble Card */}
                       <div className="relative max-w-[85%] sm:max-w-[75%] space-y-1">
                         <div
-                          className={`p-2 sm:p-2.5 px-3 rounded-2xl shadow-2xs text-xs sm:text-sm leading-relaxed relative ${
+                          className={`p-2.5 px-3 rounded-2xl shadow-2xs text-xs sm:text-sm leading-relaxed relative ${
                             isCurrentUser
-                              ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-tr-xs border border-rose-400/50 shadow-xs'
-                              : 'bg-white/95 text-stone-900 rounded-tl-xs border border-rose-100 shadow-2xs'
+                              ? 'bg-rose-500 text-white rounded-tr-xs shadow-xs'
+                              : 'bg-white text-stone-900 rounded-tl-xs border border-stone-200/80 shadow-2xs'
                           }`}
                         >
                           {/* 1. Distinct Bold Sender Name & Action Dropdown Trigger */}
@@ -1191,10 +1185,10 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
               </div>
             )}
 
-            {/* Bottom Input Bar with Pill & Circular Send (Marisol Comfort Lounge Style) */}
-            <form onSubmit={handleSendChatMessage} className="p-2.5 px-3 flex items-center gap-2 shrink-0 bg-[#FFF4EE] border-t border-rose-100">
+            {/* Bottom Input Bar with Pill & Circular Send (Clean Modern Lounge Style) */}
+            <form onSubmit={handleSendChatMessage} className="p-2.5 px-3 flex items-center gap-2 shrink-0 bg-white border-t border-stone-200/80">
               {/* Left Rounded Pill Container */}
-              <div className="flex-1 bg-white rounded-full flex items-center px-2 py-1 shadow-2xs border border-rose-200/80">
+              <div className="flex-1 bg-stone-50 focus-within:bg-white focus-within:border-rose-300 rounded-full flex items-center px-2 py-1 shadow-2xs border border-stone-200 transition-all">
                 {/* Emoji Smile Icon */}
                 <button
                   type="button"
@@ -1213,7 +1207,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Share comfort with Batch 41..."
+                  placeholder="Type a message..."
                   className="flex-1 px-2.5 py-1 text-xs sm:text-sm outline-none bg-transparent text-stone-900"
                 />
 
@@ -1271,7 +1265,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                     setTimeout(() => setShareToast(null), 2000);
                   }
                 }}
-                className={`w-10 h-10 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 active:scale-95 text-white rounded-full transition-all shadow-md cursor-pointer shrink-0 flex items-center justify-center ${isSendingChat ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`w-10 h-10 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-full transition-all shadow-sm cursor-pointer shrink-0 flex items-center justify-center ${isSendingChat ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title={chatInput.trim() || chatImageAttachment ? "Send" : "Hold for voice note"}
               >
                 {chatInput.trim() || chatImageAttachment ? (
