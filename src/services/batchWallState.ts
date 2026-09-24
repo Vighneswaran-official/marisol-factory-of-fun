@@ -224,7 +224,11 @@ class BatchWallService {
         if ('BroadcastChannel' in window) {
           this.broadcastChannel = new BroadcastChannel('marisol_multiuser_sync');
           this.broadcastChannel.onmessage = (event) => {
-            if (event.data?.type === 'SYNC_CHAT') {
+            if (event.data?.type === 'DELETE_CHAT_MESSAGE' && event.data?.messageId) {
+              this.chatMessages = this.chatMessages.filter(m => m.id !== event.data.messageId);
+              this.saveChatToStorage();
+              this.notify();
+            } else if (event.data?.type === 'SYNC_CHAT') {
               this.loadFromStorage();
               this.notify();
             } else if (event.data?.type === 'SYNC_POSTS') {
@@ -632,27 +636,20 @@ class BatchWallService {
   }
 
   public async deleteChatMessageForEveryone(messageId: string) {
-    const msg = this.chatMessages.find(m => m.id === messageId);
-    if (!msg) return;
-
-    msg.isDeletedForEveryone = true;
-    msg.text = '🚫 This message was deleted';
-    msg.imageUrl = undefined;
-    msg.poll = undefined;
+    // Remove from local in-memory message list
+    this.chatMessages = this.chatMessages.filter(m => m.id !== messageId);
     this.saveChatToStorage();
 
+    // Broadcast instant removal to all tabs/windows
     try {
+      this.broadcastChannel?.postMessage({ type: 'DELETE_CHAT_MESSAGE', messageId });
       this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
     } catch {}
 
+    // Delete document directly from Firebase Firestore
     if (db) {
       try {
-        await setDoc(doc(db, 'group_chat_messages', messageId), {
-          isDeletedForEveryone: true,
-          text: '🚫 This message was deleted',
-          imageUrl: null,
-          poll: null
-        }, { merge: true });
+        await deleteDoc(doc(db, 'group_chat_messages', messageId));
       } catch (err) {
         console.warn('Failed to delete for everyone on Firestore:', err);
       }
