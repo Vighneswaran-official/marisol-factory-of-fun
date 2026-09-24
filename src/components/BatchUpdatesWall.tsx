@@ -773,9 +773,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 const reactionsList = Object.entries(msg.reactions || {}).filter(([, count]) => count > 0);
                 const senderColor = getWhatsAppSenderColor(msg.senderName, msg.isKritika);
 
-                // Date separator logic to mirror real WhatsApp groups
-                const showDatePill = index === 0 ? '10 September 2026' : index === 1 ? '16 September 2026' : index === 2 ? 'Today' : null;
-                const showSystemPill = index === 2 ? 'You added Knit Kingdom Office' : null;
+                const showDatePill = index === 0 ? 'Today' : null;
 
                 return (
                   <React.Fragment key={msg.id}>
@@ -784,15 +782,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                       <div className="flex justify-center my-1.5">
                         <span className="bg-white/90 backdrop-blur-xs text-stone-600 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs border border-stone-200/80">
                           {showDatePill}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* System announcement pill */}
-                    {showSystemPill && (
-                      <div className="flex justify-center my-1">
-                        <span className="bg-white/90 backdrop-blur-xs text-stone-600 text-[10.5px] font-medium px-3.5 py-1 rounded-xl shadow-2xs border border-stone-200/80">
-                          {showSystemPill}
                         </span>
                       </div>
                     )}
