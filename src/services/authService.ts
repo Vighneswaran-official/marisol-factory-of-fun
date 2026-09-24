@@ -411,6 +411,45 @@ class AuthService {
     this.notify();
   }
 
+  public updateProfile(data: {
+    name?: string;
+    avatarUrl?: string;
+    batch?: string;
+    currentMood?: string;
+    currentMoodEmoji?: string;
+    statusNote?: string;
+  }): StudentProfile {
+    if (!this.currentUser) {
+      const defaultName = data.name?.trim() || 'Batch 41 Student';
+      this.currentUser = {
+        id: `student_${Date.now()}`,
+        name: defaultName,
+        email: `${defaultName.toLowerCase().replace(/\s+/g, '.')}@mlp41.edu`,
+        avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+        batch: data.batch || 'MLP41PT',
+        currentMood: data.currentMood || 'Radiant Sunshine 🌸',
+        currentMoodEmoji: data.currentMoodEmoji || '🌸',
+        statusNote: data.statusNote || 'Savoring sweet memories ♡ ✨',
+        lastUpdated: 'Just now',
+        isGoogleVerified: false
+      };
+    } else {
+      if (data.name) this.currentUser.name = data.name.trim();
+      if (data.avatarUrl) this.currentUser.avatarUrl = data.avatarUrl;
+      if (data.batch) this.currentUser.batch = data.batch.trim();
+      if (data.currentMood) this.currentUser.currentMood = data.currentMood;
+      if (data.currentMoodEmoji) this.currentUser.currentMoodEmoji = data.currentMoodEmoji;
+      if (data.statusNote !== undefined) this.currentUser.statusNote = data.statusNote;
+      this.currentUser.lastUpdated = 'Just now';
+    }
+
+    this.saveUserToStorage();
+    this.syncClassmateList(this.currentUser);
+    this.syncWithFirestore(this.currentUser);
+    this.notify();
+    return this.currentUser;
+  }
+
   public async signOut(): Promise<void> {
     try {
       if (auth) {
