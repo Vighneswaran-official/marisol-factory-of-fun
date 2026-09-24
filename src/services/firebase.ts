@@ -71,13 +71,6 @@ if (isFirebaseConfigured) {
     db = getFirestore(app);
     googleProvider = new GoogleAuthProvider();
     googleProvider.setCustomParameters({ prompt: 'select_account' });
-
-    // Enable seamless background session for real-time multi-user interaction
-    onAuthStateChanged(auth, (user) => {
-      if (!user && auth) {
-        signInAnonymously(auth).catch(() => {});
-      }
-    });
   } catch (error) {
     console.warn('Firebase initialization error, fallback mode active:', error);
   }

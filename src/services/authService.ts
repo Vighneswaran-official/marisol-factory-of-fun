@@ -97,7 +97,7 @@ class AuthService {
       // 1. Check for Mobile Redirect Sign-In Result on Boot (Essential for mobile browsers)
       getRedirectResult(auth)
         .then((result) => {
-          if (result && result.user) {
+          if (result && result.user && !result.user.isAnonymous) {
             this.handleFirebaseUserLogin(result.user, 'google');
           }
         })
@@ -109,7 +109,7 @@ class AuthService {
 
       // 2. Regular Auth State Change
       onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
-        if (firebaseUser) {
+        if (firebaseUser && !firebaseUser.isAnonymous) {
           this.handleFirebaseUserLogin(firebaseUser, firebaseUser.phoneNumber ? 'phone_otp' : 'google');
         }
       });
@@ -308,38 +308,52 @@ class AuthService {
 
   /**
    * 100% Real Firebase Google Sign-In Flow
-   * Uses signInWithPopup on Desktop, and signInWithRedirect on Mobile browsers
+   * Uses popup-first strategy across desktop and mobile, with seamless redirect fallback
    */
   public async signInWithFirebaseGoogle(forceRedirect: boolean = false): Promise<{ success: boolean; user?: StudentProfile; error?: string }> {
     if (!auth || !googleProvider) {
       return { success: false, error: 'Firebase authentication is not configured yet.' };
     }
 
-    try {
-      const isMobile = forceRedirect || isMobileBrowser();
-      if (isMobile) {
+    if (forceRedirect) {
+      try {
         await signInWithRedirect(auth, googleProvider);
         return { success: true };
-      } else {
-        const userCredential = await signInWithPopup(auth, googleProvider);
-        if (userCredential.user) {
-          this.handleFirebaseUserLogin(userCredential.user, 'google');
-          return { success: true, user: this.currentUser || undefined };
-        }
-        return { success: false, error: 'No user credential received from Google.' };
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Redirect sign-in failed.' };
       }
-    } catch (err: any) {
-      console.error('[Auth] Real Firebase Google Sign-In Error:', err);
-      let errorMsg = 'Google sign-in could not complete.';
+    }
 
-      if (err.code === 'auth/popup-closed-by-user') {
+    try {
+      // Primary: signInWithPopup keeps user on the same page/route without full refresh
+      const userCredential = await signInWithPopup(auth, googleProvider);
+      if (userCredential.user) {
+        this.handleFirebaseUserLogin(userCredential.user, 'google');
+        return { success: true, user: this.currentUser || undefined };
+      }
+      return { success: false, error: 'No user credential received from Google.' };
+    } catch (popupErr: any) {
+      console.warn('[Auth] Google Popup notice:', popupErr?.code || popupErr);
+      
+      // If popup was blocked by mobile browser, gracefully fallback to redirect
+      if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return { success: true };
+        } catch (redirectErr: any) {
+          return { success: false, error: redirectErr.message || 'Redirect sign-in failed.' };
+        }
+      }
+
+      let errorMsg = 'Google sign-in could not complete.';
+      if (popupErr.code === 'auth/popup-closed-by-user') {
         errorMsg = 'Sign-in was cancelled (popup window closed).';
-      } else if (err.code === 'auth/unauthorized-domain') {
-        errorMsg = 'Domain not authorized. In Firebase Console → Authentication → Settings, add this domain to Authorized Domains.';
-      } else if (err.code === 'auth/network-request-failed') {
+      } else if (popupErr.code === 'auth/unauthorized-domain') {
+        errorMsg = 'Domain not authorized. Please add this domain to Firebase Console → Authentication → Authorized Domains.';
+      } else if (popupErr.code === 'auth/network-request-failed') {
         errorMsg = 'Network error. Please check your internet connection.';
-      } else if (err.message) {
-        errorMsg = err.message;
+      } else if (popupErr.message) {
+        errorMsg = popupErr.message;
       }
 
       return { success: false, error: errorMsg };
