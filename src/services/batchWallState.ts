@@ -86,12 +86,30 @@ class BatchWallService {
   private isOnline: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
   private lastSyncToast: string | null = null;
 
+  private broadcastChannel: BroadcastChannel | null = null;
+
   constructor() {
     this.cleanLegacyStorage();
     this.loadFromStorage();
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => this.handleOnline());
       window.addEventListener('offline', () => this.handleOffline());
+      
+      // Multi-client real-time sync across windows/tabs
+      try {
+        if ('BroadcastChannel' in window) {
+          this.broadcastChannel = new BroadcastChannel('marisol_multiuser_sync');
+          this.broadcastChannel.onmessage = (event) => {
+            if (event.data?.type === 'SYNC_CHAT') {
+              this.loadFromStorage();
+              this.notify();
+            } else if (event.data?.type === 'SYNC_POSTS') {
+              this.loadFromStorage();
+              this.notify();
+            }
+          };
+        }
+      } catch {}
     }
     this.initFirestoreSync();
   }
@@ -109,29 +127,29 @@ class BatchWallService {
         const postsQuery = query(
           collection(db, 'batch_updates'),
           orderBy('createdAt', 'desc'),
-          limit(50)
+          limit(100)
         );
         onSnapshot(postsQuery, (snapshot) => {
-          const remotePosts: BatchUpdatePost[] = [];
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data() as BatchUpdatePost;
-            if (!['post_01', 'post_02', 'post_03', 'post_04'].includes(docSnap.id)) {
+          if (!snapshot.empty) {
+            const remotePosts: BatchUpdatePost[] = [];
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data() as BatchUpdatePost;
               remotePosts.push({ ...data, id: docSnap.id });
-            }
-          });
+            });
 
-          this.posts = remotePosts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-          this.saveToStorage();
-          this.notify();
+            this.posts = remotePosts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            this.saveToStorage();
+            this.notify();
+          }
         }, (err) => {
-          console.warn('Firestore onSnapshot error, using local posts:', err);
+          console.warn('Firestore posts sync notice:', err);
         });
 
         // Group Chat Firestore Listener
         const chatQuery = query(
           collection(db, 'group_chat_messages'),
           orderBy('createdAt', 'asc'),
-          limit(75)
+          limit(150)
         );
         onSnapshot(chatQuery, (snapshot) => {
           if (!snapshot.empty) {
@@ -139,12 +157,12 @@ class BatchWallService {
             snapshot.forEach((docSnap) => {
               remoteChat.push({ ...(docSnap.data() as GroupChatMessage), id: docSnap.id });
             });
-            this.chatMessages = remoteChat;
+            this.chatMessages = remoteChat.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
             this.saveChatToStorage();
             this.notify();
           }
         }, (err) => {
-          console.warn('Firestore chat listener error:', err);
+          console.warn('Firestore chat listener notice:', err);
         });
 
       } catch (err) {
@@ -297,6 +315,9 @@ class BatchWallService {
       this.posts.unshift(newPost);
       this.saveToStorage();
       this.syncPostToFirestore(newPost);
+      try {
+        this.broadcastChannel?.postMessage({ type: 'SYNC_POSTS' });
+      } catch {}
       this.notify();
       return { queued: false, post: newPost };
     }
@@ -330,6 +351,10 @@ class BatchWallService {
     this.chatMessages.push(msg);
     this.saveChatToStorage();
 
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
     if (db) {
       try {
         await addDoc(collection(db, 'group_chat_messages'), msg);
@@ -345,6 +370,10 @@ class BatchWallService {
   public async deletePost(postId: string) {
     this.posts = this.posts.filter(p => p.id !== postId);
     this.saveToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_POSTS' });
+    } catch {}
 
     if (db) {
       try {
@@ -367,6 +396,10 @@ class BatchWallService {
 
     post.reactions[stickerAliasOrId] = (post.reactions[stickerAliasOrId] || 0) + 1;
     this.saveToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_POSTS' });
+    } catch {}
 
     if (db) {
       try {
@@ -416,6 +449,10 @@ class BatchWallService {
 
     post.replies.push(newReply);
     this.saveToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_POSTS' });
+    } catch {}
 
     if (db) {
       try {
