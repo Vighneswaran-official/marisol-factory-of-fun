@@ -89,35 +89,33 @@ const AVATAR_PRESETS = [
 
 const COMMON_EMOJIS = ['💖', '🌸', '👑', '✨', '🍕', '☕', '🔥', '👏', '🎉', '🥳', '🌈', '🌻', '💌', '🥰', '🤗', '⭐'];
 
-// Color palettes for WhatsApp group senders (like real WhatsApp)
+// Curated harmonious color palettes for chat members (Comfort Wall theme)
 const SENDER_COLORS: Record<string, string> = {
-  'kritika': 'text-[#E11D48]', // Rose
-  'priyanshu': 'text-[#1D4ED8]', // Blue
-  'ananya': 'text-[#7C3AED]', // Purple
-  'rohan': 'text-[#B45309]', // Amber
-  'elangovan': 'text-[#A16207]', // Copper / Brown (like WhatsApp screenshot)
-  'dhanashree': 'text-[#0284C7]', // Sky Blue (like WhatsApp screenshot)
-  'knit kingdom': 'text-[#0F766E]', // Teal / Emerald (like WhatsApp screenshot)
-  'meher': 'text-[#059669]', // Green
+  'kritika': 'text-rose-600', // Rose
+  'priyanshu': 'text-indigo-600', // Indigo
+  'ananya': 'text-purple-600', // Purple
+  'rohan': 'text-amber-600', // Warm Amber
+  'marisol': 'text-rose-600', // Rose
+  'dhanashree': 'text-sky-600', // Sky Blue
+  'knit kingdom': 'text-teal-600', // Teal
 };
 
 const getWhatsAppSenderColor = (name: string, isKritika?: boolean) => {
-  if (isKritika || name.toLowerCase().includes('kritika')) return 'text-[#E11D48]';
+  if (isKritika || name.toLowerCase().includes('kritika')) return 'text-rose-600 font-black';
   const lower = name.toLowerCase();
   for (const [key, color] of Object.entries(SENDER_COLORS)) {
     if (lower.includes(key)) return color;
   }
-  const fallbackColors = ['text-[#A16207]', 'text-[#0284C7]', 'text-[#0F766E]', 'text-[#1D4ED8]', 'text-[#7C3AED]', 'text-[#B45309]', 'text-[#059669]'];
+  const fallbackColors = ['text-rose-600', 'text-indigo-600', 'text-amber-600', 'text-teal-600', 'text-purple-600', 'text-pink-600'];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return fallbackColors[Math.abs(hash) % fallbackColors.length];
 };
 
-// Render message text with highlighted WhatsApp @mentions, bold headings, and ticket numbers
+// Render message text with highlighted @mentions and bold headings in Marisol style
 const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
   const lines = text.split('\n');
   return lines.map((line, lineIdx) => {
-    // Regex for mentions (@...), ticket IDs (#12345), 10-digit phone numbers, and bold headers
     const tokens = line.split(/(@[A-Za-z0-9_👑\s]+?(?=\s|$|[.,!?\n])|#\d{5,}|\b\d{10}\b|\b(?:GRAND FESTIVE SALE|Start Date|End Date):?)/g);
     
     return (
@@ -128,7 +126,7 @@ const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
             return (
               <span 
                 key={tokIdx} 
-                className={`font-bold ${isCurrentUser ? 'text-emerald-800 underline' : 'text-[#008069]'} hover:underline cursor-pointer`}
+                className={`font-bold ${isCurrentUser ? 'text-amber-200 underline' : 'text-rose-600 bg-rose-50/90 px-1 py-0.5 rounded'} hover:underline cursor-pointer`}
               >
                 {token}
               </span>
@@ -138,7 +136,7 @@ const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
             return (
               <span 
                 key={tokIdx} 
-                className={`font-bold underline cursor-pointer ${isCurrentUser ? 'text-emerald-900' : 'text-[#008069]'}`}
+                className={`font-bold underline cursor-pointer ${isCurrentUser ? 'text-amber-100' : 'text-rose-600'}`}
               >
                 {token}
               </span>
@@ -146,7 +144,7 @@ const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
           }
           if (/^(?:GRAND FESTIVE SALE|Start Date|End Date):?$/.test(token)) {
             return (
-              <span key={tokIdx} className="font-black text-stone-900">
+              <span key={tokIdx} className={isCurrentUser ? 'font-black text-white' : 'font-black text-stone-900'}>
                 {token}
               </span>
             );
@@ -690,8 +688,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 : 'text-stone-600 hover:text-stone-900'
             }`}
           >
-            <MessagesSquare className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="truncate">WhatsApp Chat ({chatMessages.length})</span>
+            <MessagesSquare className="w-3.5 h-3.5 text-rose-500" />
+            <span className="truncate">Batch Lounge ({chatMessages.length})</span>
           </button>
 
           <button
@@ -725,33 +723,33 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
           </button>
         </div>
 
-        {/* ==================== 1. EXACT WHATSAPP GROUP CHAT ==================== */}
+        {/* ==================== 1. BATCH COMFORT LOUNGE CHAT ==================== */}
         {activeMode === 'chat' && (
-          <div className="bg-[#EFEAE2] border border-[#D1D7DB] rounded-3xl overflow-hidden shadow-sm flex flex-col h-[570px] animate-fade-in relative">
+          <div className="bg-[#FFF8F3] border border-rose-200/80 rounded-3xl overflow-hidden shadow-sm flex flex-col h-[570px] animate-fade-in relative">
             
-            {/* Real WhatsApp Group Top Bar */}
-            <div className="bg-[#005C4B] text-white p-2.5 px-3 flex items-center justify-between shrink-0 shadow-xs">
+            {/* Comfort Lounge Top Bar */}
+            <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500 text-white p-2.5 px-3.5 flex items-center justify-between shrink-0 shadow-xs">
               <div 
                 onClick={() => setShowProfileModal(true)}
                 className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-95"
               >
                 <div className="relative shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-emerald-800 border-2 border-emerald-300/40 overflow-hidden flex items-center justify-center text-lg font-bold">
+                  <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-xs border-2 border-white/60 overflow-hidden flex items-center justify-center text-lg font-bold shadow-2xs">
                     🌸
                   </div>
-                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-[#005C4B] rounded-full" />
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-rose-500 rounded-full" />
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-display font-black text-sm text-white leading-tight truncate">
-                    Batch 41 Family Lounge
+                    Batch 41 Comfort Lounge
                   </h3>
-                  <p className="text-[11px] text-emerald-100/90 font-medium truncate">
+                  <p className="text-[11px] text-rose-100 font-medium truncate">
                     Kritika Gupta 👑, Priyanshu, Ananya, You
                   </p>
                 </div>
               </div>
 
-              {/* Group Action Icons */}
+              {/* Action Icons */}
               <div className="flex items-center gap-1 text-white">
                 <button
                   type="button"
@@ -760,7 +758,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                     setShareToast('Video room connection ready 📹');
                     setTimeout(() => setShareToast(null), 2000);
                   }}
-                  className="p-1.5 hover:bg-white/10 rounded-full cursor-pointer"
+                  className="p-1.5 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
                   title="Video Call"
                 >
                   <Video className="w-4.5 h-4.5" />
@@ -773,7 +771,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                     setShareToast('Voice lounge active 📞');
                     setTimeout(() => setShareToast(null), 2000);
                   }}
-                  className="p-1.5 hover:bg-white/10 rounded-full cursor-pointer"
+                  className="p-1.5 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
                   title="Voice Call"
                 >
                   <Phone className="w-4.5 h-4.5" />
@@ -782,7 +780,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 <button
                   type="button"
                   onClick={() => setShowCreatePollModal(true)}
-                  className="p-1.5 hover:bg-white/10 rounded-full cursor-pointer text-amber-200"
+                  className="p-1.5 hover:bg-white/20 rounded-full cursor-pointer text-amber-200 transition-colors"
                   title="Group Poll"
                 >
                   <BarChart2 className="w-4.5 h-4.5" />
@@ -791,7 +789,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 <button
                   type="button"
                   onClick={() => setShowProfileModal(true)}
-                  className="p-1.5 hover:bg-white/10 rounded-full cursor-pointer"
+                  className="p-1.5 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
                   title="Group Info & Profile"
                 >
                   <MoreVertical className="w-4.5 h-4.5" />
@@ -799,15 +797,15 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
               </div>
             </div>
 
-            {/* WhatsApp Chat Wallpaper Stream Area */}
+            {/* Comfort Wallpaper Stream Area */}
             <div 
-              className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin"
+              className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin bg-gradient-to-b from-[#FFFDF9] to-[#FFF5ED]"
               style={{
-                backgroundImage: 'radial-gradient(#CBD5E1 1px, transparent 1px)',
-                backgroundSize: '18px 18px'
+                backgroundImage: 'radial-gradient(#FBCFE8 1px, transparent 1px)',
+                backgroundSize: '20px 20px'
               }}
             >
-              {/* WhatsApp Date Separators & Chat Stream */}
+              {/* Date Separators & Chat Stream */}
               {chatMessages.map((msg, index) => {
                 const currentUserName = (currentUser?.name || profileNameInput || '').trim().toLowerCase();
                 const isCurrentUser = Boolean(
@@ -825,7 +823,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                     {/* Date separator pill */}
                     {showDatePill && (
                       <div className="flex justify-center my-1.5">
-                        <span className="bg-white/90 backdrop-blur-xs text-stone-600 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs border border-stone-200/80">
+                        <span className="bg-white/90 backdrop-blur-xs text-rose-800 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs border border-rose-200/80">
                           {showDatePill}
                         </span>
                       </div>
@@ -844,7 +842,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                             if (cm) setSelectedClassmateDetail(cm);
                           }}
                           className={`w-7.5 h-7.5 rounded-full overflow-hidden border shrink-0 mt-0.5 cursor-pointer hover:scale-105 transition-transform ${
-                            msg.isKritika ? 'border-amber-400 ring-2 ring-pink-300' : 'border-stone-300'
+                            msg.isKritika ? 'border-amber-400 ring-2 ring-pink-300' : 'border-rose-200'
                           }`}
                           title={`Click to view ${msg.senderName}`}
                         >
@@ -852,29 +850,29 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                         </div>
                       )}
 
-                      {/* WhatsApp Speech Bubble Card */}
+                      {/* Speech Bubble Card */}
                       <div className="relative max-w-[85%] sm:max-w-[75%] space-y-1">
                         <div
                           className={`p-2 sm:p-2.5 px-3 rounded-2xl shadow-2xs text-xs sm:text-sm leading-relaxed relative ${
                             isCurrentUser
-                              ? 'bg-[#D9FDD3] text-stone-900 rounded-tr-xs border border-[#C1EBC0]'
-                              : 'bg-white text-stone-900 rounded-tl-xs border border-stone-200 shadow-2xs'
+                              ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-tr-xs border border-rose-400/50 shadow-xs'
+                              : 'bg-white/95 text-stone-900 rounded-tl-xs border border-rose-100 shadow-2xs'
                           }`}
                         >
-                          {/* 1. Distinct Bold Sender Name & WhatsApp Action Dropdown Trigger */}
+                          {/* 1. Distinct Bold Sender Name & Action Dropdown Trigger */}
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span 
                                 onClick={() => {
                                   setChatInput((prev: string) => `${prev ? prev + ' ' : ''}@${msg.senderName} `);
                                 }}
-                                className={`font-display font-black text-xs sm:text-[13px] tracking-tight ${senderColor} hover:underline cursor-pointer truncate`}
+                                className={`font-display font-black text-xs sm:text-[13px] tracking-tight ${isCurrentUser ? 'text-white' : senderColor} hover:underline cursor-pointer truncate`}
                                 title="Click to mention in chat"
                               >
-                                {msg.senderName}
+                                {isCurrentUser ? 'You' : msg.senderName}
                               </span>
                               {msg.isKritika && (
-                                <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0">
+                                <span className={`${isCurrentUser ? 'bg-white text-rose-600' : 'bg-rose-500 text-white'} font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0`}>
                                   👑 QUEEN
                                 </span>
                               )}
@@ -1193,10 +1191,10 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
               </div>
             )}
 
-            {/* Real WhatsApp Bottom Input Bar with Pill & Circular Send */}
-            <form onSubmit={handleSendChatMessage} className="p-2 px-2.5 flex items-center gap-2 shrink-0 bg-[#EFEAE2]">
+            {/* Bottom Input Bar with Pill & Circular Send (Marisol Comfort Lounge Style) */}
+            <form onSubmit={handleSendChatMessage} className="p-2.5 px-3 flex items-center gap-2 shrink-0 bg-[#FFF4EE] border-t border-rose-100">
               {/* Left Rounded Pill Container */}
-              <div className="flex-1 bg-white rounded-full flex items-center px-2 py-1 shadow-xs border border-stone-200">
+              <div className="flex-1 bg-white rounded-full flex items-center px-2 py-1 shadow-2xs border border-rose-200/80">
                 {/* Emoji Smile Icon */}
                 <button
                   type="button"
@@ -1204,7 +1202,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                     setShowChatEmojiPicker(!showChatEmojiPicker);
                     setShowMentionPicker(false);
                   }}
-                  className="p-1.5 text-stone-500 hover:text-[#008069] rounded-full transition-colors cursor-pointer shrink-0"
+                  className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
                   title="Smileys"
                 >
                   <Smile className="w-5 h-5" />
@@ -1215,7 +1213,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Message"
+                  placeholder="Share comfort with Batch 41..."
                   className="flex-1 px-2.5 py-1 text-xs sm:text-sm outline-none bg-transparent text-stone-900"
                 />
 
@@ -1226,7 +1224,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                     setShowMentionPicker(!showMentionPicker);
                     setShowChatEmojiPicker(false);
                   }}
-                  className="p-1.5 text-stone-500 hover:text-[#008069] rounded-full transition-colors cursor-pointer shrink-0"
+                  className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
                   title="@Mention someone"
                 >
                   <AtSign className="w-4.5 h-4.5" />
@@ -1245,7 +1243,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 <button
                   type="button"
                   onClick={() => chatFileInputRef.current?.click()}
-                  className="p-1.5 text-stone-500 hover:text-[#008069] rounded-full transition-colors cursor-pointer shrink-0"
+                  className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
                   title="Attach Photo"
                 >
                   <Paperclip className="w-4.5 h-4.5" />
@@ -1255,25 +1253,25 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate }
                 <button
                   type="button"
                   onClick={() => chatFileInputRef.current?.click()}
-                  className="p-1.5 text-stone-500 hover:text-[#008069] rounded-full transition-colors cursor-pointer shrink-0"
+                  className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
                   title="Camera"
                 >
                   <Camera className="w-4.5 h-4.5" />
                 </button>
               </div>
 
-              {/* Right Floating Circular Send / Mic Button (Exact WhatsApp style) */}
+              {/* Right Floating Circular Send / Mic Button */}
               <button
                 type={chatInput.trim() || chatImageAttachment ? "submit" : "button"}
                 disabled={isSendingChat}
                 onClick={() => {
                   if (!chatInput.trim() && !chatImageAttachment) {
                     audioEngine.playSfx('fanfare');
-                    setShareToast('Voice note recorded! 🎙️✨');
+                    setShareToast('Voice cheer sent! 🎙️✨');
                     setTimeout(() => setShareToast(null), 2000);
                   }
                 }}
-                className={`w-10 h-10 bg-[#00A884] hover:bg-[#008F6F] active:scale-95 text-white rounded-full transition-all shadow-sm cursor-pointer shrink-0 flex items-center justify-center ${isSendingChat ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`w-10 h-10 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 active:scale-95 text-white rounded-full transition-all shadow-md cursor-pointer shrink-0 flex items-center justify-center ${isSendingChat ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title={chatInput.trim() || chatImageAttachment ? "Send" : "Hold for voice note"}
               >
                 {chatInput.trim() || chatImageAttachment ? (
