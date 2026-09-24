@@ -408,15 +408,17 @@ export function App() {
       </main>
 
       {/* Floating Mini Music Player Bar (Active when browsing other screens) */}
-      {currentScreen !== 'music' && (
+      {currentScreen !== 'music' && currentScreen !== 'batch_wall' && (
         <FloatingMusicBar onOpenMusicScreen={() => handleNavigate('music')} />
       )}
 
       {/* Floating Bottom Navigation Dock (Home | Music | 1000+ Quiz | Chat & Wall) */}
-      <BottomNavigationDock
-        activeTab={activeNavTab}
-        onTabSelect={handleBottomTabSelect}
-      />
+      {currentScreen !== 'batch_wall' && (
+        <BottomNavigationDock
+          activeTab={activeNavTab}
+          onTabSelect={handleBottomTabSelect}
+        />
+      )}
 
       {/* Clean Google Sign-In & Student Profile Modal */}
       {showGoogleSignIn && (

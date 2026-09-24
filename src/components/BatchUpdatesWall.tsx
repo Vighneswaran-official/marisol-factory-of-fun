@@ -258,11 +258,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const network = batchWallService.getNetworkStatus();
   const classmates = authService.getClassmates();
 
-  // Group Chat Subtabs: 'group' (One unified group where everyone chats) | 'pinned' (Dedicated section for important & pinned items)
-  const [chatSubTab, setChatSubTab] = useState<'group' | 'pinned'>('group');
-  const [showPinAnnouncementModal, setShowPinAnnouncementModal] = useState(false);
-  const [pinNoticeText, setPinNoticeText] = useState('');
-  const [pinNoticeCategory, setPinNoticeCategory] = useState<'📢 Announcement' | '⚠️ Important' | '🌸 Special Notice' | '📌 Pinned'>('📢 Announcement');
 
   // Matched Message Table & Session Inspection State
   const [chatFilterMode, setChatFilterMode] = useState<'all' | 'my_messages'>('all');
@@ -287,9 +282,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   useEffect(() => {
     if (activeMode === 'chat') {
-      if (chatSubTab === 'group') {
-        chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
       const userToMark = currentUser ? {
         userId: currentUser.id,
         userName: currentUser.name,
@@ -302,7 +295,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       };
       batchWallService.markAllMessagesAsSeen(userToMark);
     }
-  }, [activeMode, chatSubTab, currentUser]);
+  }, [activeMode, currentUser]);
 
   useEffect(() => {
     if (currentUser?.name) {
@@ -321,62 +314,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       if (currentUser.batch) setProfileBatchInput(currentUser.batch);
     }
   }, [currentUser]);
-
-  // Post an Important Pinned Notice into the group and pinned section
-  const handleCreatePinnedAnnouncement = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!authService.isUserAllowedToChat()) {
-      setShowGoogleModal(true);
-      setShareToast('Please connect with your Email ID to pin announcements! 🔒');
-      setTimeout(() => setShareToast(null), 3000);
-      return;
-    }
-    if (!pinNoticeText.trim()) return;
-
-    const fbUser = authService.getFirebaseUser();
-    const senderId = fbUser?.uid || currentUser?.id;
-    if (!senderId) {
-      setShowGoogleModal(true);
-      return;
-    }
-
-    audioEngine.playSfx('fanfare');
-    const name = currentUser?.name || fbUser?.displayName || profileNameInput || studentName || 'Batch 41 Student';
-    const email = fbUser?.email || currentUser?.email || undefined;
-    const avatar = fbUser?.photoURL || currentUser?.avatarUrl || profileAvatarInput;
-
-    try {
-      await batchWallService.sendGroupChatMessage({
-        senderId,
-        senderName: name,
-        senderEmail: email,
-        avatarUrl: avatar,
-        senderIsNewUser: currentUser?.isNewUser ?? true,
-        senderUserTag: currentUser?.userTag || 'New User',
-        text: `${pinNoticeCategory}: ${pinNoticeText.trim()}`,
-        isPinned: true,
-        pinnedBy: senderId,
-        pinnedAt: Date.now()
-      });
-
-      setPinNoticeText('');
-      setShowPinAnnouncementModal(false);
-      setShareToast('Important announcement posted & pinned to new section! 📌✨');
-      setChatSubTab('pinned');
-      setTimeout(() => setShareToast(null), 3000);
-    } catch (err: any) {
-      console.error('[Batch 41] Error posting pinned announcement:', err);
-      const errCode = err?.code || '';
-      let errorMsg = 'Unable to post pinned announcement to Firestore.';
-      if (errCode === 'permission-denied') {
-        errorMsg = 'Permission denied by Firestore rules. Please check Firebase Console.';
-      } else if (err?.message) {
-        errorMsg = `Firestore error: ${err.message}`;
-      }
-      setShareToast(errorMsg);
-      setTimeout(() => setShareToast(null), 4000);
-    }
-  };
 
   // Chat Image Upload
   const handleChatImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -559,19 +496,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     setTimeout(() => setShareToast(null), 2500);
   };
 
-  const handleTogglePinMessage = async (msg: GroupChatMessage) => {
-    audioEngine.playSfx('pop');
-    if (msg.isPinned) {
-      await batchWallService.unpinChatMessage(msg.id);
-      setShareToast('Message unpinned 📌');
-    } else {
-      const pinner = currentUser?.id || authService.getFirebaseUser()?.uid || currentUser?.name || 'Classmate';
-      await batchWallService.pinChatMessage(msg.id, pinner);
-      setShareToast('Message pinned to top 📌✨');
-    }
-    setActiveActionMenuMsgId(null);
-    setTimeout(() => setShareToast(null), 2500);
-  };
 
   const handleJumpToMessage = (messageId: string) => {
     const el = document.getElementById(`chat-msg-${messageId}`);
@@ -871,8 +795,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] p-2.5 sm:p-5 pb-28 text-stone-900">
-      <div className="max-w-4xl lg:max-w-5xl mx-auto space-y-3 sm:space-y-4">
+    <div className={`min-h-screen bg-[#FAF8F5] p-2 sm:p-4 text-stone-900 ${activeMode === 'chat' ? 'pb-1 sm:pb-2' : 'pb-12 sm:pb-16'}`}>
+      <div className={`max-w-4xl lg:max-w-5xl mx-auto ${activeMode === 'chat' ? 'space-y-1.5' : 'space-y-3 sm:space-y-4'}`}>
 
         {/* Sync Toast Notification */}
         {network.syncToast && (
@@ -906,95 +830,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           </div>
         )}
 
-        {/* 1. MULTI-PERSON ACTIVE USER BAR WITH SESSION USER DATA & MESSAGE TABLE MATCH */}
-        <div className="bg-white border border-stone-200/90 rounded-2xl p-2.5 px-3.5 shadow-2xs flex items-center justify-between gap-2.5 flex-wrap">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="relative w-8 h-8 rounded-full overflow-hidden border-2 border-rose-400 shrink-0 bg-rose-50 shadow-2xs">
-              <img 
-                src={currentUser?.avatarUrl || profileAvatarInput || AVATAR_PRESETS[0].url} 
-                alt="Your Avatar" 
-                className="w-full h-full object-cover" 
-              />
-            </div>
-            <div className="min-w-0 text-left">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-display font-black text-rose-600 uppercase tracking-wider">
-                  You are active as:
-                </span>
-                {currentUser?.isGoogleVerified && (
-                  <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.2 rounded-full">
-                    Google Verified ✓
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <h4 className="font-display font-black text-xs sm:text-sm text-stone-900 truncate">
-                  {currentUser?.name || profileNameInput || 'Batch 41 Member'}
-                </h4>
-                <span 
-                  className="font-display text-[9px] sm:text-[10px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full border border-rose-200 font-bold"
-                >
-                  Batch 41
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Current Message for User Snippet (Quick Jump) */}
-          {userMatchedSessionData.currentMessage ? (
-            <button
-              type="button"
-              onClick={() => handleJumpToMessage(userMatchedSessionData.currentMessage!.id)}
-              className="hidden md:flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-900 px-2.5 py-1 rounded-xl text-xs font-medium cursor-pointer transition-colors max-w-[240px] lg:max-w-[320px] truncate"
-              title={`Current message: "${userMatchedSessionData.currentMessage.text}". Click to jump.`}
-            >
-              <span className="font-bold text-rose-700 text-[10px] uppercase shrink-0">Current Msg:</span>
-              <span className="truncate italic">"{userMatchedSessionData.currentMessage.text.slice(0, 30)}..."</span>
-              <span className="text-rose-600 text-[10px] font-bold underline shrink-0">Jump ↗</span>
-            </button>
-          ) : (
-            <span className="hidden md:inline text-[11px] text-stone-400 italic">No messages sent in table yet</span>
-          )}
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Pinned & Important Quick Button */}
-            <button
-              type="button"
-              onClick={() => {
-                audioEngine.playSfx('click');
-                setActiveMode('chat');
-                setChatSubTab('pinned');
-              }}
-              className="py-1.5 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl text-xs font-display font-bold flex items-center gap-1 transition-colors cursor-pointer border border-amber-200"
-              title="View Pinned Notices & Important Highlights"
-            >
-              <Pin className="w-3.5 h-3.5 text-amber-600" />
-              <span>Pinned ({batchWallService.getPinnedMessages().length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowProfileModal(true)}
-              className="py-1.5 px-3 bg-stone-100 hover:bg-rose-50 hover:text-rose-600 text-stone-700 rounded-xl text-xs font-display font-bold flex items-center gap-1 transition-colors cursor-pointer border border-stone-200"
-              title="Switch user profile or test as different batch member"
-            >
-              <UserCheck className="w-3.5 h-3.5 text-rose-500" />
-              <span>Switch Profile</span>
-            </button>
-            {!authService.isUserAllowedToChat() && (
-              <button
-                type="button"
-                onClick={() => setShowGoogleModal(true)}
-                className="py-1.5 px-3 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white rounded-xl text-xs font-display font-black flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
-              >
-                <span>Sign In With Mail</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* 2. UNIFIED COHESIVE TAB SWITCHER */}
-        <div className="grid grid-cols-3 gap-1 bg-stone-200/70 p-1 rounded-2xl border border-stone-300/80">
+        {/* UNIFIED COHESIVE TAB SWITCHER */}
+        <div className="grid grid-cols-3 gap-1 bg-stone-200/70 p-1 rounded-2xl border border-stone-300/80 mb-2">
           <button
             onClick={() => {
               audioEngine.playSfx('click');
@@ -1041,81 +878,11 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           </button>
         </div>
 
-        {/* ==================== 1. BATCH LOUNGE & DIRECT CHAT ==================== */}
+        {/* ==================== 1. BATCH LOUNGE (Real-Time Group Chat) ==================== */}
         {activeMode === 'chat' && (
-          <div className="bg-white border border-stone-200/90 rounded-3xl overflow-hidden shadow-xs flex flex-col h-[580px] sm:h-[650px] lg:h-[700px] animate-fade-in relative">
-            
-            {/* 2-Way Tab Selector: 💬 Group Chat | 📌 Important & Pinned */}
-            <div className="bg-stone-100/90 border-b border-stone-200/90 p-1.5 px-3 flex items-center justify-between gap-2 shrink-0 flex-wrap">
-              <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-stone-200/90 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playSfx('click');
-                    setChatSubTab('group');
-                  }}
-                  className={`px-3 py-1.5 rounded-lg font-display font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
-                    chatSubTab === 'group'
-                      ? 'bg-rose-600 text-white shadow-xs'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
-                  }`}
-                >
-                  <MessagesSquare className="w-3.5 h-3.5" />
-                  <span>💬 Group Chat</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                    chatSubTab === 'group' ? 'bg-rose-800 text-white' : 'bg-stone-100 text-stone-600'
-                  }`}>
-                    {chatMessages.length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playSfx('click');
-                    setChatSubTab('pinned');
-                  }}
-                  className={`px-3 py-1.5 rounded-lg font-display font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
-                    chatSubTab === 'pinned'
-                      ? 'bg-amber-500 text-white shadow-xs'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
-                  }`}
-                >
-                  <Pin className="w-3.5 h-3.5 fill-current" />
-                  <span>📌 Important & Pinned</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                    chatSubTab === 'pinned' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-900'
-                  }`}>
-                    {chatMessages.filter(m => m.isPinned).length}
-                  </span>
-                </button>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                {currentUser?.email ? (
-                  <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-2xs">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
-                    <span className="truncate max-w-[140px] sm:max-w-none">{currentUser.email}</span>
-                    <span className="bg-emerald-600 text-white text-[7px] font-black uppercase px-1 rounded">CONNECTED</span>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowGoogleModal(true)}
-                    className="inline-flex items-center gap-1.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-[10px] font-display font-bold px-2.5 py-1 rounded-full cursor-pointer transition-all shadow-2xs active:scale-95"
-                  >
-                    <Lock className="w-3 h-3" />
-                    <span>Connect with Email to Chat</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* A. BATCH CONNECTED GROUP CHAT */}
-            {chatSubTab === 'group' && (
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                {/* Clean Modern Lounge Top Bar */}
-                <div className="bg-white border-b border-stone-200/80 text-stone-900 p-2.5 px-4 flex items-center justify-between shrink-0 shadow-2xs">
+          <div className="bg-white border border-stone-200/90 rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm flex flex-col h-[calc(100dvh-125px)] sm:h-[calc(100dvh-135px)] animate-fade-in relative">
+            {/* Clean Modern Lounge Top Bar */}
+            <div className="bg-white border-b border-stone-200/80 text-stone-900 p-2.5 px-4 flex items-center justify-between shrink-0 shadow-2xs">
               <div 
                 onClick={() => setShowProfileModal(true)}
                 className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-85 transition-opacity"
@@ -1271,54 +1038,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               </div>
             )}
 
-            {/* Interactive Pinned Message Banner leading to Important Section */}
-            {(() => {
-              const pinnedCount = chatMessages.filter(m => m.isPinned).length;
-              if (pinnedCount === 0) return null;
-              const latestPinned = chatMessages.slice().reverse().find(m => m.isPinned);
-
-              return (
-                <div 
-                  onClick={() => {
-                    audioEngine.playSfx('click');
-                    setChatSubTab('pinned');
-                  }}
-                  className="bg-gradient-to-r from-amber-50 via-rose-50 to-pink-50 border-b border-amber-200/90 px-3.5 py-2 flex items-center justify-between gap-2.5 z-20 shadow-xs cursor-pointer hover:bg-amber-100/60 transition-colors"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
-                      <Pin className="w-3.5 h-3.5 fill-white" />
-                    </div>
-                    <div className="min-w-0 text-left">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-display font-black text-[11px] text-amber-900 truncate">
-                          📌 {pinnedCount} Important Notice{pinnedCount > 1 ? 's' : ''} in Pinned Section
-                        </span>
-                        {latestPinned && (
-                          <span className="text-[10px] text-stone-500 truncate">
-                            • Latest: {latestPinned.senderName}
-                          </span>
-                        )}
-                      </div>
-                      <p className="font-sans text-xs text-stone-700 truncate max-w-md">
-                        {latestPinned?.text || 'Tap to view all important pinned items'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      onClick={() => setChatSubTab('pinned')}
-                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-[10px] font-display font-black shadow-2xs transition-all cursor-pointer flex items-center gap-1"
-                    >
-                      <span>View All ({pinnedCount}) →</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
-
             {/* Clean Stream Area (Pure, Clean Minimal Surface) */}
             <div className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin bg-[#FAFAFA]">
               {/* Active Filter Notice if in my_messages mode */}
@@ -1448,15 +1167,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                               : 'bg-white text-stone-900 rounded-tl-xs border border-stone-200/80 shadow-2xs'
                           }`}
                         >
-                          {/* Pinned pill if message is pinned */}
-                          {msg.isPinned && (
-                            <div className={`flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full w-fit mb-1 shadow-2xs ${
-                              isCurrentUser ? 'bg-amber-400/30 text-amber-100 border border-amber-300/40' : 'bg-amber-50 text-amber-800 border border-amber-300'
-                            }`}>
-                              <Pin className="w-2.5 h-2.5 fill-current" />
-                              <span>Pinned</span>
-                            </div>
-                          )}
 
                           {/* 1. Distinct Bold Sender Name & Action Dropdown Trigger */}
                           <div className="flex items-center justify-between gap-2 mb-1">
@@ -1513,19 +1223,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                                     <span>Reply</span>
                                   </button>
 
-                                  {/* Pin / Unpin to Important Section option */}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      handleTogglePinMessage(msg);
-                                      setShareToast(msg.isPinned ? 'Unpinned from Important section 📌' : 'Pinned to Important section! 📌✨');
-                                      setTimeout(() => setShareToast(null), 2500);
-                                    }}
-                                    className="w-full px-3 py-1.5 text-left hover:bg-amber-50 flex items-center gap-2 text-amber-800 font-bold cursor-pointer"
-                                  >
-                                    <Pin className="w-3.5 h-3.5 text-amber-600 fill-amber-600" />
-                                    <span>{msg.isPinned ? 'Unpin from Important' : 'Pin to Important Section'}</span>
-                                  </button>
 
                                   {/* STRICT AUTHOR-ONLY: Edit message ONLY if isCurrentUser is true */}
                                   {isCurrentUser && !msg.isDeletedForEveryone && (
@@ -1557,7 +1254,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
                         {/* Quoted Reply Banner */}
                         {msg.replyTo && !msg.isDeletedForEveryone && (
-                          <div className={`mb-1.5 p-1.5 px-2 rounded-lg border-l-4 text-[11px] ${
+                          <div 
+                            onClick={() => handleJumpToMessage(msg.replyTo!.id)}
+                            className={`mb-1.5 p-1.5 px-2 rounded-lg border-l-4 text-[11px] cursor-pointer hover:opacity-85 transition-opacity ${
                             isCurrentUser
                               ? 'bg-emerald-50/80 border-[#005C4B] text-emerald-950'
                               : 'bg-stone-100 border-[#008069] text-stone-700'
@@ -1985,221 +1684,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
             )}
           </div>
         )}
-
-        {/* B. DEDICATED PINNED & IMPORTANT SECTION */}
-        {chatSubTab === 'pinned' && (
-          <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-stone-50/50">
-            {/* Pinned Section Header */}
-            <div className="bg-gradient-to-r from-amber-50 via-rose-50 to-pink-50 border-b border-amber-200/90 p-3 px-4 flex items-center justify-between gap-3 shrink-0 shadow-2xs">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-2xs shrink-0">
-                  <Pin className="w-5 h-5 fill-white" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-display font-black text-xs sm:text-sm text-amber-950 flex items-center gap-1.5 truncate">
-                    <span>📌 Important & Pinned Highlights</span>
-                    <span className="bg-amber-500/20 text-amber-900 text-[10px] px-2 py-0.2 rounded-full font-mono font-bold">
-                      {chatMessages.filter(m => m.isPinned).length}
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-amber-800/80 truncate font-medium">
-                    Critical batch notices, milestone announcements & items pinned by connected members
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!authService.isUserAllowedToChat()) {
-                      setShowGoogleModal(true);
-                      setShareToast('Please connect with your Email ID to pin notices! 🔒');
-                      setTimeout(() => setShareToast(null), 3000);
-                      return;
-                    }
-                    setShowPinAnnouncementModal(true);
-                  }}
-                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-display font-black flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer active:scale-95"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Pin Announcement</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playSfx('click');
-                    setChatSubTab('group');
-                  }}
-                  className="px-3 py-1.5 bg-white hover:bg-stone-100 text-stone-800 border border-stone-200 rounded-xl text-xs font-display font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1"
-                >
-                  <MessagesSquare className="w-3.5 h-3.5 text-rose-500" />
-                  <span>Back to Group</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Pinned Messages Stream */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin">
-              {(() => {
-                const pinnedList = chatMessages.filter(m => m.isPinned).slice().reverse();
-
-                if (pinnedList.length === 0) {
-                  return (
-                    <div className="text-center py-16 px-4 space-y-3 max-w-md mx-auto">
-                      <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-600 mx-auto flex items-center justify-center text-3xl border border-amber-200 shadow-sm animate-pulse">
-                        📌
-                      </div>
-                      <h4 className="font-display font-black text-sm text-stone-800">
-                        No Important Messages Pinned Yet
-                      </h4>
-                      <p className="text-xs text-stone-500 leading-relaxed">
-                        Whenever an important update, exam alert, or announcement is shared in the group, tap the <strong>Pin</strong> option or click <strong>Pin Announcement</strong> to showcase it here!
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!authService.isUserAllowedToChat()) {
-                            setShowGoogleModal(true);
-                            return;
-                          }
-                          setShowPinAnnouncementModal(true);
-                        }}
-                        className="mt-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs hover:from-amber-600 hover:to-rose-600 transition-all cursor-pointer inline-flex items-center gap-1.5"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Pin First Announcement</span>
-                      </button>
-                    </div>
-                  );
-                }
-
-                return pinnedList.map(msg => {
-                  return (
-                    <div
-                      key={msg.id}
-                      className="bg-white border-2 border-amber-300/80 rounded-2xl p-4 shadow-xs space-y-3 relative overflow-hidden transition-all hover:border-amber-400 group"
-                    >
-                      {/* Top Ribbon */}
-                      <div className="flex items-center justify-between gap-2 border-b border-amber-100 pb-2.5">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] font-display font-black uppercase px-2 py-0.5 rounded-full border border-amber-300">
-                            <Pin className="w-3 h-3 fill-amber-700 text-amber-700" />
-                            <span>Pinned Highlight</span>
-                          </span>
-                          <span className="text-[11px] text-stone-500 font-medium truncate">
-                            Pinned by <strong className="text-stone-800">{msg.pinnedBy || 'Connected Member'}</strong>
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleTogglePinMessage(msg);
-                              setShareToast('Unpinned notice 📌');
-                              setTimeout(() => setShareToast(null), 2500);
-                            }}
-                            className="px-2 py-1 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
-                            title="Unpin this notice"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Unpin</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Author Card Info */}
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full overflow-hidden border border-stone-200 shrink-0">
-                          <img
-                            src={msg.avatarUrl || '/marisol/avatars/01_brighter_ideas.png'}
-                            alt={msg.senderName}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-display font-bold text-xs text-stone-900">
-                              {msg.senderName}
-                            </span>
-                            {msg.senderIsNewUser && (
-                              <span className="bg-gradient-to-r from-amber-400 to-rose-400 text-white font-mono text-[7px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0">
-                                NEW USER
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-stone-400 block font-medium">
-                            {msg.senderEmail || 'Connected Member'} • {msg.timestamp}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Content */}
-                      <div className="text-xs sm:text-sm text-stone-800 leading-relaxed font-sans font-medium whitespace-pre-wrap pl-1">
-                        {msg.text}
-                      </div>
-
-                      {/* Attached Photo if exists */}
-                      {msg.imageUrl && (
-                        <div className="rounded-xl overflow-hidden border border-stone-200 max-h-64 cursor-pointer group/img relative">
-                          <img
-                            src={msg.imageUrl}
-                            alt="Pinned attachment"
-                            onClick={() => setLightboxImage({ url: msg.imageUrl!, caption: msg.text })}
-                            className="w-full h-full object-cover hover:scale-101 transition-transform"
-                          />
-                        </div>
-                      )}
-
-                      {/* Poll View if exists */}
-                      {msg.poll && (
-                        <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-2">
-                          <span className="font-display font-black text-xs text-stone-900 flex items-center gap-1.5">
-                            <BarChart2 className="w-4 h-4 text-emerald-600" />
-                            <span>{msg.poll.question}</span>
-                          </span>
-                          <div className="space-y-1 pt-1">
-                            {msg.poll.options.map(opt => (
-                              <div
-                                key={opt.id}
-                                onClick={() => handleVotePoll(msg.id, opt.id)}
-                                className="p-2 rounded-lg bg-white border border-stone-200 text-xs flex items-center justify-between cursor-pointer hover:border-emerald-500"
-                              >
-                                <span>{opt.text}</span>
-                                <span className="font-bold text-[10px] text-stone-500">{opt.votes.length} votes</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Bottom Jump-to-Chat Button */}
-                      <div className="pt-2 border-t border-stone-100 flex items-center justify-between gap-2">
-                        <span className="text-[10px] text-stone-400 font-medium">
-                          Visible to everyone in Batch 41
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setChatSubTab('group');
-                            setTimeout(() => handleJumpToMessage(msg.id), 120);
-                          }}
-                          className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-display font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <MessagesSquare className="w-3.5 h-3.5 text-amber-700" />
-                          <span>Jump to in Group Chat →</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-        )}
-      </div>
-    )}
 
         {/* ==================== 2. CONCISE POST FEED ==================== */}
         {activeMode === 'posts' && (
@@ -3548,79 +3032,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           </BaseModal>
         )}
 
-        {/* Modal: Pin Important Announcement */}
-        {showPinAnnouncementModal && (
-          <BaseModal
-            isOpen={showPinAnnouncementModal}
-            onClose={() => setShowPinAnnouncementModal(false)}
-            title="📌 Pin Important Announcement"
-          >
-            <form onSubmit={handleCreatePinnedAnnouncement} className="space-y-4">
-              <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-3 text-xs text-amber-900 space-y-1">
-                <p className="font-bold flex items-center gap-1.5">
-                  <Pin className="w-3.5 h-3.5 fill-amber-700 text-amber-700" />
-                  <span>Pinned to Important Section & Group Chat</span>
-                </p>
-                <p className="text-[11px] text-amber-800/80">
-                  This announcement will be displayed prominently in both the group lounge and the dedicated Important Highlights section for all connected members.
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-display font-black text-xs text-stone-700 uppercase">
-                  Category Tag
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['📢 Announcement', '⚠️ Important', '🌸 Special Notice', '📌 Pinned'] as const).map(tag => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => setPinNoticeCategory(tag)}
-                      className={`p-2 rounded-xl text-xs font-display font-bold border transition-all cursor-pointer text-left ${
-                        pinNoticeCategory === tag
-                          ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
-                          : 'bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100'
-                      }`}
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-display font-black text-xs text-stone-700 uppercase">
-                  Announcement Details
-                </label>
-                <textarea
-                  value={pinNoticeText}
-                  onChange={(e) => setPinNoticeText(e.target.value)}
-                  placeholder="Write the important message, deadline, rule, or batch update..."
-                  rows={4}
-                  required
-                  className="w-full p-3 rounded-2xl border border-stone-200 text-xs text-stone-900 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-200 resize-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPinAnnouncementModal(false)}
-                  className="px-4 py-2 text-xs font-display font-bold text-stone-600 hover:bg-stone-100 rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!pinNoticeText.trim()}
-                  className="px-5 py-2 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-all cursor-pointer disabled:opacity-50"
-                >
-                  📌 Pin Announcement
-                </button>
-              </div>
-            </form>
-          </BaseModal>
-        )}
 
         {/* Modal: Google Sign In */}
         {showGoogleModal && (
