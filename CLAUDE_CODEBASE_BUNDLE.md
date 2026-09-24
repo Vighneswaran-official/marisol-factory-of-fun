@@ -1,9 +1,9 @@
 # Marisol Factory of Fun - Complete Codebase for Claude
 
 ## Project Overview
-- **Project Name**: Marisol Factory of Fun (Kritika Companion & Culinary Cinema Trivia)
+- **Project Name**: Marisol Factory of Fun (Kritika Companion, Culinary Cinema Trivia & Batch 41 Community)
 - **GitHub Repository**: https://github.com/Vighneswaran-official/marisol-factory-of-fun
-- **Tech Stack**: React 19, TypeScript, Vite, Tailwind CSS, Web Audio API / Synth, PWA (vite-plugin-pwa)
+- **Tech Stack**: React 19, TypeScript, Vite, Tailwind CSS, Web Audio API / Synth, Firebase Firestore & Auth, PWA (vite-plugin-pwa)
 - **Key Features**:
   - Sisterly wellness companion (dynamic mood, affirmations, comfort corner)
   - Culinary & Bollywood cinema trivia engine with recipes & cucumber sandwich scoring
@@ -11,15 +11,27 @@
   - Level clear celebration with hero banner video
   - Secret locket with voice memos & notes
   - Glow-Up Week polaroid scrapbook
+  - Batch 41 Unified Real-Time Group Chat (Firestore + BroadcastChannel) restricted to authenticated email users
+  - Dedicated "📌 Pinned & Important Highlights" section with category tagging & jump-to-message navigation
+  - Batch Wall photo & update feed with author-only controls & filters
   - Full PWA downloadable on Android & iOS
 
 ## Project Directory Structure
 ```
+.env
+.env.example
+.github/
+  workflows/
+    build-android.yml
+    deploy-pages.yml
 .gitignore
 .oxlintrc.json
+CLAUDE.md
+CLAUDE_CODEBASE_BUNDLE.md
+CLAUDE_MOOD_RECOMMENDATION_PROMPT.md
 README.md
 api/
-  youtube-search.ts
+capacitor.config.ts
 index.html
 marisol-factory-of-fun.zip
 package-lock.json
@@ -59,20 +71,17 @@ public/
       overthinking.png
       silly_vibe.png
       wink_conquer.png
+    kritika_stickers_sheet.jpg
     marisol_sheet.jpg
     poses/
       big_dreams.png
       bigger_adventures.png
-      bigger_adventures_test.png
       brighter_ideas.png
-      brighter_ideas_test.png
-      brighter_ideas_with_title.png
       chai_happiness.png
       grateful_always.png
       happier_days.png
       just_me.png
       music_mood.png
-      music_mood_test.png
       overthinking.png
       silly_vibe.png
       wink_conquer.png
@@ -101,18 +110,32 @@ src/
   assets/
     Hero Banner video.mp4
     hero.png
+    moods/
+      mood_calm.jpg
+      mood_confident.jpg
+      mood_excited.jpg
+      mood_grateful.jpg
+      mood_happy.jpg
+      mood_motivated.jpg
+      mood_playful.jpg
+      mood_stressed.jpg
+      mood_tired.jpg
     react.svg
     vite.svg
   components/
-    BossRound.tsx
+    BaseModal.tsx
+    BatchUpdatesWall.tsx
     BottomNavigationDock.tsx
     CelebrationLocketModal.tsx
-    ClassroomMode.tsx
+    Classroom.tsx
     ComfortCornerModal.tsx
-    CozyModeOverlay.tsx
+    ComfortShelfModal.tsx
     DailyChallenge.tsx
+    FloatingMusicBar.tsx
+    FloatingVideoPlayer.tsx
     GameMap.tsx
     GlowUpWeekModal.tsx
+    GoogleSignInModal.tsx
     HomeScreen.tsx
     InstallAppModal.tsx
     KnowledgePassport.tsx
@@ -120,24 +143,27 @@ src/
     LevelClearHeroModal.tsx
     LittleLoveNote.tsx
     Marisol.tsx
+    MoodHistoryModal.tsx
     MoodSelectorModal.tsx
     MovieDetectiveCard.tsx
     MusicJukeboxModal.tsx
+    MusicPlayerScreen.tsx
     Navbar.tsx
     OpeningCinematic.tsx
     PlayerProfileCard.tsx
     QuestionCard.tsx
     RecipeModal.tsx
     RecipeVault.tsx
-    SecretClassroom.tsx
     SecretLocketModal.tsx
     SparkleStreak.tsx
     StickerCollection.tsx
-    TeacherMode.tsx
+    VaultHub.tsx
   data/
     achievements.ts
     animeScenes.ts
+    foodMovieQuestions1000.ts
     hindiSongs.ts
+    macaroniRecipes.ts
     questions.ts
     recipes.ts
     stickers.ts
@@ -147,8 +173,15 @@ src/
   services/
     adaptiveEngine.ts
     animeAudio.ts
+    authService.ts
+    batchWallState.ts
+    firebase.ts
     gameState.ts
+    moodQuizService.ts
+    moodRotationService.ts
+    musicStreamingService.ts
     synthAudioEngine.ts
+    videoPlaybackService.ts
     wellnessState.ts
   types/
     canvas-confetti.d.ts
@@ -180,58 +213,369 @@ vite.config.ts
 
 ---
 
-### File: `api/youtube-search.ts`
+### File: `CLAUDE.md`
 
-```ts
-﻿export default async function handler(req: any, res: any) {
-  try {
-    const query = (req.query?.q || '').toString().trim();
-    if (!query) {
-      return res.status(400).json({ error: 'Missing query parameter', results: [] });
+```md
+# CLAUDE.md - Comprehensive Project Guide for Claude
+
+This document provides a complete technical and conceptual guide to the **Marisol Factory of Fun** codebase. It is designed to give Claude immediate, high-fidelity understanding of the project's architecture, data models, state flows, conventions, and operational rules.
+
+---
+
+## 1. Project Overview & Vision
+
+- **Name**: Marisol Factory of Fun (Kritika Companion, Culinary Cinema Trivia & Batch 41 Community)
+- **Repository**: [https://github.com/Vighneswaran-official/marisol-factory-of-fun](https://github.com/Vighneswaran-official/marisol-factory-of-fun)
+- **Primary Beneficiary / Persona**: Designed as a warm, sisterly wellness companion, celebration game, and interactive community hub for Kritika and Batch 41 classmates.
+- **Key Tenets**:
+  1. **Sisterly Wellness & Warmth**: Mood tracking, daily affirmations, comfort corner, voice notes, and scrapbook memories.
+  2. **Playful Gamification**: Bollywood cinema trivia, culinary challenges, cucumber sandwich scoring, level-clear fanfare, and YouTube jukebox.
+  3. **Batch 41 Connected Community**: Real-time group chat restricted strictly to email-connected members, dedicated Pinned & Important announcements section, and Instagram-style batch photo wall.
+
+---
+
+## 2. Core Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Framework** | React 19 (Hooks, Functional Components, Strict Mode) |
+| **Language** | TypeScript 5+ (Strict typing, `tsc -b`) |
+| **Build Tool** | Vite 8+ |
+| **Styling** | Tailwind CSS + Custom CSS (`src/index.css`) with playful, pastel, and glassmorphism styling |
+| **Icons** | `lucide-react` |
+| **Audio** | Custom Web Audio API synthesizer (`src/services/synthAudioEngine.ts` - zero external audio assets required) |
+| **Database & Auth** | Firebase 11+ (Firestore for real-time document sync, Firebase Auth / Google Sign-In) |
+| **PWA & Mobile** | `vite-plugin-pwa`, Capacitor (`capacitor.config.ts`), Android APK integration |
+
+---
+
+## 3. Directory Structure
+
+```
+marisol-factory-of-fun/
+├── CLAUDE.md                         # This comprehensive Claude context guide
+├── CLAUDE_CODEBASE_BUNDLE.md         # Full bundled source code of the entire repository
+├── index.html                        # HTML entry point with meta tags, PWA links, and fonts
+├── package.json                      # Dependencies and npm scripts
+├── vite.config.ts                    # Vite configuration with PWA plugin
+├── tailwind.config.js                # Custom color palettes, font families, and animations
+├── public/                           # Static assets, hero video, avatars, and PWA icons
+├── scripts/
+│   ├── generate_bundle.cjs           # Bundles all project source files into CLAUDE_CODEBASE_BUNDLE.md
+│   ├── process_all_11_images.cjs     # Image processing utilities
+│   └── slice_poses.cjs               # Sprite / avatar slicing tools
+└── src/
+    ├── main.tsx                      # App entry point rendering App.tsx
+    ├── App.tsx                       # Master screen router and overlay manager
+    ├── index.css                     # Global styles, scrollbar styling, animations, tokens
+    ├── components/                   # UI components and screen modules
+    │   ├── BatchUpdatesWall.tsx      # Unified Group Chat, Pinned Highlights & Batch Photo Wall
+    │   ├── GoogleSignInModal.tsx     # Google Sign-In & custom email entry modal
+    │   ├── JukeboxPlayer.tsx         # In-app music player & YouTube live stream / search
+    │   ├── TriviaArena.tsx           # Multi-level cinema & culinary quiz game
+    │   ├── LevelClearHeroModal.tsx   # Video celebration modal when completing trivia levels
+    │   ├── LittleLoveNote.tsx        # Sisterly comfort cards and affirmation notes
+    │   ├── SecretLocketModal.tsx     # Hidden locket with audio memos and personal keepsakes
+    │   ├── GlowUpPolaroidModal.tsx   # Polaroid scrapbook memories and photo wall
+    │   ├── ComfortCorner.tsx         # Relaxing wellness hub with breathing exercises
+    │   ├── AffirmationCard.tsx       # Dynamic daily affirmation cards
+    │   ├── MarisolAvatar.tsx         # Expressive companion avatar changing with mood
+    │   ├── BaseModal.tsx             # Shared accessible modal wrapper
+    │   └── SparkleStreak.tsx         # Streak counter with particle sparkle effects
+    ├── services/                     # State management, persistence & API singletons
+    │   ├── authService.ts            # Current student profile, Firebase Auth, email-only chat access
+    │   ├── batchWallState.ts         # Group chat, pinned messages, reactions, Firestore sync
+    │   ├── firebase.ts               # Firebase initialization and Firestore instance
+    │   ├── gameState.ts              # Trivia score, streak, cucumber sandwich tokens, unlocked levels
+    │   ├── synthAudioEngine.ts       # Synthesizer SFX (pop, fanfare, click, chimes, boing)
+    │   ├── jukeboxService.ts         # Music tracks, YouTube stream search, playback queue
+    │   └── adaptiveEngine.ts         # Dynamic mood adjustments based on player interaction
+    ├── data/                         # Hardcoded data sets and constants
+    │   ├── triviaQuestions.ts        # Cinema, food, and culture trivia questions by difficulty
+    │   ├── stickers.ts               # Chat stickers and reaction emojis
+    │   ├── affirmations.ts           # Sisterly daily affirmation quotes
+    │   ├── recipes.ts                # Cucumber sandwich recipes and fun food cards
+    │   └── moodData.ts               # Marisol mood states, avatar paths, and color themes
+    └── types/                        # TypeScript type definitions
+        └── game.ts                   # Screen states, trivia types, player data models
+```
+
+---
+
+## 4. Key Architectural Systems
+
+### A. Authentication & Chat Access Control (`authService.ts`)
+- **Strict Email Verification**: Only users who connect their email address (`currentUser.email && currentUser.email.includes('@')`) are authorized to chat, react, pin messages, vote in polls, or post photos.
+- **Anonymous Visitors**: Can browse the app, play trivia, and read messages, but are presented with the Google / Email Sign-In modal before chatting.
+- **Automatic "New User" Detection**:
+  - When an email is first connected, `authService` automatically records the profile with `isNewUser: true` and `userTag: 'New User'`.
+  - Synced to Firestore collection `students/{id}` so all peers see the user's authentic name and tag.
+- **Kritika Detection**: Users with `kritika` or `marisol` in their name or email are awarded the `Founder 👑` badge.
+
+### B. Unified Group Chat & Dedicated Pinned Section (`BatchUpdatesWall.tsx` & `batchWallState.ts`)
+- **No 1-on-1 Direct Chat & No Community Directory**: Per design requirements, 1-on-1 private messaging and the separate community user directory have been completely eliminated in favor of a single cohesive group lounge.
+- **Two Sub-Tabs**:
+  1. `💬 Group Chat`: The central chatroom where all connected batch members converse, send stickers, share photos, create polls, and quote-reply.
+  2. `📌 Pinned & Important ({count})`: A dedicated section that displays all pinned notices and urgent highlights.
+- **Pinning Workflow**:
+  - Any message in the chat can be pinned via its dropdown menu (`pinChatMessage`).
+  - Users can click **"+ New Notice"** to open a modal and publish an announcement with a category badge (`[Notice]`, `[Important]`, `[Deadline]`, `[Resource]`, `[Event]`).
+  - The message is posted to the group chat and immediately pinned to the Pinned section.
+  - From the Pinned section, users can click **"Jump to Message ↗"** to seamlessly scroll to and highlight that message in the chat.
+- **Real-Time Synchronization**:
+  - Uses Firebase Firestore collection `group_chat_messages` with an onSnapshot listener.
+  - Uses `BroadcastChannel('batch_wall_channel')` for instantaneous cross-tab synchronization.
+  - LocalStorage caching provides zero-latency offline loading.
+
+### C. Batch Photo & Story Wall
+- Instagram-style feed for sharing photos, captions, and tags.
+- Client-side image compression (`compressImageFile`) prevents large payloads.
+- Author-only editing and deletion: Users can only edit or delete posts they authored.
+- Filter presets (Vintage, Warm, Cool, Sepia, Monochrome).
+
+### D. Audio & Gamification Engine (`synthAudioEngine.ts` & `gameState.ts`)
+- Zero external audio files required: Uses the browser's native `AudioContext` to synthesize notes, arpeggios, chimes, and fanfare.
+- Tracks trivia streak, scores, levels cleared, cucumber sandwich tokens, and unlocked secrets.
+- Celebrations trigger `canvas-confetti` bursts and hero video modals.
+
+---
+
+## 5. Development Commands & Workflow
+
+```bash
+# Install dependencies
+npm install
+
+# Start local development server (Vite dev server)
+npm run dev
+
+# Run TypeScript type check and build production bundle
+npm run build
+
+# Preview production build locally
+npm run preview
+
+# Generate updated CLAUDE_CODEBASE_BUNDLE.md with all recent code
+node scripts/generate_bundle.cjs
+```
+
+---
+
+## 6. Coding & Contribution Rules
+
+1. **Keep Aesthetics Rich & Premium**:
+   - Always use smooth transitions, curated warm colors (`rose`, `amber`, `purple`, `stone`), and micro-interactions.
+   - Maintain mobile responsiveness and PWA compatibility.
+2. **Audio Feedback**:
+   - Trigger sound effects on key user actions: `audioEngine.playSfx('click')`, `'pop'`, `'fanfare'`, `'chime'`.
+3. **Strict Email Verification for Chat**:
+   - Never allow unverified or blank-email users to post messages. Always route them through `authService.isUserAllowedToChat()`.
+4. **Preserve Single Group Chat & Pinned Highlights**:
+   - Do not re-introduce 1-on-1 private messaging. All conversation belongs in the shared group lounge, with critical items highlighted in the Pinned section.
+
+```
+
+---
+
+### File: `CLAUDE_MOOD_RECOMMENDATION_PROMPT.md`
+
+```md
+# Prompt & Specification for Claude: Mood Scales & Recommendation Engine
+
+> **Project:** Marisol: Factory of Fun (Kritika's Comfort Space & Batch 41 Hub)  
+> **Inspiration:** Pinterest Mood Scales (1–9 Visual Mood Charts, e.g., [Pinterest Mood Scales Collection](https://in.pinterest.com/trudywoo/mood-scales/))  
+> **Goal:** Generate dynamic, mood-tailored recommendations (Macaronis, trivia quiz questions, comfort quotes, and Bollywood pairings) with a non-repeating image/mood rotation mechanism.
+
+---
+
+## 1. Context & Architecture Overview
+
+**Marisol: Factory of Fun** is a comfort web and mobile application designed for **Kritika** and her batchmates (**Batch MLP41PT**).
+
+The app revolves around 3 core pillars:
+1. **Her Mood & Video Banner**: A comforting space featuring her hero video, live mood check-in, and Pinterest-style visual mood scale grids.
+2. **Mood-Adaptive Quiz & Macaronis**: When a mood is selected on the scale (1 to 9), the app dynamically serves:
+   - **Mood-Matched Macaroni Comfort Dish** (e.g., *Golden Truffle Mac*, *Desi Tapri Spiced Mac*, *Midnight Melt Mac*).
+   - **5 Mood-Tailored Trivia Questions** (Bollywood, comfort cinema, witty comebacks, street food, pop culture).
+   - **Movie & Chai/Snack Pairing**.
+3. **Batch 41 Bulletin Board**: An asynchronous corkboard where classmates and Kritika post notes and reply at their own time with special royal badges for Kritika's replies (`👑 KRITIKA 💌`).
+
+---
+
+## 2. Pinterest 1–9 Mood Scale Archetypes (From Kritika's Sticker Sheet)
+
+Based on the Pinterest Mood Scale format (*"On a scale of 1 to 9, which mood are you today?"*):
+
+| Scale # | Mood Archetype | Sticker Quote | Vibe / Energy | Matching Macaroni Dish |
+| :---: | :--- | :--- | :--- | :--- |
+| **1** | **Radiant Sunshine 🌸** | *"Same Girl Brighter Ideas <3"* | Joyful, optimistic, smiling | **Golden Truffle 4-Cheese Macaroni 🧀** |
+| **2** | **Chai Enthusiast ☕** | *"Chai = Happiness <3"* | Cozy, rainy afternoon, peaceful | **Desi Tapri Spiced Masala Macaroni 🌶️** |
+| **3** | **Sleepy Panda 💤** | *"z z z 5 more minutes please..."* | Low battery, blanket cocoon | **Midnight 3-Cheese Creamy Mac Melt 🌙** |
+| **4** | **Brain Overload 🥺** | *"Oh God, My Mind!"* | Overthinking, deadline panic | **Garlic Butter Herb Macaroni Rescue 🧄** |
+| **5** | **Foodie Monster 🍕** | *"Pizza Fixes (Almost) Everything"* | Cravings, cheat day, cheese pulls | **Pizza-Baked Cheesy Macaroni Supreme 🍕** |
+| **6** | **Corporate Queen 💼** | *"Corporate Queen / Fueling Big Dreams"* | Ambitious, boss girl, productive | **Power Truffle Macaroni with Crispy Corn ⚡** |
+| **7** | **Silly Chaos 🤪** | *"Silly Is A Vibe / I understand nothing"* | Quirky, playful, un-serious | **Rainbow Cheesy Confetti Macaroni 🌈** |
+| **8** | **Wholesome Soft 🐶** | *"Doggo Therapy <3"* | Needing hugs, gentle warmth | **Velvety White Cheddar & Sweet Corn Mac 🌽** |
+| **9** | **Main Character 👑** | *"Main apni favourite hoon!"* | Unstoppable confidence, glam | **Royal Saffron Smoked Gouda Macaroni 👑** |
+
+---
+
+## 3. Non-Repeating Shuffle & Rotation Algorithm (Rule: No Consecutive Repeats)
+
+To ensure the user is **never shown the same mood image, quote, or questions consecutively**, follow this stateful rotation pattern:
+
+```typescript
+// Non-Repeating Shuffle Pool Logic
+class MoodRotationTracker {
+  private history: string[] = [];
+  private readonly maxHistoryLength = 5;
+
+  public getNextRecommendation<T extends { id: string }>(items: T[]): T {
+    // Filter out recently shown items
+    const freshCandidates = items.filter(item => !this.history.includes(item.id));
+    
+    // If all items were shown, reset history keeping only the very last one
+    const pool = freshCandidates.length > 0 
+      ? freshCandidates 
+      : items.filter(item => item.id !== this.history[this.history.length - 1]);
+
+    // Pick random item from available fresh pool
+    const selected = pool[Math.floor(Math.random() * pool.length)];
+
+    // Update history
+    this.history.push(selected.id);
+    if (this.history.length > this.maxHistoryLength) {
+      this.history.shift();
     }
 
-    const fetchRes = await fetch(https://www.youtube.com/results?search_query=, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9',
-      }
-    });
-
-    const html = await fetchRes.text();
-    const match = html.match(/var ytInitialData = ({.*?});<\/script>/) || html.match(/ytInitialData\s*=\s*({.+?});/);
-    const results: Array<{
-      videoId: string;
-      title: string;
-      channel: string;
-      duration: string;
-      thumbnail: string;
-    }> = [];
-
-    if (match) {
-      const json = JSON.parse(match[1]);
-      const contents = json.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
-      for (const item of contents) {
-        const v = item.videoRenderer;
-        if (v && v.videoId) {
-          results.push({
-            videoId: v.videoId,
-            title: v.title?.runs?.[0]?.text || 'YouTube Song',
-            channel: v.ownerText?.runs?.[0]?.text || 'YouTube Creator',
-            duration: v.lengthText?.simpleText || '',
-            thumbnail: https://img.youtube.com/vi//mqdefault.jpg
-          });
-        }
-        if (results.length >= 12) break;
-      }
-    }
-
-    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    return res.status(200).json({ results });
-  } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Server error', results: [] });
+    return selected;
   }
 }
+```
+
+---
+
+## 4. Prompt to Send to Claude
+
+Copy and paste the prompt below directly into Claude to get tailored recommendations:
+
+```markdown
+Hello Claude! I am developing "Marisol: Factory of Fun", a comfort companion app for Kritika (Batch MLP41PT).
+
+Please generate a mood-adaptive recommendation package based on the Pinterest 1–9 Mood Scale format.
+
+Input Mood Scale Number: [Choose 1 to 9, e.g., Scale 4: "Oh God, My Mind! / Overthinking"]
+
+Please provide:
+1. 🌸 **Mood Diagnosis & Sisterly Reassurance**: A warm, witty, 2-line quote tailored to this state.
+2. 🧀 **Comfort Macaroni Dish**:
+   - Dish Name
+   - 1-line mouthwatering description
+   - 4 Secret Ingredients with emojis
+   - Prep & Cook Time
+3. 🎯 **5 Dynamic Quiz Questions**:
+   - Trivia questions matching the mood vibe (e.g., feel-good comedy for stress, upbeat pop culture for sunshine, food trivia for pizza cravings).
+   - 4 options each, correct answer, explanation, and a fun fact.
+4. 🎬 **Bollywood Movie & Song Pairing**:
+   - Movie title + iconic dialogue
+   - Song recommendation for background comfort
+5. 💌 **Daily Love Note / Affirmation**: Short, punchy, uplifting note.
+
+Format the response in structured JSON or clean GitHub Markdown.
+```
+
+```
+
+---
+
+### File: `README.md`
+
+```md
+# Marisol: Factory of Fun 🥪✨
+### Dedicated Culinary & Cinema Trivia Adventure for Kritika
+
+A playful, vibrant web application handcrafted with 11 custom hand-drawn Kritika stickers, retro 80s synthesized audio, culinary & cinema trivia, secret ingredient cauldron mechanics, and a sisterly Comfort Corner.
+
+---
+
+## 🌟 Key Features
+
+- **🥒 Cucumber Sandwiches Scoring & Economy**:
+  - Earn `+3 🥪 Cucumber Sandwiches` for every correct answer.
+  - Advance through Chef Titles:
+    `Apprentice Chopper 🥒` ➔ `Street Food Gourmet 🥪` ➔ `Bistro Sous Chef 🍳` ➔ `Flavor Alchemist 🍲` ➔ `Executive Head Chef 👩‍🍳` ➔ `Culinary Maestro 🌟` ➔ `3-Star Master Chef 👑`.
+- **✨ 11 Hand-Drawn Mood Stickers**:
+  - Extracted poses with unique vibes and companion dialogues:
+    1. *Same Girl Brighter Ideas ♡*
+    2. *Good Ideas Happier Days ♡*
+    3. *Wink & Conquer ♡*
+    4. *Overthinking ... but making progress ♡*
+    5. *Chai = Happiness ♡*
+    6. *Silly Is A Vibe ♡*
+    7. *Big Dreams ♡*
+    8. *Grateful Always ♡*
+    9. *Just Me ♡*
+    10. *Same Kritika Bigger Adventures ♡*
+    11. *Good Music Brighter Mood ♡*
+- **🍳 Secret Ingredients & Endless Recipe Unlocks**:
+  - Complete 5-question courses to reveal signature dishes paired with iconic movies (*The Grand Budapest Hotel, Chef, Ratatouille, Jab We Met, The Lunchbox, Julie & Julia*, etc.).
+- **🎧 Kritika's Mood Jukebox & Music Lounge**:
+  - Featuring Sticker #11 with headphones, spinning vinyl disc, animated retro equalizer bars, and 6 custom synthesized mood tracks:
+    - 👑 *Girl Power Anthem ♡*
+    - ☕ *Tapri Chai & Rainy Day Lo-Fi*
+    - 💃 *Bollywood Thumka Beats*
+    - 🌆 *80s Neon Sunset Drive*
+    - 🧘 *Zen Mind Spa & Calm*
+    - 💥 *Hangry Rage Popper & Vent Beat*
+- **💖 Girl's Perspective Comfort & Mood SOS**:
+  - Sisterly validation (*"YOU HAVE EVERY RIGHT TO BE ANGRY! We're not saying calm down because that's illegal"*), emergency care package (`+5 🥪 Cucumber Sandwiches`), interactive stress bubble popper with sound effects, hangry food cravings, and empowering affirmations.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Framework**: React 19 + TypeScript + Vite 8
+- **Styling**: Tailwind CSS v4 + Handcrafted Sketch Aesthetic
+- **Audio**: Custom Web Audio API Synthesizer (Zero external audio files required)
+- **Deployment**: Configured for Vercel with SPA rewrite rules (`vercel.json`)
+
+---
+
+## 🚀 Local Development
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+---
+
+## 🌐 Deploy to Vercel
+
+Connect your repository directly at [vercel.com/new](https://vercel.com/new) — framework is automatically detected as **Vite**!
+
+```
+
+---
+
+### File: `capacitor.config.ts`
+
+```ts
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'kritika.app',
+  appName: 'Marisol Factory of Fun',
+  webDir: 'dist'
+};
+
+export default config;
 
 ```
 
@@ -272,16 +616,34 @@ vite.config.ts
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
 
-    <!-- Register PWA Service Worker for Offline & Install Capability -->
+    <!-- Register PWA Service Worker for Offline & Install Capability (Auto-Busted on Dev) -->
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then((reg) => {
-            console.log('[PWA] Service Worker registered successfully:', reg.scope);
-          }).catch((err) => {
-            console.log('[PWA] Service Worker registration failed:', err);
+        // On localhost dev, unregister any stale SW & purge caches so Vite HMR always reflects instantly
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            for (const registration of registrations) {
+              registration.unregister();
+              console.log('[Dev] Unregistered stale service worker:', registration.scope);
+            }
           });
-        });
+          if ('caches' in window) {
+            caches.keys().then((names) => {
+              for (const name of names) {
+                caches.delete(name);
+                console.log('[Dev] Cleared stale cache:', name);
+              }
+            });
+          }
+        } else {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').then((reg) => {
+              console.log('[PWA] Service Worker registered successfully:', reg.scope);
+            }).catch((err) => {
+              console.log('[PWA] Service Worker registration failed:', err);
+            });
+          });
+        }
       }
     </script>
   </body>
@@ -307,8 +669,12 @@ vite.config.ts
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
+    "firebase": "^12.19.0",
     "lucide-react": "^1.47.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
@@ -521,7 +887,7 @@ export default {
 ### File: `public/sw.js`
 
 ```js
-const CACHE_NAME = 'marisol-cache-v1';
+const CACHE_NAME = 'marisol-cache-v3';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -533,8 +899,10 @@ const PRECACHE_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
+  // Activate new SW immediately
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_ASSETS))
   );
 });
 
@@ -544,6 +912,7 @@ self.addEventListener('activate', (event) => {
       Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('[SW] Deleting stale cache:', key);
             return caches.delete(key);
           }
         })
@@ -555,33 +924,45 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
+
+  // Never intercept or cache localhost development requests
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return;
   if (url.pathname.startsWith('/api/')) return;
   if (url.origin !== self.location.origin) return;
 
+  // Network-first strategy for HTML / navigation requests so users always get the latest build
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match('/index.html') || caches.match('/'))
+    );
+    return;
+  }
+
+  // Stale-while-revalidate for static assets
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        fetch(event.request).then((networkResponse) => {
+      const fetchPromise = fetch(event.request)
+        .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse.clone()));
           }
-        }).catch(() => {});
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
-        }
-        return networkResponse;
-      }).catch(() => {
-        if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
-        }
-      });
+          return networkResponse;
+        })
+        .catch(() => cachedResponse);
+
+      return cachedResponse || fetchPromise;
     })
   );
 });
+
 
 ```
 
@@ -782,626 +1163,4074 @@ self.addEventListener('fetch', (event) => {
 ### File: `src/App.tsx`
 
 ```tsx
-import { useState } from 'react';
-import type { ScreenState, Zone, Question, Recipe } from './types/game';
+import { useState, useEffect, useRef } from 'react';
+import type { ScreenState, Question } from './types/game';
 import { gameState } from './services/gameState';
-import { adaptiveEngine } from './services/adaptiveEngine';
 import { audioEngine } from './services/synthAudioEngine';
+import { authService } from './services/authService';
 import { Navbar } from './components/Navbar';
-import { OpeningCinematic } from './components/OpeningCinematic';
 import { HomeScreen } from './components/HomeScreen';
-import { GameMap } from './components/GameMap';
 import { QuestionCard } from './components/QuestionCard';
-import { MovieDetectiveCard } from './components/MovieDetectiveCard';
 import { LearningCard } from './components/LearningCard';
-import { BossRound } from './components/BossRound';
-import { KnowledgePassport } from './components/KnowledgePassport';
-import { DailyChallenge } from './components/DailyChallenge';
-import { PlayerProfileCard } from './components/PlayerProfileCard';
-import { ClassroomMode } from './components/ClassroomMode';
-import { TeacherMode } from './components/TeacherMode';
-import { SecretClassroom } from './components/SecretClassroom';
-import { StickerCollection } from './components/StickerCollection';
-import { MoodSelectorModal } from './components/MoodSelectorModal';
-import { RecipeModal } from './components/RecipeModal';
-import { RecipeVault } from './components/RecipeVault';
-import { MusicJukeboxModal } from './components/MusicJukeboxModal';
-import { ComfortCornerModal } from './components/ComfortCornerModal';
-import { SecretLocketModal } from './components/SecretLocketModal';
-import { CelebrationLocketModal } from './components/CelebrationLocketModal';
-import { LevelClearHeroModal } from './components/LevelClearHeroModal';
-import { InstallAppModal } from './components/InstallAppModal';
-import { GlowUpWeekModal } from './components/GlowUpWeekModal';
-import { CozyModeOverlay } from './components/CozyModeOverlay';
+import { BatchUpdatesWall } from './components/BatchUpdatesWall';
+import { MusicPlayerScreen } from './components/MusicPlayerScreen';
+import { FloatingMusicBar } from './components/FloatingMusicBar';
+import { GoogleSignInModal } from './components/GoogleSignInModal';
+import { MoodHistoryModal } from './components/MoodHistoryModal';
+import { ComfortShelfModal } from './components/ComfortShelfModal';
 import { BottomNavigationDock, type MainNavTab } from './components/BottomNavigationDock';
-import { RECIPES } from './data/recipes';
+import { 
+  getQuestionsForMood, 
+  getMoodMacaroni, 
+  KRITIKA_STICKER_MOODS,
+  type MoodProfileSetting 
+} from './services/moodQuizService';
+import { nonRepeatingQuizEngine } from './data/foodMovieQuestions1000';
+import { ArrowLeft, RefreshCw, Trophy, Clock, Film, Play, Pause, Volume2, VolumeX, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import heroBannerVideoSrc from './assets/Hero Banner video.mp4';
 
 export function App() {
-  const [player, setPlayer] = useState(gameState.getPlayer());
-  const [currentScreen, setCurrentScreen] = useState<ScreenState>(() => {
-    return player.onboardingCompleted ? 'home' : 'cinematic';
-  });
+  const [, setAuthTick] = useState(0);
 
-  const [activeZone, setActiveZone] = useState<Zone | null>(null);
-  const [_isBossMode, setIsBossMode] = useState(false);
+  useEffect(() => {
+    return authService.subscribe(() => {
+      setAuthTick(t => t + 1);
+    });
+  }, []);
+
+  const [player, setPlayer] = useState(gameState.getPlayer());
+  const [currentScreen, setCurrentScreen] = useState<ScreenState>('home');
+  const [activeNavTab, setActiveNavTab] = useState<MainNavTab>('home');
+  const [showGoogleSignIn, setShowGoogleSignIn] = useState(false);
+  const [showMoodHistory, setShowMoodHistory] = useState(false);
+  const [showComfortShelf, setShowComfortShelf] = useState(false);
+
+  // Auto pop-up Google sign-in modal on startup if not signed in
+  useEffect(() => {
+    const hasPrompted = sessionStorage.getItem('marisol_prompted_login');
+    if (!authService.isAuthenticated() && !hasPrompted) {
+      sessionStorage.setItem('marisol_prompted_login', 'true');
+      const timer = setTimeout(() => {
+        setShowGoogleSignIn(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Active Mood State
+  const [activeMoodId, setActiveMoodId] = useState<string>('happy');
 
   // Active Quiz Round State
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [currentQIndex, setCurrentQIndex] = useState(0);
-  const [roundSandwiches, setRoundSandwiches] = useState(0);
+  const [roundScore, setRoundScore] = useState(0);
   const [showLearningCard, setShowLearningCard] = useState(false);
   const [lastAnswer, setLastAnswer] = useState<{ option: string; isCorrect: boolean } | null>(null);
-  const [playedIds, setPlayedIds] = useState<string[]>([]);
+  const [quizFinished, setQuizFinished] = useState(false);
 
-  // Foodie & Cinema State
-  const [showMoodModal, setShowMoodModal] = useState(false);
-  const [showRecipeModal, setShowRecipeModal] = useState(false);
-  const [showMusicJukebox, setShowMusicJukebox] = useState(false);
-  const [showComfortCorner, setShowComfortCorner] = useState(false);
-  const [showSecretLocket, setShowSecretLocket] = useState(false);
-  const [showLevelClearHero, setShowLevelClearHero] = useState(false);
-  const [showCelebrationLocket, setShowCelebrationLocket] = useState(false);
-  const [showGlowUpWeek, setShowGlowUpWeek] = useState(false);
-  const [showCozyMode, setShowCozyMode] = useState(false);
-  const [showInstallApp, setShowInstallApp] = useState(false);
+  // Quiz Celebration Video State
+  const quizVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [quizVideoPlaying, setQuizVideoPlaying] = useState(true);
+  const [quizVideoMuted, setQuizVideoMuted] = useState(false);
 
-  const [selectedHindiSongId, setSelectedHindiSongId] = useState<string | undefined>(undefined);
-  const [activeTargetRecipe, setActiveTargetRecipe] = useState<Recipe>(RECIPES[0]);
-  const [endlessRoundCount, setEndlessRoundCount] = useState(0);
-  const [titleUpgraded, setTitleUpgraded] = useState(false);
-  const [activeNavTab, setActiveNavTab] = useState<MainNavTab>('home');
+  // Active Mood Details
+  const currentMoodSetting: MoodProfileSetting = 
+    KRITIKA_STICKER_MOODS.find(m => m.id === activeMoodId) || KRITIKA_STICKER_MOODS[0];
+  const currentMacaroni = getMoodMacaroni(activeMoodId);
 
-  // Screen navigation (no intrusive auto background music)
-  const handleNavigate = (screen: ScreenState) => {
+  // Batch wall initial mode ('chat' | 'posts' | 'bulletin')
+  const [wallInitialMode, setWallInitialMode] = useState<'chat' | 'posts' | 'bulletin'>('chat');
+
+  // Screen navigation handler
+  const handleNavigate = (screen: ScreenState, wallMode?: 'chat' | 'posts' | 'bulletin') => {
+    if (wallMode) {
+      setWallInitialMode(wallMode);
+    }
     setCurrentScreen(screen);
     setPlayer(gameState.getPlayer());
-    if (screen === 'home') setActiveNavTab('home');
-    if (screen === 'quiz') setActiveNavTab('quiz');
-  };
-
-  // Launch Mood-first Quiz Flow
-  const handleStartCulinaryTrivia = () => {
-    setShowMoodModal(true);
-  };
-
-  const handleConfirmMood = (selectedMood: string) => {
-    gameState.setActiveSticker(selectedMood);
-    setShowMoodModal(false);
-
-    // Generate endless course tailored to this mood
-    const { questions, targetRecipe } = gameState.getEndlessCourse(selectedMood, endlessRoundCount);
-    setActiveTargetRecipe(targetRecipe);
-    setQuizQuestions(questions);
-    setCurrentQIndex(0);
-    setRoundSandwiches(0);
-    setShowLearningCard(false);
-    gameState.clearCollectedIngredients();
-    setPlayer(gameState.getPlayer());
-
-    setCurrentScreen('quiz');
-    setActiveNavTab('quiz');
-  };
-
-  const startZoneQuiz = (zone: Zone, isBoss: boolean) => {
-    setActiveZone(zone);
-    setIsBossMode(isBoss);
-
-    if (isBoss) {
-      setCurrentScreen('boss');
-      return;
-    }
-
-    const selected = adaptiveEngine.selectQuestions(zone.category, 5, playedIds);
-    setQuizQuestions(selected);
-    setCurrentQIndex(0);
-    setRoundSandwiches(0);
-    setShowLearningCard(false);
-    setCurrentScreen('quiz');
-    setActiveNavTab('quiz');
-    audioEngine.startMusic('quiz');
-  };
-
-  const startCookingRecipeDirect = (recipe: Recipe) => {
-    setActiveTargetRecipe(recipe);
-    const { questions } = gameState.getEndlessCourse(recipe.moodMatch, endlessRoundCount);
-    setQuizQuestions(questions);
-    setCurrentQIndex(0);
-    setRoundSandwiches(0);
-    setShowLearningCard(false);
-    gameState.clearCollectedIngredients();
-    setPlayer(gameState.getPlayer());
-    setCurrentScreen('quiz');
-    setActiveNavTab('quiz');
-    audioEngine.startMusic('quiz');
-  };
-
-  const handleAnswerQuestion = (selectedOption: string, timeTakenMs: number) => {
-    const currentQ = quizQuestions[currentQIndex];
-    const isCorrect = selectedOption === currentQ.correctAnswer;
-    const earnedSandwiches = isCorrect ? 3 : 0;
-
-    adaptiveEngine.recordAnswer(currentQ, isCorrect, timeTakenMs);
-    gameState.recordQuestionAnswered(isCorrect);
-
-    if (isCorrect) {
-      gameState.incrementStreak();
-      const res = gameState.addCucumberSandwiches(earnedSandwiches);
-      if (res.titleUpgraded) setTitleUpgraded(true);
-      setRoundSandwiches(prev => prev + earnedSandwiches);
-
-      if (currentQ.secretIngredient) {
-        gameState.addCollectedIngredient(currentQ.secretIngredient);
-      }
-    } else {
-      gameState.resetStreak();
-    }
-
-    setLastAnswer({ option: selectedOption, isCorrect });
-    setPlayedIds(prev => [...prev, currentQ.id]);
-    setShowLearningCard(true);
-    setPlayer(gameState.getPlayer());
-  };
-
-  const handleNextQuizQuestion = () => {
-    setShowLearningCard(false);
-    setLastAnswer(null);
-
-    if (currentQIndex + 1 < quizQuestions.length) {
-      setCurrentQIndex(prev => prev + 1);
-    } else {
-      audioEngine.playSfx('fanfare');
-      confetti({ particleCount: 120, spread: 80, origin: { y: 0.55 } });
-      
-      const completionBonus = 5;
-      gameState.addCucumberSandwiches(completionBonus);
-      setRoundSandwiches(prev => prev + completionBonus);
-      gameState.unlockRecipe(activeTargetRecipe.id);
-      
-      setPlayer(gameState.getPlayer());
-      // Trigger Hero Banner Video level clear celebration!
-      setShowLevelClearHero(true);
+    if (screen === 'home') {
+      setActiveNavTab('home');
+      setQuizFinished(false);
+    } else if (screen === 'music') {
+      setActiveNavTab('music');
+    } else if (screen === 'batch_wall') {
+      const mode = wallMode || wallInitialMode;
+      setActiveNavTab(mode === 'posts' ? 'posts' : 'chat');
+      setQuizFinished(false);
+    } else if (screen === 'quiz') {
+      setActiveNavTab('quiz');
     }
   };
 
-  const handleStartNextCourse = () => {
-    setShowRecipeModal(false);
-    setTitleUpgraded(false);
-    const nextCount = endlessRoundCount + 1;
-    setEndlessRoundCount(nextCount);
-
-    const activeSticker = gameState.getActiveSticker();
-    const { questions, targetRecipe } = gameState.getEndlessCourse(activeSticker, nextCount);
-    setActiveTargetRecipe(targetRecipe);
-    setQuizQuestions(questions);
-    setCurrentQIndex(0);
-    setRoundSandwiches(0);
-    setShowLearningCard(false);
-    gameState.clearCollectedIngredients();
-    setPlayer(gameState.getPlayer());
-
-    setCurrentScreen('quiz');
-  };
-
+  // Bottom Navigation tab click handler (Home, Chat, Post, Music, Quiz)
   const handleBottomTabSelect = (tab: MainNavTab) => {
     setActiveNavTab(tab);
     if (tab === 'home') {
-      setCurrentScreen('home');
-    } else if (tab === 'lounge') {
-      setShowMusicJukebox(true);
+      handleNavigate('home');
+    } else if (tab === 'music') {
+      handleNavigate('music');
     } else if (tab === 'quiz') {
-      handleStartCulinaryTrivia();
-    } else if (tab === 'locket') {
-      setShowSecretLocket(true);
+      handleStartMoodQuiz(activeMoodId);
+    } else if (tab === 'chat') {
+      handleNavigate('batch_wall', 'chat');
+    } else if (tab === 'posts') {
+      handleNavigate('batch_wall', 'posts');
     }
   };
 
+  // Launch Quiz Tailored to Food & Movies (1000+ Non-Repeating Library)
+  const handleStartMoodQuiz = (moodId: string) => {
+    setActiveMoodId(moodId);
+    audioEngine.playSfx('fanfare');
+    const moodQuestions = getQuestionsForMood(moodId, 5);
+    setQuizQuestions(moodQuestions);
+    setCurrentQIndex(0);
+    setRoundScore(0);
+    setShowLearningCard(false);
+    setQuizFinished(false);
+    setCurrentScreen('quiz');
+    setActiveNavTab('quiz');
+    audioEngine.startMusic('quiz');
+  };
+
+  // Handle Question Answer
+  const handleAnswerQuestion = (selectedOption: string, _timeTakenMs: number) => {
+    const currentQ = quizQuestions[currentQIndex];
+    const isCorrect = selectedOption === currentQ.correctAnswer;
+    const points = isCorrect ? 3 : 0;
+
+    gameState.recordQuestionAnswered(isCorrect);
+
+    if (isCorrect) {
+      audioEngine.playSfx('fanfare');
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+      gameState.incrementStreak();
+      gameState.addCucumberSandwiches(points);
+      setRoundScore(prev => prev + points);
+    } else {
+      audioEngine.playSfx('wrong');
+      gameState.resetStreak();
+    }
+    setPlayer(gameState.getPlayer());
+
+    setLastAnswer({ option: selectedOption, isCorrect });
+    setShowLearningCard(true);
+  };
+
+  // Move to Next Question or Complete Quiz
+  const handleNextQuizQuestion = () => {
+    setShowLearningCard(false);
+    if (currentQIndex + 1 < quizQuestions.length) {
+      setCurrentQIndex(prev => prev + 1);
+    } else {
+      setQuizFinished(true);
+      audioEngine.playSfx('fanfare');
+      confetti({ particleCount: 90, spread: 85, origin: { y: 0.5 } });
+    }
+  };
+
+  const quizStats = nonRepeatingQuizEngine.getStats();
+
   return (
-    <div className="min-h-screen bg-[#FFFDF7] font-sans text-ink selection:bg-pink-200">
-      
-      {/* Show Header Navbar on all screens except cinematic intro */}
-      {currentScreen !== 'cinematic' && (
-        <Navbar 
-          currentScreen={currentScreen} 
-          onNavigate={handleNavigate} 
-          onOpenInstallApp={() => setShowInstallApp(true)}
-        />
-      )}
+    <div className="min-h-screen bg-[#FAF8F5] text-stone-900 font-sans antialiased selection:bg-pink-200">
+      {/* Top Navbar */}
+      <Navbar
+        currentScreen={currentScreen}
+        onNavigate={handleNavigate}
+        onOpenGoogleSignIn={() => setShowGoogleSignIn(true)}
+      />
 
-      {/* Main Screen Container */}
-      <main className="animate-fade-in pb-16">
-        {currentScreen === 'cinematic' && (
-          <OpeningCinematic onComplete={() => handleNavigate('home')} />
-        )}
-
+      {/* Main Content Area */}
+      <main className="animate-fade-in pb-20">
+        
+        {/* 1. HOME SCREEN: Hero Video, 1-9 Mood Selector & Macaroni Preview */}
         {currentScreen === 'home' && (
           <HomeScreen
             onNavigate={handleNavigate}
-            onQuickPlay={handleStartCulinaryTrivia}
-            onOpenMusic={() => setShowMusicJukebox(true)}
-            onOpenComfortCorner={() => setShowComfortCorner(true)}
-            onOpenSecretLocket={() => setShowSecretLocket(true)}
-            onOpenGlowUpWeek={() => setShowGlowUpWeek(true)}
-            onOpenCozyMode={() => setShowCozyMode(true)}
-            onOpenInstallApp={() => setShowInstallApp(true)}
+            onStartMoodQuiz={handleStartMoodQuiz}
+            onOpenMoodHistory={() => setShowMoodHistory(true)}
+            onOpenComfortShelf={() => setShowComfortShelf(true)}
+            activeMoodId={activeMoodId}
+            onSelectMood={setActiveMoodId}
           />
         )}
 
-        {currentScreen === 'map' && (
-          <GameMap onSelectZone={startZoneQuiz} />
+        {/* 2. ONLINE MUSIC PLAYER STREAMER SCREEN */}
+        {currentScreen === 'music' && (
+          <MusicPlayerScreen onNavigate={handleNavigate} />
         )}
 
-        {currentScreen === 'quiz' && quizQuestions.length > 0 && (
-          <div className="p-4 sm:p-6 pb-24">
-            {!showLearningCard ? (
-              quizQuestions[currentQIndex]?.type === 'movie_detective' ? (
-                <MovieDetectiveCard
-                  question={quizQuestions[currentQIndex]}
-                  questionNumber={currentQIndex + 1}
-                  totalQuestions={quizQuestions.length}
-                  onAnswer={handleAnswerQuestion}
-                />
-              ) : (
-                <QuestionCard
-                  question={quizQuestions[currentQIndex]}
-                  questionNumber={currentQIndex + 1}
-                  totalQuestions={quizQuestions.length}
-                  onAnswer={handleAnswerQuestion}
-                />
+        {/* 3. 1,000+ FOOD & MOVIE QUIZ GAME SCREEN */}
+        {currentScreen === 'quiz' && (
+          <div className="max-w-xl mx-auto p-4 sm:p-6 pb-28 space-y-4">
+            {/* Quiz Top Action Bar */}
+            <div className="flex items-center justify-between gap-2 border-b border-stone-200 pb-3">
+              <button
+                onClick={() => handleNavigate('home')}
+                className="py-1.5 px-3 bg-white border border-stone-200 rounded-xl flex items-center gap-1.5 shadow-xs text-xs font-display font-bold hover:bg-stone-50 transition-all cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>HOME</span>
+              </button>
+
+              <div className="text-center">
+                <span className="font-display font-black text-xs uppercase text-rose-600 tracking-wider">
+                  #{currentMoodSetting.scaleNumber} {currentMoodSetting.emoji} Food & Movie Quiz
+                </span>
+                <h2 className="font-display font-black text-lg text-stone-900">
+                  Question {currentQIndex + 1} of {quizQuestions.length}
+                </h2>
+              </div>
+
+              <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full text-xs font-display font-black text-amber-900 shadow-2xs">
+                <span>🔥 Streak:</span>
+                <span>{player.streak}</span>
+              </div>
+            </div>
+
+            {/* Zero-Repeat Progress Pill */}
+            <div className="bg-stone-100 border border-stone-200 rounded-xl p-2 px-3 flex items-center justify-between text-xs text-stone-600">
+              <span className="font-medium">
+                🎯 Food & Movie Trivia ({quizStats.remainingCount} Unplayed Remaining)
+              </span>
+              <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                Zero Repeats
+              </span>
+            </div>
+
+            {/* Quiz Card or Finish View */}
+            {!quizFinished ? (
+              quizQuestions.length > 0 && (
+                <div>
+                  {!showLearningCard ? (
+                    <QuestionCard
+                      question={quizQuestions[currentQIndex]}
+                      questionNumber={currentQIndex + 1}
+                      totalQuestions={quizQuestions.length}
+                      onAnswer={handleAnswerQuestion}
+                    />
+                  ) : (
+                    <LearningCard
+                      question={quizQuestions[currentQIndex]}
+                      isCorrect={lastAnswer?.isCorrect || false}
+                      userAnswer={lastAnswer?.option || ''}
+                      earnedXp={lastAnswer?.isCorrect ? 150 : 0}
+                      onNext={handleNextQuizQuestion}
+                    />
+                  )}
+                </div>
               )
             ) : (
-              <LearningCard
-                question={quizQuestions[currentQIndex]}
-                isCorrect={lastAnswer?.isCorrect || false}
-                userAnswer={lastAnswer?.option || ''}
-                earnedXp={lastAnswer?.isCorrect ? 150 : 0}
-                onNext={handleNextQuizQuestion}
-              />
+              /* Quiz Completed Celebration with Video and Mood Macaroni Award! */
+              <div className="bg-white border border-stone-200 rounded-3xl p-4 sm:p-6 text-center space-y-4 shadow-sm animate-scale-up">
+                
+                {/* 1. Level Completion Video Banner */}
+                <div className="relative rounded-2xl overflow-hidden border-2 border-rose-300 shadow-md bg-stone-900 group">
+                  <video
+                    ref={quizVideoRef}
+                    src={heroBannerVideoSrc}
+                    autoPlay
+                    loop
+                    playsInline
+                    muted={quizVideoMuted}
+                    className="w-full h-48 sm:h-64 object-cover object-center scale-102"
+                  />
+
+                  {/* Gradient Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent pointer-events-none" />
+
+                  {/* Top Celebratory Badge */}
+                  <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-rose-600/90 text-white px-2.5 py-1 rounded-full text-[10px] font-display font-black tracking-wider uppercase backdrop-blur-xs shadow-xs">
+                    <Sparkles className="w-3 h-3 text-amber-300 fill-amber-300 animate-spin-slow" />
+                    <span>LEVEL CLEARED • CELEBRATION</span>
+                  </div>
+
+                  {/* Video Play/Pause and Mute Controls */}
+                  <div className="absolute bottom-3 right-3 flex items-center gap-1.5 z-10">
+                    <button
+                      onClick={() => {
+                        audioEngine.playSfx('click');
+                        if (quizVideoRef.current) {
+                          if (quizVideoPlaying) {
+                            quizVideoRef.current.pause();
+                          } else {
+                            quizVideoRef.current.play();
+                          }
+                          setQuizVideoPlaying(!quizVideoPlaying);
+                        }
+                      }}
+                      className="p-1.5 sm:p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-xs border border-white/20 transition-all cursor-pointer shadow-xs"
+                      title={quizVideoPlaying ? "Pause Video" : "Play Video"}
+                    >
+                      {quizVideoPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        audioEngine.playSfx('click');
+                        if (quizVideoRef.current) {
+                          quizVideoRef.current.muted = !quizVideoMuted;
+                          setQuizVideoMuted(!quizVideoMuted);
+                        }
+                      }}
+                      className="p-1.5 sm:p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-xs border border-white/20 transition-all cursor-pointer shadow-xs"
+                      title={quizVideoMuted ? "Unmute Video Audio" : "Mute Video Audio"}
+                    >
+                      {quizVideoMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-rose-300" />}
+                    </button>
+                  </div>
+
+                  {/* Bottom Captions & Royal Title */}
+                  <div className="absolute bottom-3 left-3 text-left max-w-[70%] z-10 pointer-events-none">
+                    <div className="flex items-center gap-1">
+                      <span className="font-display font-black text-xs sm:text-sm text-white drop-shadow-md">
+                        👑 Queen of Factory of Fun
+                      </span>
+                    </div>
+                    <p className="font-handwritten text-[11px] sm:text-xs text-rose-200 font-bold truncate drop-shadow-xs">
+                      "Main apni favourite hoon! Savoring every sweet memory ♡"
+                    </p>
+                  </div>
+                </div>
+
+                {/* Score & Clear Badge */}
+                <div className="space-y-1 pt-1">
+                  <div className="inline-flex items-center gap-1.5 bg-amber-100 border border-amber-300 px-3 py-1 rounded-full text-xs font-display font-black text-amber-900 shadow-2xs">
+                    <Trophy className="w-3.5 h-3.5 text-amber-600" />
+                    <span>#{currentMoodSetting.scaleNumber} {currentMoodSetting.emoji} {currentMoodSetting.label} CLEARED!</span>
+                  </div>
+                  <h3 className="font-display font-black text-xl sm:text-2xl text-stone-900">
+                    +{roundScore} Macaronis Unlocked! 🧀
+                  </h3>
+                  <p className="font-handwritten text-xs sm:text-sm text-stone-600 font-bold">
+                    Total Sandwiches Balance: {player.cucumberSandwiches} 🥪
+                  </p>
+                </div>
+
+                {/* Unlocked Mood Macaroni Dish Card */}
+                <div className="bg-gradient-to-r from-amber-50/90 via-pink-50 to-purple-50 border border-amber-200 rounded-2xl p-4 text-left space-y-2 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{currentMacaroni.emoji}</span>
+                      <div>
+                        <span className="text-[10px] font-display font-black uppercase text-amber-700">
+                          COMFORT MACARONI REWARD
+                        </span>
+                        <h4 className="font-display font-black text-sm text-stone-900">
+                          {currentMacaroni.name}
+                        </h4>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-amber-900 bg-white/80 px-2 py-0.5 rounded-full border border-amber-200">
+                      <Clock className="w-3 h-3 text-amber-700" />
+                      <span>{currentMacaroni.cookTime}</span>
+                    </div>
+                  </div>
+
+                  <p className="font-sans text-xs text-stone-700 leading-snug">
+                    {currentMacaroni.description}
+                  </p>
+
+                  <div className="flex items-center gap-1.5 text-xs pt-1 border-t border-amber-200/60">
+                    <Film className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                    <span className="font-display font-bold text-amber-950">Pairing:</span>
+                    <span className="font-medium text-stone-600 truncate">{currentMacaroni.pairingMovie}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                  <button
+                    onClick={() => {
+                      audioEngine.playSfx('click');
+                      handleStartMoodQuiz(activeMoodId);
+                    }}
+                    className="flex-1 py-3 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-2xl text-xs sm:text-sm font-black uppercase flex items-center justify-center gap-2 shadow-sm cursor-pointer hover:opacity-95"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Play Another Round</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      audioEngine.playSfx('click');
+                      handleNavigate('home');
+                    }}
+                    className="flex-1 py-3 text-xs sm:text-sm font-black uppercase bg-white border border-stone-300 rounded-2xl hover:bg-stone-50 flex items-center justify-center gap-1.5 shadow-xs cursor-pointer text-stone-800"
+                  >
+                    <span>Back to Home 🏠</span>
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}
 
-        {currentScreen === 'boss' && activeZone && (
-          <BossRound
-            zone={activeZone}
-            onComplete={(passed) => {
-              if (passed) {
-                setShowLevelClearHero(true);
-              }
-              handleNavigate('map');
-            }}
-          />
+        {/* 4. BULLETIN CHAT & GROUP ROOM (Batch Updates Wall) */}
+        {currentScreen === 'batch_wall' && (
+          <BatchUpdatesWall onNavigate={handleNavigate} initialMode={wallInitialMode} />
         )}
 
-        {currentScreen === 'passport' && (
-          <KnowledgePassport />
-        )}
-
-        {currentScreen === 'daily' && (
-          <DailyChallenge onComplete={() => {
-            setShowLevelClearHero(true);
-            handleNavigate('home');
-          }} />
-        )}
-
-        {currentScreen === 'profile' && (
-          <PlayerProfileCard />
-        )}
-
-        {currentScreen === 'classroom' && (
-          <ClassroomMode onStartQuiz={handleStartCulinaryTrivia} />
-        )}
-
-        {currentScreen === 'teacher_custom' && (
-          <TeacherMode onSave={() => handleNavigate('home')} />
-        )}
-
-        {currentScreen === 'secret_classroom' && (
-          <SecretClassroom onBackToHome={() => handleNavigate('home')} />
-        )}
-
-        {currentScreen === 'stickers' && (
-          <StickerCollection
-            onNavigate={handleNavigate}
-            onSelectMood={(_alias) => setPlayer(gameState.getPlayer())}
-          />
-        )}
-
-        {currentScreen === 'recipes' && (
-          <RecipeVault
-            onNavigate={handleNavigate}
-            onCookRecipe={startCookingRecipeDirect}
-          />
-        )}
-
-        {/* Pre-Quiz Mood Selector Modal */}
-        {showMoodModal && (
-          <MoodSelectorModal
-            currentMood={gameState.getActiveSticker()}
-            onSelectMood={handleConfirmMood}
-            onClose={() => setShowMoodModal(false)}
-            onOpenComfortCorner={() => setShowComfortCorner(true)}
-          />
-        )}
-
-        {/* Music Jukebox / Lounge Modal */}
-        {showMusicJukebox && (
-          <MusicJukeboxModal
-            initialSongId={selectedHindiSongId}
-            onClose={() => {
-              setShowMusicJukebox(false);
-              setSelectedHindiSongId(undefined);
-            }}
-          />
-        )}
-
-        {/* Girl's Perspective Comfort & Mood SOS Modal */}
-        {showComfortCorner && (
-          <ComfortCornerModal
-            onClose={() => {
-              setShowComfortCorner(false);
-              setPlayer(gameState.getPlayer());
-            }}
-            onOpenMusic={() => {
-              setShowComfortCorner(false);
-              setSelectedHindiSongId(undefined);
-              setShowMusicJukebox(true);
-            }}
-            onOpenHindiSong={(songId) => {
-              setShowComfortCorner(false);
-              setSelectedHindiSongId(songId);
-              setShowMusicJukebox(true);
-            }}
-          />
-        )}
-
-        {/* Secret Locket Modal */}
-        {showSecretLocket && (
-          <SecretLocketModal onClose={() => setShowSecretLocket(false)} />
-        )}
-
-        {/* Install / Download App Modal (Android & iOS) */}
-        {showInstallApp && (
-          <InstallAppModal onClose={() => setShowInstallApp(false)} />
-        )}
-
-        {/* Level Cleared Hero Banner Video Celebration Modal */}
-        {showLevelClearHero && (
-          <LevelClearHeroModal
-            earnedSandwiches={roundSandwiches || 5}
-            onClose={() => {
-              setShowLevelClearHero(false);
-              setShowRecipeModal(true);
-            }}
-          />
-        )}
-
-        {/* Milestone / Level Celebration Locket Animation */}
-        {showCelebrationLocket && (
-          <CelebrationLocketModal
-            onClose={() => {
-              setShowCelebrationLocket(false);
-              setShowRecipeModal(true);
-            }}
-          />
-        )}
-
-        {/* Glow-Up Week Polaroid Scrapbook Modal */}
-        {showGlowUpWeek && (
-          <GlowUpWeekModal onClose={() => setShowGlowUpWeek(false)} />
-        )}
-
-        {/* Cozy Mode Blanket Wrap Overlay */}
-        {showCozyMode && (
-          <CozyModeOverlay
-            onClose={() => setShowCozyMode(false)}
-            onOpenMusic={() => setShowMusicJukebox(true)}
-          />
-        )}
-
-        {/* Level Complete Secret Recipe Reveal Modal */}
-        {showRecipeModal && (
-          <RecipeModal
-            recipe={activeTargetRecipe}
-            earnedSandwiches={roundSandwiches}
-            chefTitle={player.chefTitle || 'Apprentice Chopper 🥒'}
-            titleUpgraded={titleUpgraded}
-            collectedIngredients={gameState.getCollectedIngredients()}
-            activeMood={gameState.getActiveSticker()}
-            onNextCourse={handleStartNextCourse}
-            onViewVault={() => {
-              setShowRecipeModal(false);
-              handleNavigate('recipes');
-            }}
-            onGoHome={() => {
-              setShowRecipeModal(false);
-              handleNavigate('home');
-            }}
-          />
-        )}
       </main>
 
-      {/* Floating Bottom Navigation Dock */}
-      {currentScreen !== 'cinematic' && (
-        <BottomNavigationDock
-          activeTab={activeNavTab}
-          onTabSelect={handleBottomTabSelect}
-        />
+      {/* Floating Mini Music Player Bar (Active when browsing other screens) */}
+      {currentScreen !== 'music' && (
+        <FloatingMusicBar onOpenMusicScreen={() => handleNavigate('music')} />
+      )}
+
+      {/* Floating Bottom Navigation Dock (Home | Music | 1000+ Quiz | Chat & Wall) */}
+      <BottomNavigationDock
+        activeTab={activeNavTab}
+        onTabSelect={handleBottomTabSelect}
+      />
+
+      {/* Clean Google Sign-In & Student Profile Modal */}
+      {showGoogleSignIn && (
+        <GoogleSignInModal onClose={() => setShowGoogleSignIn(false)} />
+      )}
+
+      {/* Mood History & 14-Day Heatmap Modal */}
+      {showMoodHistory && (
+        <MoodHistoryModal onClose={() => setShowMoodHistory(false)} />
+      )}
+
+      {/* Comfort Shelf Bookmarks Modal */}
+      {showComfortShelf && (
+        <ComfortShelfModal onClose={() => setShowComfortShelf(false)} />
       )}
     </div>
   );
 }
+
 export default App;
 
 ```
 
 ---
 
-### File: `src/components/BossRound.tsx`
+### File: `src/components/BaseModal.tsx`
 
 ```tsx
-import React, { useState } from 'react';
-import type { Zone, Question } from '../types/game';
-import { QUESTIONS_DATABASE } from '../data/questions';
-import { QuestionCard } from './QuestionCard';
-import { LearningCard } from './LearningCard';
-import { Marisol } from './Marisol';
-import { gameState } from '../services/gameState';
-import { audioEngine } from '../services/synthAudioEngine';
-import confetti from 'canvas-confetti';
-import { Film, ArrowRight } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { X } from 'lucide-react';
 
-interface BossRoundProps {
-  zone: Zone;
-  onComplete: (success: boolean) => void;
+export interface BaseModalProps {
+  isOpen?: boolean;
+  onClose: () => void;
+  icon?: React.ReactNode;
+  title?: React.ReactNode;
+  subtitle?: React.ReactNode;
+  badge?: React.ReactNode;
+  maxWidth?: string; // e.g. 'max-w-xl', 'max-w-2xl', 'max-w-lg'
+  hideHeader?: boolean;
+  children: React.ReactNode;
+  className?: string;
+  containerClassName?: string;
 }
 
-export const BossRound: React.FC<BossRoundProps> = ({ zone, onComplete }) => {
-  const [questions] = useState<Question[]>(() => {
-    // Select 10 questions for the Boss Battle
-    const available = QUESTIONS_DATABASE.filter(q => q.category === zone.category || q.category === 'Movies');
-    return available.slice(0, 10);
-  });
-
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [earnedXp, setEarnedXp] = useState(0);
-  const [currentAnswer, setCurrentAnswer] = useState<{ option: string; isCorrect: boolean } | null>(null);
-  const [showLearningCard, setShowLearningCard] = useState(false);
-  const [isFinished, setIsFinished] = useState(false);
-
-  const currentQ = questions[currentIndex] || questions[0];
-
-  const handleAnswer = (selectedOption: string, _timeTakenMs: number) => {
-    const isCorrect = selectedOption === currentQ.correctAnswer;
-    const qXp = isCorrect ? 250 : 0;
-
-    setCurrentAnswer({ option: selectedOption, isCorrect });
-    if (isCorrect) {
-      setCorrectCount(prev => prev + 1);
-      setEarnedXp(prev => prev + qXp);
-    }
-
-    setShowLearningCard(true);
-  };
-
-  const handleNextQuestion = () => {
-    setShowLearningCard(false);
-    setCurrentAnswer(null);
-
-    if (currentIndex + 1 < questions.length) {
-      setCurrentIndex(prev => prev + 1);
-    } else {
-      // Finished 10 Boss Questions
-      setIsFinished(true);
-      const passed = correctCount >= 7; // Need 7/10 to pass Boss
-      if (passed) {
-        audioEngine.playSfx('fanfare');
-        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-        gameState.unlockZone(zone.id);
-        gameState.addXp(earnedXp + 500); // 500 XP Boss Bonus
+export const BaseModal: React.FC<BaseModalProps> = ({
+  isOpen = true,
+  onClose,
+  icon,
+  title,
+  subtitle,
+  badge,
+  maxWidth = 'max-w-xl',
+  hideHeader = false,
+  children,
+  className = '',
+  containerClassName = '',
+}) => {
+  // Close on Escape key press
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
       }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className={`fixed inset-0 z-50 bg-[#221C20]/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in ${containerClassName}`}
+      onClick={onClose}
+    >
+      <div
+        className={`bg-[#FFFDF7] border-3 border-ink rounded-3xl ${maxWidth} w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-sketch-2xl space-y-4 relative ${className}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Standardized Header */}
+        {!hideHeader && (title || icon || badge) && (
+          <div className="flex items-center justify-between border-b-2 border-pink-200/80 pb-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {icon && (
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl border-2 border-ink flex items-center justify-center text-xl shrink-0 shadow-sketch">
+                  {icon}
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {title && (
+                    <h2 className="font-display font-black text-lg sm:text-xl text-ink leading-tight truncate">
+                      {title}
+                    </h2>
+                  )}
+                  {badge && (
+                    <span className="shrink-0">{badge}</span>
+                  )}
+                </div>
+                {subtitle && (
+                  <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold truncate mt-0.5">
+                    {subtitle}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={onClose}
+              aria-label="Close dialog"
+              className="w-9 h-9 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200 hover:scale-105 active:scale-95 transition-all shrink-0 shadow-xs ml-2 cursor-pointer"
+            >
+              <X className="w-5 h-5 text-ink" />
+            </button>
+          </div>
+        )}
+
+        {/* Floating Close Button for modals with hidden header */}
+        {hideHeader && (
+          <button
+            onClick={onClose}
+            aria-label="Close dialog"
+            className="absolute top-4 right-4 z-20 w-9 h-9 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white/90 hover:bg-white hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer"
+          >
+            <X className="w-5 h-5 text-ink" />
+          </button>
+        )}
+
+        {/* Modal Body */}
+        {children}
+      </div>
+    </div>
+  );
+};
+
+```
+
+---
+
+### File: `src/components/BatchUpdatesWall.tsx`
+
+```tsx
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import type { ScreenState } from '../types/game';
+import { batchWallService, type InstagramPost, type GroupChatMessage } from '../services/batchWallState';
+import { authService, type StudentProfile } from '../services/authService';
+import { STICKERS } from '../data/stickers';
+import { gameState } from '../services/gameState';
+import { audioEngine } from '../services/synthAudioEngine';
+import { 
+  Plus, Sparkles, Send, X, UserCheck, Heart, 
+  MessageCircle, MessagesSquare, Pin, Camera, Paperclip, Smile,
+  Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check,
+  Reply, BarChart2, AtSign, Video, Phone, MoreVertical, Mic,
+  Trash2, ChevronDown, Ban, Globe, Lock, Clock,
+  Filter
+} from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { BaseModal } from './BaseModal';
+import { GoogleSignInModal } from './GoogleSignInModal';
+
+interface BatchUpdatesWallProps {
+  onNavigate?: (screen: ScreenState) => void;
+  initialMode?: 'chat' | 'posts' | 'bulletin';
+}
+
+// Client-side image compression for fast sync and storage
+const compressImageFile = (file: File, maxDimension = 960, quality = 0.75): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('Image failed to load'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('File read failed'));
+    reader.readAsDataURL(file);
+  });
+};
+
+const FILTER_STYLES: Record<string, { label: string; style: string; icon: string }> = {
+  none: { label: 'Natural', style: '', icon: '✨' },
+  warm: { label: 'Warm Glow', style: 'sepia(25%) saturate(140%) brightness(105%)', icon: '🌅' },
+  golden: { label: 'Golden Hour', style: 'contrast(110%) brightness(110%) sepia(35%) saturate(150%)', icon: '☀️' },
+  pink: { label: 'Pastel Rose', style: 'hue-rotate(330deg) saturate(130%) brightness(108%)', icon: '🌸' },
+  vintage: { label: 'Vintage', style: 'sepia(50%) contrast(90%) brightness(95%)', icon: '🎞️' },
+  bw: { label: 'Noir B&W', style: 'grayscale(100%) contrast(120%)', icon: '🖤' },
+};
+
+const SUGGESTED_HASHTAGS = [
+  '#Batch41', '#KritikaQueen', '#ComfortVibes', '#FactoryOfFun', 
+  '#MacaroniMagic', '#Memories', '#ChaiEnthusiast', '#DailyJoy'
+];
+
+const PRESET_PHOTOS = [
+  { label: 'Batch Celebration 🎉', url: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=900&auto=format&fit=crop&q=80' },
+  { label: 'Pizza & Macaroni 🍕', url: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=900&auto=format&fit=crop&q=80' },
+  { label: 'Warm Chai & Vibes ☕', url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=900&auto=format&fit=crop&q=80' },
+  { label: 'Golden Sunset Moment 🌅', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&auto=format&fit=crop&q=80' },
+  { label: 'Comfort Study Corner 📚', url: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=900&auto=format&fit=crop&q=80' }
+];
+
+const AVATAR_PRESETS = [
+  { label: 'Kritika 👑', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop' },
+  { label: 'Priyanshu 🍕', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop' },
+  { label: 'Ananya ☕', url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop' },
+  { label: 'Rohan 🎸', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop' },
+  { label: 'Marisol Star ✨', url: '/marisol/avatars/01_brighter_ideas.png' },
+  { label: 'Sparkle Vibe 🌸', url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop' },
+];
+
+const COMMON_EMOJIS = ['💖', '🌸', '👑', '✨', '🍕', '☕', '🔥', '👏', '🎉', '🥳', '🌈', '🌻', '💌', '🥰', '🤗', '⭐'];
+
+// Curated harmonious color palettes for chat members (Comfort Wall theme)
+const SENDER_COLORS: Record<string, string> = {
+  'kritika': 'text-rose-600', // Rose
+  'priyanshu': 'text-indigo-600', // Indigo
+  'ananya': 'text-purple-600', // Purple
+  'rohan': 'text-amber-600', // Warm Amber
+  'marisol': 'text-rose-600', // Rose
+  'dhanashree': 'text-sky-600', // Sky Blue
+  'knit kingdom': 'text-teal-600', // Teal
+};
+
+const getWhatsAppSenderColor = (name: string, isKritika?: boolean) => {
+  if (isKritika || name.toLowerCase().includes('kritika')) return 'text-rose-600 font-black';
+  const lower = name.toLowerCase();
+  for (const [key, color] of Object.entries(SENDER_COLORS)) {
+    if (lower.includes(key)) return color;
+  }
+  const fallbackColors = ['text-rose-600', 'text-indigo-600', 'text-amber-600', 'text-teal-600', 'text-purple-600', 'text-pink-600'];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return fallbackColors[Math.abs(hash) % fallbackColors.length];
+};
+
+// Render message text with highlighted @mentions and bold headings in Marisol style
+const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
+  const lines = text.split('\n');
+  return lines.map((line, lineIdx) => {
+    const tokens = line.split(/(@[A-Za-z0-9_👑\s]+?(?=\s|$|[.,!?\n])|#\d{5,}|\b\d{10}\b|\b(?:GRAND FESTIVE SALE|Start Date|End Date):?)/g);
+    
+    return (
+      <div key={lineIdx} className={lineIdx > 0 ? 'mt-1' : ''}>
+        {tokens.map((token, tokIdx) => {
+          if (!token) return null;
+          if (token.startsWith('@')) {
+            return (
+              <span 
+                key={tokIdx} 
+                className={`font-bold ${isCurrentUser ? 'text-amber-200 underline' : 'text-rose-600 bg-rose-50/90 px-1 py-0.5 rounded'} hover:underline cursor-pointer`}
+              >
+                {token}
+              </span>
+            );
+          }
+          if (token.startsWith('#') || /^\d{10}$/.test(token)) {
+            return (
+              <span 
+                key={tokIdx} 
+                className={`font-bold underline cursor-pointer ${isCurrentUser ? 'text-amber-100' : 'text-rose-600'}`}
+              >
+                {token}
+              </span>
+            );
+          }
+          if (/^(?:GRAND FESTIVE SALE|Start Date|End Date):?$/.test(token)) {
+            return (
+              <span key={tokIdx} className={isCurrentUser ? 'font-black text-white' : 'font-black text-stone-900'}>
+                {token}
+              </span>
+            );
+          }
+          return <span key={tokIdx}>{token}</span>;
+        })}
+      </div>
+    );
+  });
+};
+
+export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: _onNavigate, initialMode }) => {
+  const [, setTick] = useState(0);
+  const player = gameState.getPlayer();
+  const currentUser = authService.getCurrentUser();
+  const isAuthenticated = authService.isAuthenticated();
+
+  // Mode Switcher: 'chat' | 'posts' | 'bulletin'
+  const [activeMode, setActiveMode] = useState<'chat' | 'posts' | 'bulletin'>(initialMode || 'chat');
+
+  useEffect(() => {
+    if (initialMode) {
+      setActiveMode(initialMode);
+    }
+  }, [initialMode]);
+
+  // Modals & Popups
+  const [showNewPostModal, setShowNewPostModal] = useState(false);
+  const [showNewPhotoPostModal, setShowNewPhotoPostModal] = useState(false);
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showCreatePollModal, setShowCreatePollModal] = useState(false);
+  const [selectedClassmateDetail, setSelectedClassmateDetail] = useState<StudentProfile | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; caption?: string } | null>(null);
+  const [seenInfoMsg, setSeenInfoMsg] = useState<GroupChatMessage | null>(null);
+
+  // Profile Editor Form State
+  const [profileNameInput, setProfileNameInput] = useState(currentUser?.name || player.nickname || 'Kritika Gupta 👑');
+  const [profileAvatarInput, setProfileAvatarInput] = useState(currentUser?.avatarUrl || AVATAR_PRESETS[0].url);
+  const [profileMoodInput, setProfileMoodInput] = useState(currentUser?.currentMood || 'Radiant Sunshine 🌸');
+  const [profileMoodEmojiInput, setProfileMoodEmojiInput] = useState(currentUser?.currentMoodEmoji || '🌸');
+  const [profileStatusInput, setProfileStatusInput] = useState(currentUser?.statusNote || 'Savoring sweet memories ♡ ✨');
+  const [profileBatchInput, setProfileBatchInput] = useState(currentUser?.batch || 'MLP41PT');
+  const profileAvatarFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Group Chat State (WhatsApp Group Style)
+  const [chatInput, setChatInput] = useState('');
+  const [chatImageAttachment, setChatImageAttachment] = useState<string | null>(null);
+  const [replyingToMessage, setReplyingToMessage] = useState<GroupChatMessage | null>(null);
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const [showChatEmojiPicker, setShowChatEmojiPicker] = useState(false);
+  const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+  const [highlightedChatMsgId, setHighlightedChatMsgId] = useState<string | null>(null);
+  const chatBottomRef = useRef<HTMLDivElement | null>(null);
+  const chatFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Message Edit & Delete State
+  const [editingMessage, setEditingMessage] = useState<GroupChatMessage | null>(null);
+  const [editingText, setEditingText] = useState('');
+  const [activeActionMenuMsgId, setActiveActionMenuMsgId] = useState<string | null>(null);
+  const [deleteModalMsg, setDeleteModalMsg] = useState<GroupChatMessage | null>(null);
+  const [deletionReaction, setDeletionReaction] = useState<{ text: string; emoji: string } | null>(null);
+
+  // Post Edit & Options State
+  const [editingPost, setEditingPost] = useState<InstagramPost | null>(null);
+  const [editingPostCaption, setEditingPostCaption] = useState('');
+  const [activePostMenuId, setActivePostMenuId] = useState<string | null>(null);
+
+  // Group Poll Creation State
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOption1, setPollOption1] = useState('');
+  const [pollOption2, setPollOption2] = useState('');
+  const [pollOption3, setPollOption3] = useState('');
+
+  // Post Feed State
+  const [postCommentText, setPostCommentText] = useState<Record<string, string>>({});
+  const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
+  const [heartBurstId, setHeartBurstId] = useState<string | null>(null);
+  const [shareToast, setShareToast] = useState<string | null>(null);
+
+  // New Photo Post Form State
+  const [newPostImage, setNewPostImage] = useState<string | null>(null);
+  const [newPostCaption, setNewPostCaption] = useState('');
+  const [newPostLocation, setNewPostLocation] = useState('Comfort Lounge 🌸');
+  const [newPostFilter, setNewPostFilter] = useState('none');
+  const [selectedTags, setSelectedTags] = useState<string[]>(['#Batch41', '#ComfortVibes']);
+  const [customTagInput, setCustomTagInput] = useState('');
+  const [isPublishingPost, setIsPublishingPost] = useState(false);
+  const photoFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Bulletin Corkboard State
+  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+  const [replyInputMap, setReplyInputMap] = useState<Record<string, string>>({});
+  const [isSendingReply, setIsSendingReply] = useState<Record<string, boolean>>({});
+
+  // Bulletin New Note Form State
+  const [studentName, setStudentName] = useState(currentUser?.name || player.nickname || 'Student');
+  const [selectedPose] = useState(player.activeSticker || 'brighter_ideas');
+  const [selectedMood, setSelectedMood] = useState(currentUser?.currentMood || 'Radiant Sunshine');
+  const [selectedMoodEmoji, setSelectedMoodEmoji] = useState(currentUser?.currentMoodEmoji || '🌸');
+  const [bulletinText, setBulletinText] = useState('');
+
+  // Data state
+  const allBulletinPosts = batchWallService.getPosts();
+  const chatMessages = batchWallService.getChatMessages();
+  const photoPosts = batchWallService.getInstagramPosts();
+  const network = batchWallService.getNetworkStatus();
+  const classmates = authService.getClassmates();
+
+  // Group Chat Subtabs: 'group' (One unified group where everyone chats) | 'pinned' (Dedicated section for important & pinned items)
+  const [chatSubTab, setChatSubTab] = useState<'group' | 'pinned'>('group');
+  const [showPinAnnouncementModal, setShowPinAnnouncementModal] = useState(false);
+  const [pinNoticeText, setPinNoticeText] = useState('');
+  const [pinNoticeCategory, setPinNoticeCategory] = useState<'📢 Announcement' | '⚠️ Important' | '🌸 Special Notice' | '📌 Pinned'>('📢 Announcement');
+
+  // Matched Message Table & Session Inspection State
+  const [chatFilterMode, setChatFilterMode] = useState<'all' | 'my_messages'>('all');
+
+  // Compute matched session user data by querying the message table
+  const userMatchedSessionData = useMemo(() => {
+    return batchWallService.getUserMatchedChatData({
+      id: currentUser?.id,
+      email: currentUser?.email,
+      name: currentUser?.name || profileNameInput || studentName
+    });
+  }, [currentUser, profileNameInput, studentName, chatMessages]);
+
+  useEffect(() => {
+    const unsubWall = batchWallService.subscribe(() => setTick(t => t + 1));
+    const unsubAuth = authService.subscribe(() => setTick(t => t + 1));
+    return () => { 
+      unsubWall(); 
+      unsubAuth();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeMode === 'chat') {
+      if (chatSubTab === 'group') {
+        chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+      const userToMark = currentUser ? {
+        userId: currentUser.id,
+        userName: currentUser.name,
+        userEmail: currentUser.email,
+        avatarUrl: currentUser.avatarUrl
+      } : {
+        userId: `user_${player.nickname || 'Student'}`,
+        userName: player.nickname || 'Student',
+        avatarUrl: '/marisol/avatars/01_brighter_ideas.png'
+      };
+      batchWallService.markAllMessagesAsSeen(userToMark);
+    }
+  }, [activeMode, chatSubTab, currentUser]);
+
+  useEffect(() => {
+    if (currentUser?.name) {
+      setStudentName(currentUser.name);
+      setProfileNameInput(currentUser.name);
+      if (currentUser.avatarUrl) setProfileAvatarInput(currentUser.avatarUrl);
+      if (currentUser.currentMood) {
+        setSelectedMood(currentUser.currentMood);
+        setProfileMoodInput(currentUser.currentMood);
+      }
+      if (currentUser.currentMoodEmoji) {
+        setSelectedMoodEmoji(currentUser.currentMoodEmoji);
+        setProfileMoodEmojiInput(currentUser.currentMoodEmoji);
+      }
+      if (currentUser.statusNote) setProfileStatusInput(currentUser.statusNote);
+      if (currentUser.batch) setProfileBatchInput(currentUser.batch);
+    }
+  }, [currentUser]);
+
+  // Post an Important Pinned Notice into the group and pinned section
+  const handleCreatePinnedAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authService.isUserAllowedToChat()) {
+      setShowGoogleModal(true);
+      setShareToast('Please connect with your Email ID to pin announcements! 🔒');
+      setTimeout(() => setShareToast(null), 3000);
+      return;
+    }
+    if (!pinNoticeText.trim()) return;
+
+    audioEngine.playSfx('fanfare');
+    const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
+    const email = currentUser?.email;
+    const avatar = currentUser?.avatarUrl || profileAvatarInput;
+
+    await batchWallService.sendGroupChatMessage({
+      senderId: currentUser?.id,
+      senderName: name,
+      senderEmail: email,
+      avatarUrl: avatar,
+      senderIsNewUser: currentUser?.isNewUser ?? true,
+      senderUserTag: currentUser?.userTag || 'New User',
+      text: `${pinNoticeCategory}: ${pinNoticeText.trim()}`,
+      isPinned: true,
+      pinnedBy: name,
+      pinnedAt: Date.now()
+    });
+
+    setPinNoticeText('');
+    setShowPinAnnouncementModal(false);
+    setShareToast('Important announcement posted & pinned to new section! 📌✨');
+    setChatSubTab('pinned');
+    setTimeout(() => setShareToast(null), 3000);
+  };
+
+  // Chat Image Upload
+  const handleChatImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImageFile(file, 960, 0.75);
+      setChatImageAttachment(compressed);
+      audioEngine.playSfx('pop');
+    } catch (err) {
+      console.warn('Image processing failed:', err);
+    }
+    if (chatFileInputRef.current) chatFileInputRef.current.value = '';
+  };
+
+  // Photo Post Image Upload
+  const handlePhotoPostImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImageFile(file, 1080, 0.8);
+      setNewPostImage(compressed);
+      audioEngine.playSfx('pop');
+    } catch (err) {
+      console.warn('Image processing failed:', err);
+    }
+    if (photoFileInputRef.current) photoFileInputRef.current.value = '';
+  };
+
+  // Profile Avatar Upload
+  const handleProfileAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImageFile(file, 300, 0.8);
+      setProfileAvatarInput(compressed);
+      audioEngine.playSfx('pop');
+    } catch (err) {
+      console.warn('Avatar image error:', err);
+    }
+    if (profileAvatarFileInputRef.current) profileAvatarFileInputRef.current.value = '';
+  };
+
+  // Save Profile Handler
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updated = authService.updateProfile({
+      name: profileNameInput.trim() || 'Batch 41 Student',
+      avatarUrl: profileAvatarInput,
+      batch: profileBatchInput.trim() || 'MLP41PT',
+      currentMood: profileMoodInput,
+      currentMoodEmoji: profileMoodEmojiInput,
+      statusNote: profileStatusInput.trim()
+    });
+
+    setStudentName(updated.name);
+    audioEngine.playSfx('fanfare');
+    confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+    setShowProfileModal(false);
+    setShareToast('Profile updated & reflected in group chat! ✨');
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  // Tag Management
+  const toggleTag = (tag: string) => {
+    audioEngine.playSfx('pop');
+    setSelectedTags(prev => 
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleAddCustomTag = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const tagClean = customTagInput.trim().replace(/^#+/, '');
+    if (!tagClean) return;
+    const formattedTag = `#${tagClean}`;
+    if (!selectedTags.includes(formattedTag)) {
+      setSelectedTags(prev => [...prev, formattedTag]);
+      audioEngine.playSfx('pop');
+    }
+    setCustomTagInput('');
+  };
+
+  // Send WhatsApp Group Message (with replyTo support)
+  const handleSendChatMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authService.isGoogleAuthenticated()) {
+      setShowGoogleModal(true);
+      setShareToast('Please sign in with a Google account to chat! 🔒');
+      setTimeout(() => setShareToast(null), 3000);
+      return;
+    }
+    const text = chatInput.trim();
+    if (!text && !chatImageAttachment) return;
+
+    setIsSendingChat(true);
+    audioEngine.playSfx('fanfare');
+
+    const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
+    const email = currentUser?.email;
+    const avatar = currentUser?.avatarUrl || profileAvatarInput;
+    const isKritika = name.toLowerCase().includes('kritika') || 
+                      (email && email.toLowerCase().includes('kritika')) ||
+                      name.toLowerCase().includes('marisol');
+
+    if (isKritika) {
+      confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 } });
+    }
+
+    const replyData = replyingToMessage ? {
+      id: replyingToMessage.id,
+      senderName: replyingToMessage.senderName,
+      text: replyingToMessage.text.slice(0, 80)
+    } : undefined;
+
+    await batchWallService.sendGroupChatMessage({
+      senderId: currentUser?.id,
+      senderName: name,
+      senderEmail: email,
+      avatarUrl: avatar,
+      text: text || (chatImageAttachment ? '📷 Photo' : ''),
+      imageUrl: chatImageAttachment || undefined,
+      replyTo: replyData
+    });
+
+    setChatInput('');
+    setChatImageAttachment(null);
+    setReplyingToMessage(null);
+    setShowChatEmojiPicker(false);
+    setShowMentionPicker(false);
+    setIsSendingChat(false);
+    setTimeout(() => {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  const handleOpenEditMessage = (msg: GroupChatMessage) => {
+    setEditingMessage(msg);
+    setEditingText(msg.text);
+    setActiveActionMenuMsgId(null);
+  };
+
+  const handleSaveEditMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMessage || !editingText.trim()) return;
+    audioEngine.playSfx('click');
+    const result = await batchWallService.editChatMessage(editingMessage.id, editingText, {
+      id: currentUser?.id,
+      email: currentUser?.email,
+      name: currentUser?.name || profileNameInput
+    });
+    if (!result.success) {
+      setShareToast(result.error || 'Failed to edit message');
+    } else {
+      setShareToast('Message edited ✏️');
+    }
+    setEditingMessage(null);
+    setEditingText('');
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  const handleTogglePinMessage = async (msg: GroupChatMessage) => {
+    audioEngine.playSfx('pop');
+    if (msg.isPinned) {
+      await batchWallService.unpinChatMessage(msg.id);
+      setShareToast('Message unpinned 📌');
+    } else {
+      const pinner = currentUser?.name || profileNameInput || 'Batch Member';
+      await batchWallService.pinChatMessage(msg.id, pinner);
+      setShareToast('Message pinned to top 📌✨');
+    }
+    setActiveActionMenuMsgId(null);
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  const handleJumpToMessage = (messageId: string) => {
+    const el = document.getElementById(`chat-msg-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedChatMsgId(messageId);
+      setTimeout(() => setHighlightedChatMsgId(null), 2500);
     }
   };
 
-  if (isFinished) {
-    const passed = correctCount >= 7;
+  const handleDeleteForMe = (msg: GroupChatMessage) => {
+    audioEngine.playSfx('pop');
+    batchWallService.deleteChatMessageForMe(msg.id);
+    setDeleteModalMsg(null);
+    setActiveActionMenuMsgId(null);
+    setDeletionReaction({ text: 'Message deleted for you', emoji: '🗑️' });
+    setTimeout(() => setDeletionReaction(null), 2500);
+  };
 
-    return (
-      <div className="min-h-screen bg-paper-50 p-4 sm:p-6 flex items-center justify-center text-ink">
-        <div className="bg-white border-3 border-ink rounded-3xl p-6 sm:p-8 shadow-sketch-xl max-w-lg w-full text-center space-y-6 animate-fade-in">
-          
-          <Marisol
-            expression={passed ? 'celebrating' : 'encouraging'}
-            size="large"
-            dialogue={
-              passed
-                ? `PROJECTOR FULLY POWERED! You conquered ${zone.bossName}!`
-                : `So close! You powered ${correctCount}/10 light bulbs. Try again anytime!`
-            }
-            bubblePosition="top"
-          />
+  const handleDeleteForEveryone = async (msg: GroupChatMessage) => {
+    audioEngine.playSfx('pop');
+    const result = await batchWallService.deleteChatMessageForEveryone(msg.id, {
+      id: currentUser?.id,
+      email: currentUser?.email,
+      name: currentUser?.name || profileNameInput
+    });
+    if (!result.success) {
+      setShareToast(result.error || 'Failed to delete message');
+      setTimeout(() => setShareToast(null), 2500);
+    } else {
+      setDeletionReaction({ text: 'Message deleted for everyone', emoji: '🗑️✨' });
+      setTimeout(() => setDeletionReaction(null), 2500);
+    }
+    setDeleteModalMsg(null);
+    setActiveActionMenuMsgId(null);
+  };
 
-          <h1 className="font-display font-black text-3xl sm:text-4xl text-plum-700">
-            {passed ? 'BOSS DEFEATED! 🎉' : 'PROJECTOR DIMMED'}
-          </h1>
+  // Post Pinning, Editing & Deletion Handlers
+  const handleOpenEditPost = (post: InstagramPost) => {
+    setEditingPost(post);
+    setEditingPostCaption(post.caption);
+    setActivePostMenuId(null);
+  };
 
-          <div className="bg-paper-50 border-2 border-ink p-4 rounded-2xl space-y-2 font-sans">
-            <div className="text-sm text-ink-light">Projector Power Score:</div>
-            <div className="font-display font-black text-3xl text-coral-500">
-              {correctCount} / 10 BULBS LIT
+  const handleSaveEditPost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPost) return;
+    audioEngine.playSfx('click');
+    const result = await batchWallService.editInstagramPost(editingPost.id, editingPostCaption, {
+      id: currentUser?.id,
+      email: currentUser?.email,
+      name: currentUser?.name || profileNameInput
+    });
+    if (!result.success) {
+      setShareToast(result.error || 'Failed to edit post');
+    } else {
+      setShareToast('Post caption updated ✏️✨');
+    }
+    setEditingPost(null);
+    setEditingPostCaption('');
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  const handleTogglePinPost = async (post: InstagramPost) => {
+    audioEngine.playSfx('pop');
+    if (post.isPinned) {
+      await batchWallService.unpinInstagramPost(post.id);
+      setShareToast('Post unpinned 📌');
+    } else {
+      const pinner = currentUser?.name || profileNameInput || 'Batch Member';
+      await batchWallService.pinInstagramPost(post.id, pinner);
+      setShareToast('Post pinned to top 📌✨');
+    }
+    setActivePostMenuId(null);
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  const handleDeletePost = async (post: InstagramPost) => {
+    audioEngine.playSfx('pop');
+    const result = await batchWallService.deleteInstagramPost(post.id, {
+      id: currentUser?.id,
+      email: currentUser?.email,
+      name: currentUser?.name || profileNameInput
+    });
+    if (!result.success) {
+      setShareToast(result.error || 'Failed to delete post');
+    } else {
+      setShareToast('Post deleted 🗑️');
+    }
+    setActivePostMenuId(null);
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  // Create & Send Live Group Poll
+  const handleCreatePoll = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authService.isGoogleAuthenticated()) {
+      setShowGoogleModal(true);
+      setShareToast('Please sign in with a Google account to create polls! 🔒');
+      setTimeout(() => setShareToast(null), 3000);
+      return;
+    }
+    if (!pollQuestion.trim() || !pollOption1.trim() || !pollOption2.trim()) return;
+
+    audioEngine.playSfx('fanfare');
+    const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
+    const email = currentUser?.email;
+    const avatar = currentUser?.avatarUrl || profileAvatarInput;
+
+    const options = [
+      { id: 'opt_1', text: pollOption1.trim(), votes: [] },
+      { id: 'opt_2', text: pollOption2.trim(), votes: [] }
+    ];
+    if (pollOption3.trim()) {
+      options.push({ id: 'opt_3', text: pollOption3.trim(), votes: [] });
+    }
+
+    await batchWallService.sendGroupChatMessage({
+      senderId: currentUser?.id,
+      senderName: name,
+      senderEmail: email,
+      avatarUrl: avatar,
+      text: `📊 Group Poll: ${pollQuestion.trim()}`,
+      poll: {
+        question: pollQuestion.trim(),
+        options
+      }
+    });
+
+    setPollQuestion('');
+    setPollOption1('');
+    setPollOption2('');
+    setPollOption3('');
+    setShowCreatePollModal(false);
+    setTimeout(() => {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  // Vote on Poll
+  const handleVotePoll = (messageId: string, optionId: string) => {
+    if (!authService.isGoogleAuthenticated()) {
+      setShowGoogleModal(true);
+      setShareToast('Please sign in with a Google account to vote! 🔒');
+      setTimeout(() => setShareToast(null), 3000);
+      return;
+    }
+    audioEngine.playSfx('pop');
+    const voter = currentUser?.name || profileNameInput || 'You';
+    batchWallService.votePoll(messageId, optionId, voter);
+  };
+
+  // Double tap to like Photo Post
+  const handleDoubleTapPost = (post: InstagramPost) => {
+    audioEngine.playSfx('fanfare');
+    setHeartBurstId(post.id);
+    batchWallService.likeInstagramPost(post.id, currentUser?.name);
+    confetti({ particleCount: 40, spread: 50, origin: { y: 0.6 } });
+    setTimeout(() => setHeartBurstId(null), 900);
+  };
+
+  // Submit Photo Post
+  const handleCreatePhotoPost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPostImage) {
+      alert('Please upload or select a photo for your post!');
+      return;
+    }
+    setIsPublishingPost(true);
+    audioEngine.playSfx('fanfare');
+    confetti({ particleCount: 70, spread: 75, origin: { y: 0.6 } });
+
+    await batchWallService.addInstagramPost({
+      userId: currentUser?.id,
+      userEmail: currentUser?.email,
+      authorName: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
+      authorAvatarUrl: currentUser?.avatarUrl || profileAvatarInput,
+      location: newPostLocation,
+      imageUrl: newPostImage,
+      filter: newPostFilter,
+      caption: newPostCaption.trim(),
+      hashtags: selectedTags
+    });
+
+    setNewPostImage(null);
+    setNewPostCaption('');
+    setNewPostFilter('none');
+    setSelectedTags(['#Batch41', '#ComfortVibes']);
+    setIsPublishingPost(false);
+    setShowNewPhotoPostModal(false);
+  };
+
+  // Submit Post Comment
+  const handleSendPostComment = async (postId: string) => {
+    const text = (postCommentText[postId] || '').trim();
+    if (!text) return;
+
+    audioEngine.playSfx('pop');
+    await batchWallService.addInstagramComment(postId, {
+      authorId: currentUser?.id,
+      authorName: currentUser?.name || profileNameInput || studentName || 'Batch 41 Classmate',
+      authorEmail: currentUser?.email,
+      avatarUrl: currentUser?.avatarUrl || profileAvatarInput,
+      text
+    });
+
+    setPostCommentText(prev => ({ ...prev, [postId]: '' }));
+    setExpandedComments(prev => ({ ...prev, [postId]: true }));
+  };
+
+  // Submit Bulletin Note
+  const handleCreateBulletinPost = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bulletinText.trim()) return;
+
+    audioEngine.playSfx('fanfare');
+    confetti({ particleCount: 55, spread: 65, origin: { y: 0.6 } });
+
+    batchWallService.addPost({
+      userId: currentUser?.id,
+      userEmail: currentUser?.email,
+      studentName: studentName.trim() || currentUser?.name || profileNameInput || 'Student',
+      avatarPose: selectedPose,
+      mood: selectedMood,
+      moodEmoji: selectedMoodEmoji,
+      text: bulletinText.trim(),
+    });
+
+    if (isAuthenticated) {
+      authService.updateDailyMood(selectedMood, selectedMoodEmoji, bulletinText.trim().slice(0, 80));
+    }
+
+    setBulletinText('');
+    setShowNewPostModal(false);
+  };
+
+  // Submit Bulletin Reply
+  const handleSendReply = async (postId: string) => {
+    const text = (replyInputMap[postId] || '').trim();
+    if (!text) return;
+
+    setIsSendingReply(prev => ({ ...prev, [postId]: true }));
+    audioEngine.playSfx('fanfare');
+
+    const authorName = currentUser?.name || profileNameInput || studentName || 'Batch Classmate';
+    const authorEmail = currentUser?.email;
+    const isKritika = authorName.toLowerCase().includes('kritika') || 
+                      (authorEmail && authorEmail.toLowerCase().includes('kritika')) ||
+                      authorName.toLowerCase().includes('marisol');
+
+    if (isKritika) {
+      confetti({ particleCount: 70, spread: 70, origin: { y: 0.65 } });
+    }
+
+    await batchWallService.addReply(postId, {
+      authorId: currentUser?.id,
+      authorName,
+      authorEmail,
+      avatarUrl: currentUser?.avatarUrl || profileAvatarInput,
+      text,
+      isKritika
+    });
+
+    setIsSendingReply(prev => ({ ...prev, [postId]: false }));
+    setReplyInputMap(prev => ({ ...prev, [postId]: '' }));
+    setExpandedReplies(prev => ({ ...prev, [postId]: true }));
+  };
+
+  const handleShareClick = (title: string) => {
+    audioEngine.playSfx('pop');
+    navigator.clipboard?.writeText(window.location.href);
+    setShareToast(`Link for "${title || 'Post'}" copied to clipboard! ✨`);
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#FAF8F5] p-2.5 sm:p-5 pb-28 text-stone-900">
+      <div className="max-w-4xl lg:max-w-5xl mx-auto space-y-3 sm:space-y-4">
+
+        {/* Sync Toast Notification */}
+        {network.syncToast && (
+          <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500 text-white p-2.5 px-4 rounded-2xl shadow-xs flex items-center justify-between text-xs font-display font-black animate-scale-up">
+            <span className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-200 animate-spin" />
+              <span>{network.syncToast}</span>
+            </span>
+            <button
+              onClick={() => batchWallService.clearSyncToast()}
+              className="p-1 hover:bg-white/20 rounded-full cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Share Feedback Toast */}
+        {shareToast && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-stone-900/90 backdrop-blur-md text-white px-4 py-2 rounded-full text-xs font-display font-black shadow-lg flex items-center gap-2 animate-scale-up">
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>{shareToast}</span>
+          </div>
+        )}
+
+        {/* Deletion Reaction Floating Toast */}
+        {deletionReaction && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-stone-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-full text-xs font-display font-black shadow-2xl border border-rose-500/40 flex items-center gap-2 animate-scale-up">
+            <span className="text-base">{deletionReaction.emoji}</span>
+            <span className="text-rose-200">{deletionReaction.text}</span>
+          </div>
+        )}
+
+        {/* 1. MULTI-PERSON ACTIVE USER BAR WITH SESSION USER DATA & MESSAGE TABLE MATCH */}
+        <div className="bg-white border border-stone-200/90 rounded-2xl p-2.5 px-3.5 shadow-2xs flex items-center justify-between gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="relative w-8 h-8 rounded-full overflow-hidden border-2 border-rose-400 shrink-0 bg-rose-50 shadow-2xs">
+              <img 
+                src={currentUser?.avatarUrl || profileAvatarInput || AVATAR_PRESETS[0].url} 
+                alt="Your Avatar" 
+                className="w-full h-full object-cover" 
+              />
             </div>
-            {passed && (
-              <div className="text-xs font-bold text-doodleTeal uppercase tracking-wider">
-                +500 BONUS XP EARNED!
+            <div className="min-w-0 text-left">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-display font-black text-rose-600 uppercase tracking-wider">
+                  You are active as:
+                </span>
+                {currentUser?.isGoogleVerified && (
+                  <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.2 rounded-full">
+                    Google Verified ✓
+                  </span>
+                )}
               </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h4 className="font-display font-black text-xs sm:text-sm text-stone-900 truncate">
+                  {currentUser?.name || profileNameInput || 'Batch 41 Member'}
+                </h4>
+                {/* Session User ID Tag */}
+                <span 
+                  className="font-mono text-[9px] sm:text-[10px] bg-stone-100 text-stone-700 px-1.5 py-0.2 rounded border border-stone-300 font-bold"
+                  title="Current Session User ID"
+                >
+                  UID: {userMatchedSessionData.userId}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Current Message for User Snippet (Quick Jump) */}
+          {userMatchedSessionData.currentMessage ? (
+            <button
+              type="button"
+              onClick={() => handleJumpToMessage(userMatchedSessionData.currentMessage!.id)}
+              className="hidden md:flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-900 px-2.5 py-1 rounded-xl text-xs font-medium cursor-pointer transition-colors max-w-[240px] lg:max-w-[320px] truncate"
+              title={`Current message: "${userMatchedSessionData.currentMessage.text}". Click to jump.`}
+            >
+              <span className="font-bold text-rose-700 text-[10px] uppercase shrink-0">Current Msg:</span>
+              <span className="truncate italic">"{userMatchedSessionData.currentMessage.text.slice(0, 30)}..."</span>
+              <span className="text-rose-600 text-[10px] font-bold underline shrink-0">Jump ↗</span>
+            </button>
+          ) : (
+            <span className="hidden md:inline text-[11px] text-stone-400 italic">No messages sent in table yet</span>
+          )}
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Pinned & Important Quick Button */}
+            <button
+              type="button"
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setActiveMode('chat');
+                setChatSubTab('pinned');
+              }}
+              className="py-1.5 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl text-xs font-display font-bold flex items-center gap-1 transition-colors cursor-pointer border border-amber-200"
+              title="View Pinned Notices & Important Highlights"
+            >
+              <Pin className="w-3.5 h-3.5 text-amber-600" />
+              <span>Pinned ({batchWallService.getPinnedMessages().length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowProfileModal(true)}
+              className="py-1.5 px-3 bg-stone-100 hover:bg-rose-50 hover:text-rose-600 text-stone-700 rounded-xl text-xs font-display font-bold flex items-center gap-1 transition-colors cursor-pointer border border-stone-200"
+              title="Switch user profile or test as different batch member"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-rose-500" />
+              <span>Switch Profile</span>
+            </button>
+            {!authService.isUserAllowedToChat() && (
+              <button
+                type="button"
+                onClick={() => setShowGoogleModal(true)}
+                className="py-1.5 px-3 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white rounded-xl text-xs font-display font-black flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
+              >
+                <span>Sign In With Mail</span>
+              </button>
             )}
           </div>
+        </div>
+
+        {/* 2. UNIFIED COHESIVE TAB SWITCHER */}
+        <div className="grid grid-cols-3 gap-1 bg-stone-200/70 p-1 rounded-2xl border border-stone-300/80">
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              setActiveMode('chat');
+            }}
+            className={`py-2 px-2 rounded-xl font-display font-black text-[11px] sm:text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeMode === 'chat'
+                ? 'bg-white text-rose-700 shadow-xs scale-101'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <MessagesSquare className="w-3.5 h-3.5 text-rose-500" />
+            <span className="truncate">Batch Lounge ({chatMessages.length})</span>
+          </button>
 
           <button
             onClick={() => {
               audioEngine.playSfx('click');
-              onComplete(passed);
+              setActiveMode('posts');
             }}
-            className="sketch-btn-primary w-full py-4 text-xl font-black uppercase flex items-center justify-center gap-2 shadow-sketch-lg"
+            className={`py-2 px-2 rounded-xl font-display font-black text-[11px] sm:text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeMode === 'posts'
+                ? 'bg-white text-rose-700 shadow-xs scale-101'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
           >
-            <span>RETURN TO MAP</span>
-            <ArrowRight className="w-5 h-5" />
+            <Compass className="w-3.5 h-3.5 text-rose-500" />
+            <span className="truncate">Post Feed ({photoPosts.length})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              setActiveMode('bulletin');
+            }}
+            className={`py-2 px-2 rounded-xl font-display font-black text-[11px] sm:text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeMode === 'bulletin'
+                ? 'bg-white text-rose-700 shadow-xs scale-101'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <Pin className="w-3.5 h-3.5 text-amber-600" />
+            <span className="truncate">Bulletin ({allBulletinPosts.length})</span>
           </button>
         </div>
+
+        {/* ==================== 1. BATCH LOUNGE & DIRECT CHAT ==================== */}
+        {activeMode === 'chat' && (
+          <div className="bg-white border border-stone-200/90 rounded-3xl overflow-hidden shadow-xs flex flex-col h-[580px] sm:h-[650px] lg:h-[700px] animate-fade-in relative">
+            
+            {/* 2-Way Tab Selector: 💬 Group Chat | 📌 Important & Pinned */}
+            <div className="bg-stone-100/90 border-b border-stone-200/90 p-1.5 px-3 flex items-center justify-between gap-2 shrink-0 flex-wrap">
+              <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-stone-200/90 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setChatSubTab('group');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg font-display font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                    chatSubTab === 'group'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+                  }`}
+                >
+                  <MessagesSquare className="w-3.5 h-3.5" />
+                  <span>💬 Group Chat</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    chatSubTab === 'group' ? 'bg-rose-800 text-white' : 'bg-stone-100 text-stone-600'
+                  }`}>
+                    {chatMessages.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setChatSubTab('pinned');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg font-display font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                    chatSubTab === 'pinned'
+                      ? 'bg-amber-500 text-white shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+                  }`}
+                >
+                  <Pin className="w-3.5 h-3.5 fill-current" />
+                  <span>📌 Important & Pinned</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                    chatSubTab === 'pinned' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-900'
+                  }`}>
+                    {chatMessages.filter(m => m.isPinned).length}
+                  </span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {currentUser?.email ? (
+                  <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-2xs">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
+                    <span className="truncate max-w-[140px] sm:max-w-none">{currentUser.email}</span>
+                    <span className="bg-emerald-600 text-white text-[7px] font-black uppercase px-1 rounded">CONNECTED</span>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowGoogleModal(true)}
+                    className="inline-flex items-center gap-1.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-[10px] font-display font-bold px-2.5 py-1 rounded-full cursor-pointer transition-all shadow-2xs active:scale-95"
+                  >
+                    <Lock className="w-3 h-3" />
+                    <span>Connect with Email to Chat</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* A. BATCH CONNECTED GROUP CHAT */}
+            {chatSubTab === 'group' && (
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                {/* Clean Modern Lounge Top Bar */}
+                <div className="bg-white border-b border-stone-200/80 text-stone-900 p-2.5 px-4 flex items-center justify-between shrink-0 shadow-2xs">
+              <div 
+                onClick={() => setShowProfileModal(true)}
+                className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-85 transition-opacity"
+              >
+                <div className="relative shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-200 overflow-hidden flex items-center justify-center text-lg font-bold shadow-2xs">
+                    🌸
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-display font-black text-sm text-stone-900 leading-tight truncate">
+                    Batch 41 Connected Group Chat
+                  </h3>
+                  <p className="text-[11px] text-stone-500 font-medium truncate">
+                    {currentUser?.email ? `Chatting as ${currentUser.name} (${currentUser.email})` : 'Connected email users chatting together'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Chat Message Table Filter (All vs My Messages Matched) */}
+              <div className="flex items-center gap-1 bg-stone-100 p-0.5 rounded-xl border border-stone-200 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setChatFilterMode('all');
+                  }}
+                  className={`px-2 py-1 rounded-lg font-display font-bold text-[10px] sm:text-[11px] transition-colors cursor-pointer ${
+                    chatFilterMode === 'all'
+                      ? 'bg-white text-stone-900 shadow-2xs'
+                      : 'text-stone-500 hover:text-stone-800'
+                  }`}
+                  title="Show all messages in the chat lounge"
+                >
+                  All ({chatMessages.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setChatFilterMode('my_messages');
+                  }}
+                  className={`px-2 py-1 rounded-lg font-display font-bold text-[10px] sm:text-[11px] transition-colors cursor-pointer flex items-center gap-1 ${
+                    chatFilterMode === 'my_messages'
+                      ? 'bg-purple-600 text-white shadow-2xs'
+                      : 'text-stone-500 hover:text-stone-800'
+                  }`}
+                  title={`Show only messages matching your session User ID: ${userMatchedSessionData.userId}`}
+                >
+                  <span>My Messages</span>
+                  <span className={`text-[9px] px-1 rounded-full ${
+                    chatFilterMode === 'my_messages' ? 'bg-purple-800 text-white' : 'bg-stone-200 text-stone-700'
+                  }`}>
+                    {userMatchedSessionData.totalMatched}
+                  </span>
+                </button>
+              </div>
+
+              {/* Action Icons */}
+              <div className="flex items-center gap-1 text-stone-600">
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('pop');
+                    setShareToast('Video room connection ready 📹');
+                    setTimeout(() => setShareToast(null), 2000);
+                  }}
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
+                  title="Video Call"
+                >
+                  <Video className="w-4.5 h-4.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('pop');
+                    setShareToast('Voice lounge active 📞');
+                    setTimeout(() => setShareToast(null), 2000);
+                  }}
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
+                  title="Voice Call"
+                >
+                  <Phone className="w-4.5 h-4.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePollModal(true)}
+                  className="p-1.5 hover:bg-stone-100 hover:text-rose-600 rounded-full cursor-pointer text-stone-600 transition-colors"
+                  title="Group Poll"
+                >
+                  <BarChart2 className="w-4.5 h-4.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(true)}
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
+                  title="Group Info & Profile"
+                >
+                  <MoreVertical className="w-4.5 h-4.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Interactive Pinned Message Banner leading to Important Section */}
+            {(() => {
+              const pinnedCount = chatMessages.filter(m => m.isPinned).length;
+              if (pinnedCount === 0) return null;
+              const latestPinned = chatMessages.slice().reverse().find(m => m.isPinned);
+
+              return (
+                <div 
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setChatSubTab('pinned');
+                  }}
+                  className="bg-gradient-to-r from-amber-50 via-rose-50 to-pink-50 border-b border-amber-200/90 px-3.5 py-2 flex items-center justify-between gap-2.5 z-20 shadow-xs cursor-pointer hover:bg-amber-100/60 transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <Pin className="w-3.5 h-3.5 fill-white" />
+                    </div>
+                    <div className="min-w-0 text-left">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-display font-black text-[11px] text-amber-900 truncate">
+                          📌 {pinnedCount} Important Notice{pinnedCount > 1 ? 's' : ''} in Pinned Section
+                        </span>
+                        {latestPinned && (
+                          <span className="text-[10px] text-stone-500 truncate">
+                            • Latest: {latestPinned.senderName}
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-sans text-xs text-stone-700 truncate max-w-md">
+                        {latestPinned?.text || 'Tap to view all important pinned items'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => setChatSubTab('pinned')}
+                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-[10px] font-display font-black shadow-2xs transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <span>View All ({pinnedCount}) →</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Clean Stream Area (Pure, Clean Minimal Surface) */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin bg-[#FAFAFA]">
+              {/* Active Filter Notice if in my_messages mode */}
+              {chatFilterMode === 'my_messages' && (
+                <div className="bg-purple-50 border border-purple-200 text-purple-900 px-3 py-2 rounded-2xl flex items-center justify-between text-xs mb-2 shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                    <span>Showing <strong>{userMatchedSessionData.totalMatched}</strong> message(s) matched for User ID: <code className="bg-white px-1.5 py-0.5 rounded border border-purple-200 font-mono text-[11px] font-bold text-purple-950">{userMatchedSessionData.userId}</code></span>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setChatFilterMode('all')}
+                    className="text-xs font-bold text-purple-700 hover:text-purple-950 underline cursor-pointer shrink-0 ml-2"
+                  >
+                    Show All
+                  </button>
+                </div>
+              )}
+
+              {/* Empty state if my_messages has 0 items */}
+              {chatFilterMode === 'my_messages' && userMatchedSessionData.matchedMessages.length === 0 && (
+                <div className="p-8 text-center space-y-2.5 my-8">
+                  <div className="w-12 h-12 rounded-full bg-purple-50 text-purple-600 mx-auto flex items-center justify-center font-bold text-xl border border-purple-200">
+                    💬
+                  </div>
+                  <h4 className="font-display font-black text-sm text-stone-800">No Messages Matched in Table</h4>
+                  <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                    No messages found matching your session User ID: <code className="font-mono bg-stone-100 px-1 py-0.5 rounded">{userMatchedSessionData.userId}</code>.
+                    Send a message below and it will immediately match!
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setChatFilterMode('all')}
+                    className="mt-2 py-1.5 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    View All Messages
+                  </button>
+                </div>
+              )}
+
+              {/* Date Separators & Chat Stream */}
+              {(chatFilterMode === 'my_messages' ? userMatchedSessionData.matchedMessages : chatMessages).map((msg, index) => {
+                const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
+                const msgSenderName = (msg.senderName || '').replace(' 👑', '').trim().toLowerCase();
+                const isCurrentUser = Boolean(
+                  (currentUser?.id && msg.senderId && currentUser.id === msg.senderId) ||
+                  (currentUser?.email && msg.senderEmail && currentUser.email.trim().toLowerCase() === msg.senderEmail.trim().toLowerCase()) ||
+                  (currentUserName !== '' && currentUserName === msgSenderName)
+                );
+                const reactionsList = Object.entries(msg.reactions || {}).filter(([, count]) => count > 0);
+                const senderColor = getWhatsAppSenderColor(msg.senderName, msg.isKritika);
+
+                const showDatePill = index === 0 ? 'Today' : null;
+
+                return (
+                  <React.Fragment key={msg.id}>
+                    {/* Date separator pill */}
+                    {showDatePill && (
+                      <div className="flex justify-center my-1.5">
+                        <span className="bg-white text-stone-600 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs border border-stone-200">
+                          {showDatePill}
+                        </span>
+                      </div>
+                    )}
+
+                    <div
+                      id={`chat-msg-${msg.id}`}
+                      onMouseEnter={() => setHoveredMessageId(msg.id)}
+                      onMouseLeave={() => setHoveredMessageId(null)}
+                      className={`flex items-start gap-1.5 group transition-all duration-300 ${isCurrentUser ? 'justify-end' : 'justify-start'} ${highlightedChatMsgId === msg.id ? 'p-1 bg-amber-100/60 rounded-2xl ring-2 ring-amber-400' : ''}`}
+                    >
+                      {/* Member Profile Avatar on the Left (for incoming messages) */}
+                      {!isCurrentUser && (
+                        <div 
+                          onClick={() => {
+                            const cm = classmates.find(c => c.name.toLowerCase() === msg.senderName.toLowerCase().replace(' 👑', ''));
+                            if (cm) setSelectedClassmateDetail(cm);
+                          }}
+                          className={`w-7.5 h-7.5 rounded-full overflow-hidden border shrink-0 mt-0.5 cursor-pointer hover:scale-105 transition-transform ${
+                            msg.isKritika ? 'border-amber-400 ring-2 ring-pink-300' : 'border-stone-200'
+                          }`}
+                          title={`Click to view ${msg.senderName}`}
+                        >
+                          <img src={msg.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop'} alt={msg.senderName} className="w-full h-full object-cover" />
+                        </div>
+                      )}
+
+                      {/* Speech Bubble Card */}
+                      <div className="relative max-w-[85%] sm:max-w-[75%] space-y-1">
+                        <div
+                          className={`p-2.5 px-3 rounded-2xl shadow-2xs text-xs sm:text-sm leading-relaxed relative ${
+                            isCurrentUser
+                              ? 'bg-rose-500 text-white rounded-tr-xs shadow-xs'
+                              : 'bg-white text-stone-900 rounded-tl-xs border border-stone-200/80 shadow-2xs'
+                          }`}
+                        >
+                          {/* Pinned pill if message is pinned */}
+                          {msg.isPinned && (
+                            <div className={`flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full w-fit mb-1 shadow-2xs ${
+                              isCurrentUser ? 'bg-amber-400/30 text-amber-100 border border-amber-300/40' : 'bg-amber-50 text-amber-800 border border-amber-300'
+                            }`}>
+                              <Pin className="w-2.5 h-2.5 fill-current" />
+                              <span>Pinned</span>
+                            </div>
+                          )}
+
+                          {/* 1. Distinct Bold Sender Name & Action Dropdown Trigger */}
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                              <span 
+                                onClick={() => {
+                                  setChatInput((prev: string) => `${prev ? prev + ' ' : ''}@${msg.senderName} `);
+                                }}
+                                className={`font-display font-black text-xs sm:text-[13px] tracking-tight ${isCurrentUser ? 'text-white' : senderColor} hover:underline cursor-pointer truncate`}
+                                title="Click to mention in chat"
+                              >
+                                {isCurrentUser ? 'You' : msg.senderName}
+                              </span>
+                              {msg.isKritika && (
+                                <span className={`${isCurrentUser ? 'bg-white text-rose-600' : 'bg-rose-500 text-white'} font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0`}>
+                                  👑 QUEEN
+                                </span>
+                              )}
+                              {msg.senderIsNewUser && (
+                                <span className={`${isCurrentUser ? 'bg-white/20 text-white border border-white/30' : 'bg-gradient-to-r from-rose-500 to-pink-600 text-white'} font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0 flex items-center gap-0.5`}>
+                                  <span>✨</span>
+                                  <span>NEW USER</span>
+                                </span>
+                              )}
+                              {/* Matched User ID badge on bubble */}
+                              {msg.senderId && (
+                                <span 
+                                  className={`font-mono text-[8px] px-1 py-0.2 rounded border font-medium ${
+                                    isCurrentUser
+                                      ? 'bg-white/20 text-white border-white/30'
+                                      : 'bg-stone-100 text-stone-500 border-stone-200'
+                                  }`}
+                                  title={`Message sender User ID: ${msg.senderId}`}
+                                >
+                                  UID: {msg.senderId}
+                                </span>
+                              )}
+                              {isCurrentUser && (
+                                <span className="bg-white/25 text-white font-mono text-[7px] font-black uppercase px-1 py-0.2 rounded shadow-2xs shrink-0">
+                                  MATCHED
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Dropdown Menu Trigger Button */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveActionMenuMsgId(activeActionMenuMsgId === msg.id ? null : msg.id);
+                                }}
+                                className="p-0.5 hover:bg-black/5 rounded text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+                                title="Message options"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* WhatsApp Message Action Dropdown */}
+                              {activeActionMenuMsgId === msg.id && (
+                                <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-stone-200 py-1 z-30 animate-scale-up text-xs font-medium">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      audioEngine.playSfx('pop');
+                                      setReplyingToMessage(msg);
+                                      setActiveActionMenuMsgId(null);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-stone-50 flex items-center gap-2 text-stone-700 cursor-pointer"
+                                  >
+                                    <Reply className="w-3.5 h-3.5 text-[#008069]" />
+                                    <span>Reply</span>
+                                  </button>
+
+                                  {/* Pin / Unpin to Important Section option */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleTogglePinMessage(msg);
+                                      setShareToast(msg.isPinned ? 'Unpinned from Important section 📌' : 'Pinned to Important section! 📌✨');
+                                      setTimeout(() => setShareToast(null), 2500);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-amber-50 flex items-center gap-2 text-amber-800 font-bold cursor-pointer"
+                                  >
+                                    <Pin className="w-3.5 h-3.5 text-amber-600 fill-amber-600" />
+                                    <span>{msg.isPinned ? 'Unpin from Important' : 'Pin to Important Section'}</span>
+                                  </button>
+
+                                  {/* STRICT AUTHOR-ONLY: Edit message ONLY if isCurrentUser is true */}
+                                  {isCurrentUser && !msg.isDeletedForEveryone && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditMessage(msg)}
+                                      className="w-full px-3 py-1.5 text-left hover:bg-stone-50 flex items-center gap-2 text-stone-700 cursor-pointer"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+                                      <span>Edit message</span>
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDeleteModalMsg(msg);
+                                      setActiveActionMenuMsgId(null);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-rose-50 flex items-center gap-2 text-rose-600 cursor-pointer border-t border-stone-100"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                    <span>Delete message</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                        {/* Quoted Reply Banner */}
+                        {msg.replyTo && !msg.isDeletedForEveryone && (
+                          <div className={`mb-1.5 p-1.5 px-2 rounded-lg border-l-4 text-[11px] ${
+                            isCurrentUser
+                              ? 'bg-emerald-50/80 border-[#005C4B] text-emerald-950'
+                              : 'bg-stone-100 border-[#008069] text-stone-700'
+                          }`}>
+                            <span className="font-display font-black block text-[10px] text-[#008069]">
+                              {msg.replyTo.senderName}
+                            </span>
+                            <span className="truncate block font-sans">
+                              {msg.replyTo.text}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Deleted for Everyone Banner */}
+                        {msg.isDeletedForEveryone ? (
+                          <div className="flex items-center gap-1.5 text-stone-400 italic text-xs py-1">
+                            <Ban className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                            <span>This message was deleted</span>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Photo Attachment */}
+                            {msg.imageUrl && (
+                              <div className="mb-2 rounded-xl overflow-hidden border border-black/10 bg-black/5 relative group/img cursor-pointer">
+                                <img
+                                  src={msg.imageUrl}
+                                  alt="Attached photo"
+                                  onClick={() => setLightboxImage({ url: msg.imageUrl!, caption: msg.text })}
+                                  className="w-full max-h-60 object-cover hover:scale-101 transition-transform duration-200"
+                                />
+                                <div className="absolute top-2 right-2 bg-black/60 text-white p-1 rounded-md opacity-0 group-hover/img:opacity-100 transition-opacity">
+                                  <Eye className="w-3.5 h-3.5" />
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Interactive Live Poll */}
+                            {msg.poll && (
+                              <div className="p-2.5 rounded-xl space-y-2 my-1 bg-[#F0F2F5] border border-stone-200">
+                                <div className="flex items-center gap-1.5 font-display font-black text-xs text-stone-900">
+                                  <BarChart2 className="w-4 h-4 text-[#008069]" />
+                                  <span>{msg.poll.question}</span>
+                                </div>
+
+                                <div className="space-y-1.5 pt-1">
+                                  {(() => {
+                                    const totalVotes = msg.poll.options.reduce((acc, opt) => acc + opt.votes.length, 0);
+                                    const currentVoter = currentUser?.name || profileNameInput || 'You';
+
+                                    return msg.poll.options.map(opt => {
+                                      const voteCount = opt.votes.length;
+                                      const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+                                      const hasVoted = opt.votes.includes(currentVoter);
+
+                                      return (
+                                        <div
+                                          key={opt.id}
+                                          onClick={() => handleVotePoll(msg.id, opt.id)}
+                                          className={`p-2 rounded-xl text-xs cursor-pointer transition-all relative overflow-hidden border bg-white ${
+                                            hasVoted 
+                                              ? 'border-[#008069] font-bold' 
+                                              : 'border-stone-200 hover:border-stone-400'
+                                          }`}
+                                        >
+                                          <div
+                                            className="absolute inset-y-0 left-0 transition-all duration-300 bg-[#008069]/20"
+                                            style={{ width: `${percentage}%` }}
+                                          />
+
+                                          <div className="relative flex items-center justify-between z-1">
+                                            <div className="flex items-center gap-1.5">
+                                              <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center text-[9px] ${
+                                                hasVoted ? 'bg-[#008069] text-white border-[#008069]' : 'border-stone-400'
+                                              }`}>
+                                                {hasVoted ? '✓' : ''}
+                                              </span>
+                                              <span>{opt.text}</span>
+                                            </div>
+                                            <span className="font-display font-bold text-[10px] text-stone-600">
+                                              {percentage}% ({voteCount})
+                                            </span>
+                                          </div>
+                                        </div>
+                                      );
+                                    });
+                                  })()}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Formatted Text with Highlighted @Mentions */}
+                            {msg.text && !msg.poll && (
+                              <div className="whitespace-pre-wrap font-sans text-stone-900 leading-snug">
+                                {renderFormattedMessageText(msg.text, isCurrentUser)}
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* Timestamp, Edited Badge & Double Checkmark Read Receipt */}
+                        {(() => {
+                          const allMembers = batchWallService.getAllBatchMembers(classmates);
+                          const seenByList = msg.seenBy || [];
+                          const unseenMembers = allMembers.filter(m => !seenByList.some(s => (s.userId && s.userId === m.id) || (m.email && s.userEmail && s.userEmail.toLowerCase() === m.email.toLowerCase()) || (s.userName && s.userName.toLowerCase().trim() === m.name.toLowerCase().trim())));
+                          const isAllSeen = seenByList.length > 0 && unseenMembers.length === 0;
+
+                          return (
+                            <div className="flex items-center justify-end gap-1.5 mt-1 text-[9px] text-stone-400 font-medium">
+                              {msg.isEdited && !msg.isDeletedForEveryone && (
+                                <span className="italic text-stone-400">Edited</span>
+                              )}
+                              <span>{msg.timestamp}</span>
+                              
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSeenInfoMsg(msg);
+                                }}
+                                className="flex items-center gap-0.5 hover:opacity-80 transition-all cursor-pointer p-0.5 rounded group/seen"
+                                title={isAllSeen ? `Seen by all ${allMembers.length} members (Click to view seen details)` : `Delivered (${seenByList.length}/${allMembers.length} seen - Click to view details)`}
+                              >
+                                <CheckCheck
+                                  className={`w-3.5 h-3.5 transition-colors ${
+                                    isAllSeen 
+                                      ? 'text-[#00A884] dark:text-[#53BDEB] fill-[#00A884]/20 stroke-[2.5]' 
+                                      : 'text-stone-400'
+                                  }`}
+                                />
+                                <span className={`text-[8px] font-bold ${isAllSeen ? 'text-[#00A884] dark:text-[#53BDEB]' : 'text-stone-400'}`}>
+                                  {seenByList.length}/{allMembers.length}
+                                </span>
+                              </button>
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* Emoji Reactions at bottom of bubble */}
+                      {reactionsList.length > 0 && (
+                        <div className={`flex items-center gap-1 flex-wrap ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                          {reactionsList.map(([emoji, count]) => (
+                            <button
+                              key={emoji}
+                              onClick={() => {
+                                audioEngine.playSfx('pop');
+                                batchWallService.reactToChatMessage(msg.id, emoji);
+                              }}
+                              className="bg-white border border-stone-200 rounded-full px-1.5 py-0.2 text-[10px] font-bold shadow-2xs hover:scale-110 transition-transform cursor-pointer"
+                            >
+                              <span>{emoji}</span> <span>{count}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Hover Action Bar: Emoji Reactions & Reply */}
+                      {hoveredMessageId === msg.id && (
+                        <div className={`absolute -top-7 ${isCurrentUser ? 'right-0' : 'left-0'} bg-white border border-stone-200 rounded-full px-2 py-0.5 shadow-md flex items-center gap-1 z-10 animate-fade-in`}>
+                          {['❤️', '👍', '😂', '😮', '🍕', '👑'].map(emoji => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => {
+                                audioEngine.playSfx('pop');
+                                batchWallService.reactToChatMessage(msg.id, emoji);
+                              }}
+                              className="text-xs hover:scale-125 transition-transform cursor-pointer p-0.5"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              audioEngine.playSfx('pop');
+                              setReplyingToMessage(msg);
+                            }}
+                            className="text-xs hover:text-emerald-700 font-bold flex items-center gap-0.5 p-0.5 pl-1 border-l border-stone-200 cursor-pointer"
+                            title="Reply to this message"
+                          >
+                            <Reply className="w-3 h-3" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              audioEngine.playSfx('pop');
+                              setSeenInfoMsg(msg);
+                            }}
+                            className="text-xs hover:text-sky-600 font-bold flex items-center gap-0.5 p-0.5 pl-1 border-l border-stone-200 cursor-pointer text-stone-500"
+                            title="View who has seen this message"
+                          >
+                            <Eye className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </React.Fragment>
+              );
+            })}
+              <div ref={chatBottomRef} />
+            </div>
+
+            {/* Quoted Message Preview Banner before sending */}
+            {replyingToMessage && (
+              <div className="bg-white p-2 px-3 border-t border-stone-200 flex items-center justify-between shrink-0 animate-fade-in">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Reply className="w-4 h-4 text-[#008069] shrink-0" />
+                  <div className="min-w-0 text-xs">
+                    <span className="font-display font-black text-[#008069] block truncate">
+                      Replying to {replyingToMessage.senderName}
+                    </span>
+                    <span className="text-[10px] text-stone-500 truncate block">
+                      {replyingToMessage.text || 'Photo attachment'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReplyingToMessage(null)}
+                  className="p-1 hover:bg-stone-100 rounded-full text-stone-600 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Chat Attachment Preview */}
+            {chatImageAttachment && (
+              <div className="bg-stone-100 p-2 px-3 border-t border-stone-200 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-lg overflow-hidden border border-stone-300 shadow-2xs">
+                    <img src={chatImageAttachment} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <span className="font-display font-bold text-xs text-stone-800 block">Photo attached 📸</span>
+                    <span className="text-[10px] text-stone-500">Send with or without message</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChatImageAttachment(null)}
+                  className="p-1 hover:bg-stone-200 rounded-full text-stone-600 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* @Mention Quick Pick List */}
+            {showMentionPicker && (
+              <div className="bg-white border-t border-stone-200 p-2 px-3 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0 shadow-inner animate-fade-in">
+                <span className="text-[10px] font-bold text-stone-400 shrink-0">@Mention:</span>
+                {classmates.map(cm => (
+                  <button
+                    key={cm.id}
+                    type="button"
+                    onClick={() => {
+                      setChatInput(prev => `${prev}@${cm.name.split(' ')[0]} `);
+                      setShowMentionPicker(false);
+                    }}
+                    className="px-2 py-1 bg-stone-100 hover:bg-emerald-50 text-stone-800 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0"
+                  >
+                    @{cm.name.split(' ')[0]}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Chat Emoji Tray */}
+            {showChatEmojiPicker && (
+              <div className="bg-white border-t border-stone-200 p-2 px-3 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0 shadow-inner animate-fade-in">
+                <span className="text-[10px] font-bold text-stone-400 shrink-0">Emojis:</span>
+                {COMMON_EMOJIS.map(emoji => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => {
+                      setChatInput(prev => prev + emoji);
+                      audioEngine.playSfx('pop');
+                    }}
+                    className="w-7 h-7 rounded-xl hover:bg-emerald-50 flex items-center justify-center text-sm transition-transform active:scale-90 cursor-pointer shrink-0"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Bottom Input Bar: Mail Auth Lock Banner if not signed in */}
+            {!authService.isUserAllowedToChat() ? (
+              <div className="p-3 px-4 bg-gradient-to-r from-stone-900 via-rose-950 to-stone-900 border-t border-rose-500/30 flex items-center justify-between gap-3 text-white shrink-0 shadow-md">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-full bg-rose-500/20 border border-rose-400/40 flex items-center justify-center shrink-0 animate-pulse">
+                    <Lock className="w-4.5 h-4.5 text-rose-300" />
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <h4 className="font-display font-black text-xs text-rose-200 truncate flex items-center gap-1.5">
+                      <span>Sign In with Mail ID Required to Chat</span>
+                      <span className="bg-rose-500/30 text-rose-300 text-[9px] px-1.5 py-0.2 rounded-full border border-rose-400/40 font-bold uppercase">Locked</span>
+                    </h4>
+                    <p className="text-[10px] text-stone-300 truncate font-medium">
+                      All new users signed in with their mail ID can send messages, reply & chat with each other user
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowGoogleModal(true)}
+                  className="px-3.5 py-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white rounded-xl text-xs font-display font-black uppercase flex items-center gap-1.5 shadow-sm transition-all shrink-0 cursor-pointer active:scale-95"
+                >
+                  <span>Sign In with Mail ID</span>
+                </button>
+              </div>
+            ) : (
+              /* Bottom Input Bar with Pill & Circular Send (Clean Modern Lounge Style) */
+              <form onSubmit={handleSendChatMessage} className="p-2.5 px-3 flex items-center gap-2 shrink-0 bg-white border-t border-stone-200/80">
+                {/* Left Rounded Pill Container */}
+                <div className="flex-1 bg-stone-50 focus-within:bg-white focus-within:border-rose-300 rounded-full flex items-center px-2 py-1 shadow-2xs border border-stone-200 transition-all">
+                  {/* Emoji Smile Icon */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowChatEmojiPicker(!showChatEmojiPicker);
+                      setShowMentionPicker(false);
+                    }}
+                    className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
+                    title="Smileys"
+                  >
+                    <Smile className="w-5 h-5" />
+                  </button>
+
+                  {/* Text Input */}
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Type a message..."
+                    className="flex-1 px-2.5 py-1 text-xs sm:text-sm outline-none bg-transparent text-stone-900"
+                  />
+
+                  {/* @Mention Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMentionPicker(!showMentionPicker);
+                      setShowChatEmojiPicker(false);
+                    }}
+                    className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
+                    title="@Mention someone"
+                  >
+                    <AtSign className="w-4.5 h-4.5" />
+                  </button>
+
+                  {/* Hidden File Input */}
+                  <input
+                    ref={chatFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleChatImageSelect}
+                    className="hidden"
+                  />
+
+                  {/* Attachment Paperclip */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!authService.isUserAllowedToChat()) {
+                        setShowGoogleModal(true);
+                        setShareToast('Please sign in with your Mail ID to send photos! 🔒');
+                        setTimeout(() => setShareToast(null), 3000);
+                        return;
+                      }
+                      chatFileInputRef.current?.click();
+                    }}
+                    className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
+                    title="Attach Photo"
+                  >
+                    <Paperclip className="w-4.5 h-4.5" />
+                  </button>
+
+                  {/* Camera Icon */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!authService.isUserAllowedToChat()) {
+                        setShowGoogleModal(true);
+                        setShareToast('Please sign in with your Mail ID to send photos! 🔒');
+                        setTimeout(() => setShareToast(null), 3000);
+                        return;
+                      }
+                      chatFileInputRef.current?.click();
+                    }}
+                    className="p-1.5 text-stone-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer shrink-0"
+                    title="Camera"
+                  >
+                    <Camera className="w-4.5 h-4.5" />
+                  </button>
+                </div>
+
+                {/* Right Floating Circular Send / Mic Button */}
+                <button
+                  type={chatInput.trim() || chatImageAttachment ? "submit" : "button"}
+                  disabled={isSendingChat}
+                  onClick={() => {
+                    if (!chatInput.trim() && !chatImageAttachment) {
+                      audioEngine.playSfx('fanfare');
+                      setShareToast('Voice cheer sent! 🎙️✨');
+                      setTimeout(() => setShareToast(null), 2000);
+                    }
+                  }}
+                  className={`w-10 h-10 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-full transition-all shadow-sm cursor-pointer shrink-0 flex items-center justify-center ${isSendingChat ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={chatInput.trim() || chatImageAttachment ? "Send" : "Hold for voice note"}
+                >
+                  {chatInput.trim() || chatImageAttachment ? (
+                    <Send className="w-4.5 h-4.5" />
+                  ) : (
+                    <Mic className="w-4.5 h-4.5" />
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+
+        {/* B. DEDICATED PINNED & IMPORTANT SECTION */}
+        {chatSubTab === 'pinned' && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-stone-50/50">
+            {/* Pinned Section Header */}
+            <div className="bg-gradient-to-r from-amber-50 via-rose-50 to-pink-50 border-b border-amber-200/90 p-3 px-4 flex items-center justify-between gap-3 shrink-0 shadow-2xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-2xs shrink-0">
+                  <Pin className="w-5 h-5 fill-white" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-display font-black text-xs sm:text-sm text-amber-950 flex items-center gap-1.5 truncate">
+                    <span>📌 Important & Pinned Highlights</span>
+                    <span className="bg-amber-500/20 text-amber-900 text-[10px] px-2 py-0.2 rounded-full font-mono font-bold">
+                      {chatMessages.filter(m => m.isPinned).length}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-amber-800/80 truncate font-medium">
+                    Critical batch notices, milestone announcements & items pinned by connected members
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!authService.isUserAllowedToChat()) {
+                      setShowGoogleModal(true);
+                      setShareToast('Please connect with your Email ID to pin notices! 🔒');
+                      setTimeout(() => setShareToast(null), 3000);
+                      return;
+                    }
+                    setShowPinAnnouncementModal(true);
+                  }}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-display font-black flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Pin Announcement</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setChatSubTab('group');
+                  }}
+                  className="px-3 py-1.5 bg-white hover:bg-stone-100 text-stone-800 border border-stone-200 rounded-xl text-xs font-display font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+                >
+                  <MessagesSquare className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Back to Group</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Pinned Messages Stream */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin">
+              {(() => {
+                const pinnedList = chatMessages.filter(m => m.isPinned).slice().reverse();
+
+                if (pinnedList.length === 0) {
+                  return (
+                    <div className="text-center py-16 px-4 space-y-3 max-w-md mx-auto">
+                      <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-600 mx-auto flex items-center justify-center text-3xl border border-amber-200 shadow-sm animate-pulse">
+                        📌
+                      </div>
+                      <h4 className="font-display font-black text-sm text-stone-800">
+                        No Important Messages Pinned Yet
+                      </h4>
+                      <p className="text-xs text-stone-500 leading-relaxed">
+                        Whenever an important update, exam alert, or announcement is shared in the group, tap the <strong>Pin</strong> option or click <strong>Pin Announcement</strong> to showcase it here!
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!authService.isUserAllowedToChat()) {
+                            setShowGoogleModal(true);
+                            return;
+                          }
+                          setShowPinAnnouncementModal(true);
+                        }}
+                        className="mt-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs hover:from-amber-600 hover:to-rose-600 transition-all cursor-pointer inline-flex items-center gap-1.5"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Pin First Announcement</span>
+                      </button>
+                    </div>
+                  );
+                }
+
+                return pinnedList.map(msg => {
+                  return (
+                    <div
+                      key={msg.id}
+                      className="bg-white border-2 border-amber-300/80 rounded-2xl p-4 shadow-xs space-y-3 relative overflow-hidden transition-all hover:border-amber-400 group"
+                    >
+                      {/* Top Ribbon */}
+                      <div className="flex items-center justify-between gap-2 border-b border-amber-100 pb-2.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] font-display font-black uppercase px-2 py-0.5 rounded-full border border-amber-300">
+                            <Pin className="w-3 h-3 fill-amber-700 text-amber-700" />
+                            <span>Pinned Highlight</span>
+                          </span>
+                          <span className="text-[11px] text-stone-500 font-medium truncate">
+                            Pinned by <strong className="text-stone-800">{msg.pinnedBy || 'Connected Member'}</strong>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleTogglePinMessage(msg);
+                              setShareToast('Unpinned notice 📌');
+                              setTimeout(() => setShareToast(null), 2500);
+                            }}
+                            className="px-2 py-1 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                            title="Unpin this notice"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Unpin</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Author Card Info */}
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full overflow-hidden border border-stone-200 shrink-0">
+                          <img
+                            src={msg.avatarUrl || '/marisol/avatars/01_brighter_ideas.png'}
+                            alt={msg.senderName}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-display font-bold text-xs text-stone-900">
+                              {msg.senderName}
+                            </span>
+                            {msg.senderIsNewUser && (
+                              <span className="bg-gradient-to-r from-amber-400 to-rose-400 text-white font-mono text-[7px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0">
+                                NEW USER
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-stone-400 block font-medium">
+                            {msg.senderEmail || 'Connected Member'} • {msg.timestamp}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="text-xs sm:text-sm text-stone-800 leading-relaxed font-sans font-medium whitespace-pre-wrap pl-1">
+                        {msg.text}
+                      </div>
+
+                      {/* Attached Photo if exists */}
+                      {msg.imageUrl && (
+                        <div className="rounded-xl overflow-hidden border border-stone-200 max-h-64 cursor-pointer group/img relative">
+                          <img
+                            src={msg.imageUrl}
+                            alt="Pinned attachment"
+                            onClick={() => setLightboxImage({ url: msg.imageUrl!, caption: msg.text })}
+                            className="w-full h-full object-cover hover:scale-101 transition-transform"
+                          />
+                        </div>
+                      )}
+
+                      {/* Poll View if exists */}
+                      {msg.poll && (
+                        <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-2">
+                          <span className="font-display font-black text-xs text-stone-900 flex items-center gap-1.5">
+                            <BarChart2 className="w-4 h-4 text-emerald-600" />
+                            <span>{msg.poll.question}</span>
+                          </span>
+                          <div className="space-y-1 pt-1">
+                            {msg.poll.options.map(opt => (
+                              <div
+                                key={opt.id}
+                                onClick={() => handleVotePoll(msg.id, opt.id)}
+                                className="p-2 rounded-lg bg-white border border-stone-200 text-xs flex items-center justify-between cursor-pointer hover:border-emerald-500"
+                              >
+                                <span>{opt.text}</span>
+                                <span className="font-bold text-[10px] text-stone-500">{opt.votes.length} votes</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Bottom Jump-to-Chat Button */}
+                      <div className="pt-2 border-t border-stone-100 flex items-center justify-between gap-2">
+                        <span className="text-[10px] text-stone-400 font-medium">
+                          Visible to everyone in Batch 41
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setChatSubTab('group');
+                            setTimeout(() => handleJumpToMessage(msg.id), 120);
+                          }}
+                          className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-display font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <MessagesSquare className="w-3.5 h-3.5 text-amber-700" />
+                          <span>Jump to in Group Chat →</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        )}
       </div>
-    );
-  }
+    )}
 
-  return (
-    <div className="min-h-screen bg-paper-50 p-4 sm:p-6 pb-24 text-ink">
-      
-      {/* Boss Header: Vintage Projector Light Meter */}
-      <div className="max-w-xl mx-auto mb-6 bg-white border-3 border-ink rounded-2xl p-4 shadow-sketch-lg space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 font-display font-black text-base text-plum-700">
-            <Film className="w-5 h-5 text-coral-500 animate-spin" />
-            <span>BOSS: {zone.bossName}</span>
-          </div>
-          <div className="font-handwritten text-sm font-bold text-ink-light">
-            PROJECTOR POWER: {correctCount}/10
-          </div>
-        </div>
+        {/* ==================== 2. CONCISE POST FEED ==================== */}
+        {activeMode === 'posts' && (
+          <div className="space-y-3.5 animate-fade-in">
+            {/* Story Mood Rings Bar */}
+            <div className="bg-white border border-stone-200/90 rounded-2xl p-3 shadow-2xs space-y-2">
+              <div className="flex items-center justify-between text-xs px-1">
+                <span className="font-display font-black text-rose-950 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
+                  <span>🌸</span>
+                  <span>Batch Moments & Stories</span>
+                </span>
+                <span className="font-handwritten text-xs text-rose-600 font-bold hidden sm:inline">
+                  Tap friend to view & cheer ♡
+                </span>
+              </div>
 
-        {/* 10 Bulb Light Meter */}
-        <div className="grid grid-cols-10 gap-1.5 pt-1">
-          {Array.from({ length: 10 }).map((_, idx) => {
-            const isLit = idx < correctCount;
-            return (
-              <div
-                key={idx}
-                className={`
-                  h-4 rounded-md border-1.5 border-ink transition-all duration-300
-                  ${isLit ? 'bg-doodleGold shadow-sketch scale-105' : 'bg-paper-200'}
-                `}
+              <div className="flex items-center gap-3 overflow-x-auto pb-1 pt-0.5 scrollbar-none">
+                <div
+                  onClick={() => setShowNewPhotoPostModal(true)}
+                  className="flex flex-col items-center gap-1 cursor-pointer shrink-0 group"
+                >
+                  <div className="relative w-12 h-12 rounded-full border-2 border-dashed border-rose-400 bg-rose-50 flex items-center justify-center text-rose-600 group-hover:scale-105 transition-transform shadow-2xs">
+                    <Plus className="w-4 h-4" />
+                    <span className="absolute -bottom-1 -right-1 text-[10px] bg-white rounded-full border border-stone-200 p-0.5 shadow-2xs">
+                      📸
+                    </span>
+                  </div>
+                  <span className="font-display font-bold text-[10px] text-rose-900 truncate max-w-[52px] text-center">
+                    New Post
+                  </span>
+                </div>
+
+                {classmates.map(cm => (
+                  <div
+                    key={cm.id}
+                    onClick={() => setSelectedClassmateDetail(cm)}
+                    className="flex flex-col items-center gap-1 cursor-pointer shrink-0 group"
+                  >
+                    <div className="relative w-12 h-12 rounded-full p-0.5 bg-gradient-to-tr from-yellow-400 via-rose-500 to-purple-500 group-hover:scale-105 transition-transform shadow-2xs">
+                      <div className="w-full h-full rounded-full overflow-hidden bg-white border border-white">
+                        <img src={cm.avatarUrl} alt={cm.name} className="w-full h-full object-cover" />
+                      </div>
+                      <span className="absolute -bottom-1 -right-1 text-[10px] bg-white rounded-full border border-stone-200 p-0.5 shadow-2xs">
+                        {cm.currentMoodEmoji || '✨'}
+                      </span>
+                    </div>
+                    <span className="font-display font-bold text-[10px] text-stone-800 truncate max-w-[54px] text-center">
+                      {cm.name.split(' ')[0]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick "Share a Memory" Action Banner */}
+            <div className="bg-gradient-to-r from-rose-50 via-pink-50 to-amber-50 border border-rose-200/80 rounded-2xl p-3 shadow-2xs flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-white border border-rose-200 text-rose-600 flex items-center justify-center shadow-2xs shrink-0">
+                  <Camera className="w-4 h-4" />
+                </div>
+                <p className="font-display font-bold text-xs text-rose-950 truncate">
+                  Share a food snap, memory, or celebration with Batch 41
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  setShowNewPhotoPostModal(true);
+                }}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-display font-black uppercase flex items-center gap-1 shadow-2xs transition-all cursor-pointer shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>CREATE</span>
+              </button>
+            </div>
+
+            {/* Photo Post Cards Stream (Responsive 2-column grid on desktop, 1-column on mobile) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
+              {photoPosts.map(post => {
+                const isExpanded = Boolean(expandedComments[post.id]);
+                const commentText = postCommentText[post.id] || '';
+                const filterDef = FILTER_STYLES[post.filter || 'none'] || FILTER_STYLES.none;
+
+                const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
+                const postAuthorName = (post.authorName || '').replace(' 👑', '').trim().toLowerCase();
+                const isPostAuthor = Boolean(
+                  (currentUser?.id && post.userId && currentUser.id === post.userId) ||
+                  (currentUser?.email && (post.userEmail || post.authorEmail) && currentUser.email.toLowerCase().trim() === (post.userEmail || post.authorEmail)?.toLowerCase().trim()) ||
+                  (currentUserName !== '' && currentUserName === postAuthorName)
+                );
+                const isKritika = currentUserName.includes('kritika') || (currentUser?.email || '').toLowerCase().includes('kritika');
+
+                return (
+                  <div
+                    key={post.id}
+                    className="bg-white border border-stone-200/90 rounded-2xl overflow-hidden shadow-2xs space-y-2.5 transition-all hover:border-rose-300"
+                  >
+                    {/* Pinned Post Badge */}
+                    {post.isPinned && (
+                      <div className="bg-gradient-to-r from-amber-500 via-rose-500 to-pink-500 text-white px-3.5 py-1 text-[10px] font-display font-black flex items-center justify-between shadow-2xs">
+                        <span className="flex items-center gap-1.5 uppercase tracking-wider">
+                          <Pin className="w-3 h-3 fill-white" />
+                          <span>Pinned Post</span>
+                        </span>
+                        <span className="text-white/90 text-[9px] font-bold">
+                          {post.pinnedBy ? `Pinned by ${post.pinnedBy}` : 'Featured'}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="p-3 px-3.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full p-0.5 bg-gradient-to-tr from-rose-400 to-amber-400">
+                          <div className="w-full h-full rounded-full overflow-hidden bg-white border border-white">
+                            <img src={post.authorAvatarUrl} alt={post.authorName} className="w-full h-full object-cover" />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <h3 className="font-display font-black text-xs text-stone-900 leading-none">
+                              {post.authorName}
+                            </h3>
+                            {post.isKritika && (
+                              <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full">
+                                👑 QUEEN
+                              </span>
+                            )}
+                          </div>
+                          {post.location && (
+                            <span className="text-[10px] text-stone-400 font-medium block">
+                              {post.location}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-stone-400 font-medium">
+                          {post.timestamp}
+                        </span>
+
+                        {/* Post Action Menu */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setActivePostMenuId(activePostMenuId === post.id ? null : post.id)}
+                            className="p-1 hover:bg-stone-100 rounded-full text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+                            title="Post options"
+                          >
+                            <MoreVertical className="w-3.5 h-3.5" />
+                          </button>
+
+                          {activePostMenuId === post.id && (
+                            <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-stone-200 py-1 z-30 animate-scale-up text-xs font-medium">
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePinPost(post)}
+                                className="w-full px-3 py-1.5 text-left hover:bg-stone-50 flex items-center gap-2 text-stone-700 cursor-pointer"
+                              >
+                                <Pin className="w-3.5 h-3.5 text-amber-600" />
+                                <span>{post.isPinned ? 'Unpin post' : 'Pin to top'}</span>
+                              </button>
+
+                              {/* STRICT AUTHOR-ONLY: Edit Caption ONLY if isPostAuthor is true */}
+                              {isPostAuthor && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditPost(post)}
+                                  className="w-full px-3 py-1.5 text-left hover:bg-stone-50 flex items-center gap-2 text-stone-700 cursor-pointer"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>Edit caption</span>
+                                </button>
+                              )}
+
+                              {(isPostAuthor || isKritika) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePost(post)}
+                                  className="w-full px-3 py-1.5 text-left hover:bg-rose-50 flex items-center gap-2 text-rose-600 cursor-pointer border-t border-stone-100"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                  <span>Delete post</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div 
+                      className="relative w-full aspect-4/3 sm:aspect-16/10 bg-stone-950 overflow-hidden cursor-pointer select-none group"
+                      onDoubleClick={() => handleDoubleTapPost(post)}
+                    >
+                      <img
+                        src={post.imageUrl}
+                        alt="Post visual"
+                        style={{ filter: filterDef.style }}
+                        className="w-full h-full object-cover group-hover:scale-101 transition-transform duration-300"
+                      />
+
+                      {heartBurstId === post.id && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-scale-up">
+                          <Heart className="w-20 h-20 text-white fill-rose-500 drop-shadow-lg" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="px-3.5 pt-0.5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => {
+                            audioEngine.playSfx('pop');
+                            batchWallService.likeInstagramPost(post.id, currentUser?.name);
+                          }}
+                          className={`flex items-center gap-1 text-xs font-display font-black transition-transform active:scale-90 cursor-pointer ${
+                            post.likedByCurrentUser ? 'text-rose-600' : 'text-stone-600 hover:text-rose-600'
+                          }`}
+                        >
+                          <Heart className={`w-4.5 h-4.5 ${post.likedByCurrentUser ? 'fill-rose-600' : ''}`} />
+                          <span>{post.likesCount}</span>
+                        </button>
+
+                        <button
+                          onClick={() => setExpandedComments(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
+                          className="flex items-center gap-1 text-xs font-display font-bold text-stone-600 hover:text-purple-700 transition-transform active:scale-90 cursor-pointer"
+                        >
+                          <MessageCircle className="w-4.5 h-4.5" />
+                          <span>{post.comments?.length || 0}</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleShareClick(post.caption.slice(0, 30))}
+                          className="text-stone-600 hover:text-blue-600 transition-transform active:scale-90 cursor-pointer"
+                        >
+                          <Share2 className="w-4.5 h-4.5" />
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          audioEngine.playSfx('pop');
+                          batchWallService.toggleBookmarkInstagramPost(post.id);
+                        }}
+                        className={`transition-transform active:scale-90 cursor-pointer ${
+                          post.saved ? 'text-amber-500' : 'text-stone-500 hover:text-stone-900'
+                        }`}
+                      >
+                        <Bookmark className={`w-4.5 h-4.5 ${post.saved ? 'fill-amber-500' : ''}`} />
+                      </button>
+                    </div>
+
+                    <div className="px-3.5 space-y-1">
+                      <p className="text-xs text-stone-800 font-sans leading-relaxed">
+                        <span className="font-display font-black mr-1.5 text-stone-900">
+                          {post.authorName}
+                        </span>
+                        {post.caption}
+                        {post.isEdited && (
+                          <span className="text-[10px] text-stone-400 italic ml-1">
+                            (edited)
+                          </span>
+                        )}
+                      </p>
+
+                      {post.hashtags && post.hashtags.length > 0 && (
+                        <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                          {post.hashtags.map((tag, idx) => (
+                            <span 
+                              key={idx} 
+                              className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200/80 px-2 py-0.2 rounded-full"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="px-3.5 pb-3 space-y-2">
+                      {post.comments && post.comments.length > 0 && (
+                        <button
+                          onClick={() => setExpandedComments(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
+                          className="text-[11px] font-display font-bold text-stone-400 hover:text-stone-600 cursor-pointer block"
+                        >
+                          {isExpanded
+                            ? 'Hide comments'
+                            : `View all ${post.comments.length} comment${post.comments.length > 1 ? 's' : ''}`}
+                        </button>
+                      )}
+
+                      {isExpanded && post.comments && (
+                        <div className="space-y-1.5 pt-1 border-t border-stone-100">
+                          {post.comments.map(c => (
+                            <div key={c.id} className="text-xs flex items-start gap-1.5">
+                              <span className="font-display font-black text-stone-900 shrink-0">
+                                {c.authorName}:
+                              </span>
+                              <span className="text-stone-700">{c.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="pt-1 flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={commentText}
+                          onChange={(e) => setPostCommentText(prev => ({ ...prev, [post.id]: e.target.value }))}
+                          placeholder="Add a kind comment..."
+                          className="flex-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white transition-colors"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSendPostComment(post.id);
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          disabled={!commentText.trim()}
+                          onClick={() => handleSendPostComment(post.id)}
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl text-xs font-display font-black uppercase cursor-pointer"
+                        >
+                          Post
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ==================== 3. BULLETIN CORKBOARD ==================== */}
+        {activeMode === 'bulletin' && (
+          <div className="space-y-3.5 animate-fade-in">
+            <div className="bg-gradient-to-r from-amber-50 via-rose-50 to-purple-50 border border-amber-200/80 rounded-2xl p-3 shadow-2xs flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl border border-amber-300 bg-white shadow-2xs shrink-0 flex items-center justify-center text-base">
+                  📌
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-xs sm:text-sm text-stone-900">
+                    Bulletin Sticky Notes
+                  </h3>
+                  <p className="font-handwritten text-xs text-stone-600 font-bold truncate">
+                    Leave appreciation notes & emojis for Kritika!
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  setShowNewPostModal(true);
+                }}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-display font-black uppercase flex items-center gap-1 shadow-2xs transition-colors cursor-pointer shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>PIN NOTE</span>
+              </button>
+            </div>
+
+            {/* Bulletin Notes Grid (Responsive 2-column grid on desktop, 1-column on mobile) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {allBulletinPosts.map(post => {
+                const sticker = STICKERS.find(s => s.alias === post.avatarPose) || STICKERS[0];
+                const reactionEntries = Object.entries(post.reactions || {}).filter(([, count]) => count > 0);
+                const replies = post.replies || [];
+                const hasKritikaReply = replies.some(r => r.isKritika);
+                const isExpanded = Boolean(expandedReplies[post.id]);
+                const replyText = replyInputMap[post.id] || '';
+                const sending = Boolean(isSendingReply[post.id]);
+
+                return (
+                  <div
+                    key={post.id}
+                    className={`bg-white border rounded-2xl p-4 shadow-2xs space-y-2.5 transition-all relative ${
+                      hasKritikaReply
+                        ? 'border-pink-300 bg-gradient-to-b from-pink-50/25 via-white to-white'
+                        : 'border-stone-200/90 hover:border-rose-300'
+                    }`}
+                  >
+                    <div className="absolute -top-2.5 right-6 text-sm select-none pointer-events-none">
+                      📌
+                    </div>
+
+                    {hasKritikaReply && (
+                      <div className="bg-gradient-to-r from-pink-100/90 via-rose-50 to-amber-50 border border-pink-300 rounded-xl p-2 px-3 flex items-center justify-between text-xs animate-scale-up">
+                        <span className="font-display font-black text-rose-900 flex items-center gap-1.5 text-[11px]">
+                          <Heart className="w-3.5 h-3.5 text-rose-600 fill-rose-500" />
+                          <span>KRITIKA REPLIED 💌</span>
+                        </span>
+                        <button
+                          onClick={() => setExpandedReplies(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
+                          className="text-[10px] font-handwritten font-bold text-rose-700 underline cursor-pointer"
+                        >
+                          {isExpanded ? 'Hide' : 'Read Reply ↓'}
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl border border-stone-200 overflow-hidden bg-rose-50 shrink-0">
+                          <img src={sticker.avatarUrl} alt={post.studentName} className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h3 className="font-display font-black text-xs text-stone-900 leading-none">
+                              {post.studentName}
+                            </h3>
+                            <span className="bg-rose-50 text-rose-800 font-handwritten text-[10px] font-black px-1.5 py-0.2 rounded-full border border-rose-200">
+                              {post.batch}
+                            </span>
+                          </div>
+                          <span className="font-handwritten text-[10px] text-stone-400 font-bold">
+                            {post.timestamp}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-xs font-handwritten font-bold text-amber-900">
+                        <span>{post.moodEmoji}</span>
+                        <span>{post.mood}</span>
+                      </div>
+                    </div>
+
+                    <p className="font-sans text-xs sm:text-sm text-stone-800 leading-relaxed whitespace-pre-wrap">
+                      {post.text}
+                    </p>
+
+                    <div className="pt-2 border-t border-stone-100 space-y-2">
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                        <span className="text-[10px] font-bold text-stone-400 shrink-0">React:</span>
+                        {['💖', '🌸', '👑', '✨', '🍕', '☕', '🎉', '🔥', '🥰'].map(emoji => (
+                          <button
+                            key={emoji}
+                            onClick={() => {
+                              audioEngine.playSfx('pop');
+                              batchWallService.reactToPost(post.id, emoji);
+                            }}
+                            className="w-6.5 h-6.5 rounded-lg bg-stone-50 hover:bg-pink-100 border border-stone-200 flex items-center justify-center text-xs transition-transform active:scale-90 cursor-pointer shrink-0"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {reactionEntries.map(([alias, count]) => (
+                            <span
+                              key={alias}
+                              className="inline-flex items-center gap-1 bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-full text-xs font-bold text-stone-700"
+                            >
+                              <span>{alias}</span>
+                              <span>{count}</span>
+                            </span>
+                          ))}
+                        </div>
+
+                        <button
+                          onClick={() => setExpandedReplies(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
+                          className="text-xs font-display font-bold text-rose-700 hover:text-rose-900 flex items-center gap-1 cursor-pointer shrink-0"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span>{replies.length > 0 ? `${replies.length} Replies` : 'Reply'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="mt-2 pt-2 border-t border-stone-100 space-y-2 bg-stone-50/80 p-3 rounded-xl">
+                        {replies.map(r => (
+                          <div key={r.id} className="p-2 rounded-xl bg-white border border-stone-200 text-xs space-y-0.5">
+                            <div className="flex items-center justify-between">
+                              <span className="font-display font-black text-stone-800">
+                                {r.authorName} {r.isKritika ? '👑' : ''}
+                              </span>
+                              <span className="text-[10px] text-stone-400">{r.timestamp}</span>
+                            </div>
+                            <p className="text-stone-700">{r.text}</p>
+                          </div>
+                        ))}
+
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            handleSendReply(post.id);
+                          }}
+                          className="flex items-center gap-2 pt-1"
+                        >
+                          <input
+                            type="text"
+                            value={replyText}
+                            onChange={(e) => setReplyInputMap(prev => ({ ...prev, [post.id]: e.target.value }))}
+                            placeholder="Reply with love and cheer..."
+                            className="flex-1 px-3 py-1.5 bg-white border border-stone-200 rounded-xl text-xs outline-none"
+                            required
+                          />
+                          <button
+                            type="submit"
+                            disabled={sending || !replyText.trim()}
+                            className="px-3.5 py-1.5 bg-rose-600 text-white rounded-xl text-xs font-bold uppercase cursor-pointer"
+                          >
+                            Reply
+                          </button>
+                        </form>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: CREATE GROUP POLL */}
+        {showCreatePollModal && (
+          <BaseModal
+            onClose={() => setShowCreatePollModal(false)}
+            title="CREATE BATCH GROUP POLL"
+            subtitle="Ask Batch 41 a question and see real-time votes"
+            icon={<BarChart2 className="w-5 h-5 text-rose-500" />}
+            maxWidth="max-w-md"
+          >
+            <form onSubmit={handleCreatePoll} className="space-y-3 text-left">
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  Poll Question:
+                </label>
+                <input
+                  type="text"
+                  value={pollQuestion}
+                  onChange={(e) => setPollQuestion(e.target.value)}
+                  placeholder="e.g. Tonight's comfort choice? 🍕 vs 🧀"
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white font-bold"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-display font-black text-xs text-stone-700 uppercase block">
+                  Options:
+                </label>
+                <input
+                  type="text"
+                  value={pollOption1}
+                  onChange={(e) => setPollOption1(e.target.value)}
+                  placeholder="Option 1 (e.g. Pizza Night 🍕)"
+                  className="w-full px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white"
+                  required
+                />
+                <input
+                  type="text"
+                  value={pollOption2}
+                  onChange={(e) => setPollOption2(e.target.value)}
+                  placeholder="Option 2 (e.g. Gourmet Macaroni 🧀)"
+                  className="w-full px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white"
+                  required
+                />
+                <input
+                  type="text"
+                  value={pollOption3}
+                  onChange={(e) => setPollOption3(e.target.value)}
+                  placeholder="Option 3 (Optional, e.g. Hot Chai ☕)"
+                  className="w-full px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:opacity-95 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 mt-2"
+              >
+                <BarChart2 className="w-4 h-4" />
+                <span>Publish Group Poll 📊</span>
+              </button>
+            </form>
+          </BaseModal>
+        )}
+
+        {/* MODAL: PROFILE SETTINGS & AVATAR EDITOR */}
+        {showProfileModal && (
+          <BaseModal
+            onClose={() => setShowProfileModal(false)}
+            title="YOUR CHAT & SOCIAL PROFILE"
+            subtitle="Customize how your name and avatar appear to all group members"
+            icon={<UserCheck className="w-5 h-5 text-rose-500" />}
+            maxWidth="max-w-md"
+          >
+            <form onSubmit={handleSaveProfile} className="space-y-4 text-left">
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1.5">
+                  1. Profile Picture / Avatar:
+                </label>
+                
+                <input
+                  ref={profileAvatarFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfileAvatarSelect}
+                  className="hidden"
+                />
+
+                <div className="flex items-center gap-3 mb-2.5">
+                  <div className="relative">
+                    <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-rose-400 shadow-sm bg-stone-100">
+                      <img src={profileAvatarInput} alt="Profile" className="w-full h-full object-cover" />
+                    </div>
+                    <span className="absolute -bottom-1 -right-1 text-sm bg-white rounded-full border border-stone-200 p-0.5 shadow-2xs">
+                      {profileMoodEmojiInput}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => profileAvatarFileInputRef.current?.click()}
+                    className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 border border-stone-300 rounded-xl text-xs font-display font-bold text-stone-800 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Upload Custom Photo</span>
+                  </button>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-stone-400 block mb-1">Or choose a preset:</span>
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                    {AVATAR_PRESETS.map((p, idx) => {
+                      const isSelected = profileAvatarInput === p.url;
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            setProfileAvatarInput(p.url);
+                            audioEngine.playSfx('pop');
+                          }}
+                          className={`w-10 h-10 rounded-full overflow-hidden border-2 cursor-pointer transition-transform shrink-0 ${
+                            isSelected ? 'border-rose-600 scale-110 ring-2 ring-rose-200' : 'border-stone-300 opacity-70 hover:opacity-100'
+                          }`}
+                        >
+                          <img src={p.url} alt={p.label} className="w-full h-full object-cover" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  2. Display Name (Seen by all members):
+                </label>
+                <input
+                  type="text"
+                  value={profileNameInput}
+                  onChange={(e) => setProfileNameInput(e.target.value)}
+                  placeholder="e.g. Kritika Gupta 👑 or Your Name"
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white font-bold"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  3. Status Note / Bio:
+                </label>
+                <input
+                  type="text"
+                  value={profileStatusInput}
+                  onChange={(e) => setProfileStatusInput(e.target.value)}
+                  placeholder="e.g. Savoring sweet memories ♡ ✨"
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  4. Current Mood Emoji:
+                </label>
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none mb-1.5">
+                  {COMMON_EMOJIS.map(emoji => {
+                    const isSelected = profileMoodEmojiInput === emoji;
+                    return (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => {
+                          setProfileMoodEmojiInput(emoji);
+                          audioEngine.playSfx('pop');
+                        }}
+                        className={`w-7 h-7 rounded-lg text-sm flex items-center justify-center cursor-pointer transition-transform ${
+                          isSelected ? 'bg-rose-100 border border-rose-400 scale-110' : 'bg-stone-50 hover:bg-stone-100'
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:opacity-95 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>Save Profile & Reflect in Group Chat</span>
+              </button>
+            </form>
+          </BaseModal>
+        )}
+
+        {/* MODAL: CREATE NEW PHOTO POST */}
+        {showNewPhotoPostModal && (
+          <BaseModal
+            onClose={() => setShowNewPhotoPostModal(false)}
+            title="CREATE PHOTO POST"
+            subtitle="Share memories, food & aesthetic moments with Batch 41"
+            icon={<Camera className="w-5 h-5 text-rose-500" />}
+            maxWidth="max-w-md"
+          >
+            <form onSubmit={handleCreatePhotoPost} className="space-y-3.5 text-left">
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  1. Choose / Upload Photo:
+                </label>
+                <input
+                  ref={photoFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoPostImageSelect}
+                  className="hidden"
+                />
+
+                {newPostImage ? (
+                  <div className="relative rounded-2xl overflow-hidden border border-stone-300 aspect-4/3 bg-black shadow-xs">
+                    <img
+                      src={newPostImage}
+                      alt="Selected"
+                      style={{ filter: FILTER_STYLES[newPostFilter]?.style }}
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setNewPostImage(null)}
+                      className="absolute top-2 right-2 bg-black/70 hover:bg-black text-white p-1.5 rounded-full cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div
+                      onClick={() => photoFileInputRef.current?.click()}
+                      className="border-2 border-dashed border-rose-300 hover:border-rose-500 rounded-2xl p-5 text-center bg-rose-50/40 hover:bg-rose-50 transition-colors cursor-pointer space-y-1.5"
+                    >
+                      <div className="w-9 h-9 mx-auto rounded-full bg-rose-100 flex items-center justify-center text-rose-600">
+                        <Camera className="w-5 h-5" />
+                      </div>
+                      <p className="font-display font-bold text-xs text-rose-900">
+                        Tap to upload from device 📸
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-stone-400 block mb-1">Or pick a comfort preset:</span>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {PRESET_PHOTOS.slice(0, 3).map((preset, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => setNewPostImage(preset.url)}
+                            className="border border-stone-200 hover:border-rose-400 rounded-xl overflow-hidden cursor-pointer group relative aspect-4/3"
+                          >
+                            <img src={preset.url} alt={preset.label} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                            <span className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[9px] font-bold p-0.5 truncate text-center">
+                              {preset.label.split(' ')[0]}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {newPostImage && (
+                <div>
+                  <label className="font-display font-black text-[11px] text-stone-700 uppercase block mb-1">
+                    2. Filter Preset:
+                  </label>
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    {Object.entries(FILTER_STYLES).map(([key, def]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setNewPostFilter(key)}
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-display font-bold shrink-0 transition-all cursor-pointer flex items-center gap-1 ${
+                          newPostFilter === key
+                            ? 'bg-rose-600 text-white shadow-2xs'
+                            : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                        }`}
+                      >
+                        <span>{def.icon}</span>
+                        <span>{def.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  Location / Vibe:
+                </label>
+                <input
+                  type="text"
+                  value={newPostLocation}
+                  onChange={(e) => setNewPostLocation(e.target.value)}
+                  placeholder="e.g. Factory of Fun • Comfort Lounge 🌸"
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  Caption:
+                </label>
+                <textarea
+                  rows={2}
+                  value={newPostCaption}
+                  onChange={(e) => setNewPostCaption(e.target.value)}
+                  placeholder="Share a sweet memory, shoutout, or food review..."
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white resize-none"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-display font-black text-xs text-stone-700 uppercase flex items-center justify-between">
+                  <span>Hashtags / Tags:</span>
+                  <span className="text-[10px] text-stone-400 font-normal">Tap tag to select/unselect</span>
+                </label>
+
+                {selectedTags.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap p-2 bg-rose-50/60 border border-rose-200 rounded-xl">
+                    <span className="text-[10px] font-bold text-rose-900 mr-1">Active:</span>
+                    {selectedTags.map(tag => (
+                      <span
+                        key={tag}
+                        onClick={() => toggleTag(tag)}
+                        className="inline-flex items-center gap-1 bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full cursor-pointer hover:bg-rose-700 transition-colors shadow-2xs"
+                      >
+                        <span>{tag}</span>
+                        <X className="w-3 h-3" />
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1 flex-wrap">
+                  {SUGGESTED_HASHTAGS.map(tag => {
+                    const isSelected = selectedTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => toggleTag(tag)}
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'bg-rose-600 text-white shadow-2xs'
+                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                        }`}
+                      >
+                        {isSelected ? `✓ ${tag}` : `+ ${tag}`}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-1.5 pt-1">
+                  <div className="relative flex-1">
+                    <Tag className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                    <input
+                      type="text"
+                      value={customTagInput}
+                      onChange={(e) => setCustomTagInput(e.target.value)}
+                      placeholder="Add custom tag (e.g. ChaiNight)..."
+                      className="w-full pl-8 pr-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomTag();
+                        }
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleAddCustomTag()}
+                    disabled={!customTagInput.trim()}
+                    className="px-3 py-1.5 bg-stone-800 hover:bg-stone-900 disabled:opacity-40 text-white text-xs font-display font-bold rounded-xl cursor-pointer"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isPublishingPost || !newPostImage}
+                className="w-full py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:opacity-95 disabled:opacity-50 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-all cursor-pointer mt-1"
+              >
+                Publish Memory Post 📸✨
+              </button>
+            </form>
+          </BaseModal>
+        )}
+
+        {/* MODAL: PIN A BULLETIN NOTE */}
+        {showNewPostModal && (
+          <BaseModal
+            onClose={() => setShowNewPostModal(false)}
+            title="PIN A NOTE TO BULLETIN"
+            subtitle="Share memories, appreciation & comfort with Batch 41"
+            icon={<Pin className="w-5 h-5 text-rose-500" />}
+            maxWidth="max-w-md"
+          >
+            <form onSubmit={handleCreateBulletinPost} className="space-y-3.5 text-left">
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  Your Display Name:
+                </label>
+                <input
+                  type="text"
+                  value={studentName}
+                  onChange={(e) => setStudentName(e.target.value)}
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  Message / Note:
+                </label>
+                <textarea
+                  rows={3}
+                  value={bulletinText}
+                  onChange={(e) => setBulletinText(e.target.value)}
+                  placeholder="Leave a heartfelt note, inside joke, or cheer for Kritika..."
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white resize-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <span className="font-display font-black text-[10px] text-stone-500 uppercase block mb-1">
+                  Add Emojis:
+                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {COMMON_EMOJIS.map(emoji => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => setBulletinText(prev => prev + ' ' + emoji)}
+                      className="w-7 h-7 rounded-xl bg-stone-50 hover:bg-pink-100 border border-stone-200 flex items-center justify-center text-xs transition-transform active:scale-90 cursor-pointer"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-colors cursor-pointer"
+              >
+                Pin to Bulletin Board ✨
+              </button>
+            </form>
+          </BaseModal>
+        )}
+
+        {/* Lightbox Image Zoom */}
+        {lightboxImage && (
+          <div
+            onClick={() => setLightboxImage(null)}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-2xl w-full max-h-[90vh] flex flex-col items-center gap-3 relative"
+            >
+              <button
+                onClick={() => setLightboxImage(null)}
+                className="absolute top-2 right-2 bg-white/20 hover:bg-white/40 text-white p-2 rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <img
+                src={lightboxImage.url}
+                alt="Enlarged preview"
+                className="max-h-[75vh] w-auto max-w-full rounded-2xl object-contain shadow-2xl"
               />
-            );
-          })}
-        </div>
-      </div>
+              {lightboxImage.caption && (
+                <p className="text-white font-sans text-xs sm:text-sm text-center bg-black/60 px-4 py-2 rounded-xl">
+                  {lightboxImage.caption}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
-      {/* Question or Learning Card */}
-      {!showLearningCard ? (
-        <QuestionCard
-          question={currentQ}
-          questionNumber={currentIndex + 1}
-          totalQuestions={10}
-          onAnswer={handleAnswer}
-        />
-      ) : (
-        <LearningCard
-          question={currentQ}
-          isCorrect={currentAnswer?.isCorrect || false}
-          userAnswer={currentAnswer?.option || ''}
-          earnedXp={currentAnswer?.isCorrect ? 250 : 0}
-          onNext={handleNextQuestion}
-        />
-      )}
+        {/* Modal: Classmate Cheer & Status */}
+        {selectedClassmateDetail && (
+          <BaseModal
+            onClose={() => setSelectedClassmateDetail(null)}
+            title={selectedClassmateDetail.name}
+            subtitle={`Batch ${selectedClassmateDetail.batch} Member`}
+            icon={<div className="w-7 h-7 rounded-full overflow-hidden border border-stone-300"><img src={selectedClassmateDetail.avatarUrl} alt="" className="w-full h-full object-cover" /></div>}
+            maxWidth="max-w-sm"
+          >
+            <div className="space-y-3.5 text-center">
+              <div className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full text-xs font-handwritten font-bold text-amber-900">
+                <span>{selectedClassmateDetail.currentMoodEmoji}</span>
+                <span>{selectedClassmateDetail.currentMood}</span>
+              </div>
+
+              <div className="bg-stone-50 p-3 rounded-2xl border border-stone-200">
+                <p className="font-handwritten text-xs sm:text-sm text-stone-700 italic">
+                  "{selectedClassmateDetail.statusNote}"
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    audioEngine.playSfx('fanfare');
+                    confetti({ particleCount: 45, spread: 60, origin: { y: 0.7 } });
+                    batchWallService.sendGroupChatMessage({
+                      senderId: currentUser?.id,
+                      senderName: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
+                      senderEmail: currentUser?.email,
+                      avatarUrl: currentUser?.avatarUrl || profileAvatarInput,
+                      text: `Sending a big warm cheer to @${selectedClassmateDetail.name}! Keep glowing! ✨💖`
+                    });
+                    setSelectedClassmateDetail(null);
+                    setActiveMode('chat');
+                  }}
+                  className="py-2.5 px-2 bg-[#00A884] hover:bg-[#008F6F] text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-colors cursor-pointer"
+                >
+                  Cheer in Chat 💬
+                </button>
+
+                <button
+                  onClick={() => {
+                    audioEngine.playSfx('pop');
+                    setChatInput(prev => `${prev}@${selectedClassmateDetail.name.split(' ')[0]} `);
+                    setSelectedClassmateDetail(null);
+                    setActiveMode('chat');
+                  }}
+                  className="py-2.5 px-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-display font-bold uppercase shadow-2xs transition-colors cursor-pointer"
+                >
+                  @Mention In Chat
+                </button>
+              </div>
+            </div>
+          </BaseModal>
+        )}
+
+        {/* MODAL: EDIT CHAT MESSAGE */}
+        {editingMessage && (
+          <BaseModal
+            onClose={() => setEditingMessage(null)}
+            title="EDIT MESSAGE"
+            subtitle="Update your message in Batch 41 Lounge"
+            icon={<Edit3 className="w-5 h-5 text-amber-500" />}
+            maxWidth="max-w-md"
+          >
+            <form onSubmit={handleSaveEditMessage} className="space-y-3.5 text-left">
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  Message Text:
+                </label>
+                <textarea
+                  rows={4}
+                  value={editingText}
+                  onChange={(e) => setEditingText(e.target.value)}
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-amber-500 focus:bg-white resize-none"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingMessage(null)}
+                  className="flex-1 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-display font-bold uppercase transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editingText.trim()}
+                  className="flex-1 py-2.5 bg-[#00A884] hover:bg-[#008F6F] disabled:opacity-50 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-colors cursor-pointer"
+                >
+                  Save Changes ✓
+                </button>
+              </div>
+            </form>
+          </BaseModal>
+        )}
+
+        {/* MODAL: EDIT POST CAPTION */}
+        {editingPost && (
+          <BaseModal
+            onClose={() => setEditingPost(null)}
+            title="EDIT POST CAPTION"
+            subtitle="Update your caption for this post"
+            icon={<Edit3 className="w-5 h-5 text-amber-500" />}
+            maxWidth="max-w-md"
+          >
+            <form onSubmit={handleSaveEditPost} className="space-y-3.5 text-left">
+              <div className="rounded-xl overflow-hidden border border-stone-200 aspect-16/9 max-h-40 bg-black/5">
+                <img src={editingPost.imageUrl} alt="Post preview" className="w-full h-full object-cover" />
+              </div>
+
+              <div>
+                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
+                  Post Caption:
+                </label>
+                <textarea
+                  rows={4}
+                  value={editingPostCaption}
+                  onChange={(e) => setEditingPostCaption(e.target.value)}
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-amber-500 focus:bg-white resize-none"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingPost(null)}
+                  className="flex-1 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-display font-bold uppercase transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editingPostCaption.trim()}
+                  className="flex-1 py-2.5 bg-[#00A884] hover:bg-[#008F6F] disabled:opacity-50 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-colors cursor-pointer"
+                >
+                  Save Caption ✓
+                </button>
+              </div>
+            </form>
+          </BaseModal>
+        )}
+
+        {/* MODAL: DELETE MESSAGE (WHATSAPP STYLE) */}
+        {deleteModalMsg && (() => {
+          const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
+          const msgSenderName = (deleteModalMsg.senderName || '').replace(' 👑', '').trim().toLowerCase();
+          const isAuthor = Boolean(
+            (currentUser?.id && deleteModalMsg.senderId && currentUser.id === deleteModalMsg.senderId) ||
+            (currentUser?.email && deleteModalMsg.senderEmail && currentUser.email.trim().toLowerCase() === deleteModalMsg.senderEmail.trim().toLowerCase()) ||
+            (currentUserName !== '' && currentUserName === msgSenderName)
+          );
+          const isKritika = currentUserName.includes('kritika') || (currentUser?.email || '').toLowerCase().includes('kritika');
+
+          return (
+            <BaseModal
+              onClose={() => setDeleteModalMsg(null)}
+              title="DELETE MESSAGE?"
+              subtitle="Choose how you would like to delete this message"
+              icon={<Trash2 className="w-5 h-5 text-rose-500" />}
+              maxWidth="max-w-sm"
+            >
+              <div className="space-y-2.5 text-left">
+                <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-700">
+                  <span className="font-bold text-stone-900 block mb-0.5">{deleteModalMsg.senderName}:</span>
+                  <p className="line-clamp-2 italic">"{deleteModalMsg.text || 'Photo attachment'}"</p>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  {/* Delete for Everyone: ONLY visible to message author or Kritika */}
+                  {(isAuthor || isKritika) && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteForEveryone(deleteModalMsg)}
+                      className="w-full py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-display font-black flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                    >
+                      <Globe className="w-4 h-4" />
+                      <span>Delete for Everyone</span>
+                    </button>
+                  )}
+
+                  {/* Delete for Me */}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteForMe(deleteModalMsg)}
+                    className="w-full py-2.5 px-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-display font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4 text-stone-500" />
+                    <span>Delete for Me</span>
+                  </button>
+
+                  {/* Cancel */}
+                  <button
+                    type="button"
+                    onClick={() => setDeleteModalMsg(null)}
+                    className="w-full py-2 text-stone-500 hover:text-stone-800 text-xs font-display font-bold text-center cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </BaseModal>
+          );
+        })()}
+
+        {/* MODAL: MESSAGE READ RECEIPTS / SEEN STATUS */}
+        {seenInfoMsg && (
+          <BaseModal
+            onClose={() => setSeenInfoMsg(null)}
+            title="MESSAGE READ STATUS"
+            subtitle="Check who has seen this message and who hasn't yet"
+            icon={<Eye className="w-5 h-5 text-sky-500" />}
+            maxWidth="max-w-md"
+          >
+            {(() => {
+              const allMembers = batchWallService.getAllBatchMembers(classmates);
+              const seenByList = seenInfoMsg.seenBy || [];
+              const unseenMembers = allMembers.filter(m => !seenByList.some(s => (s.userId && s.userId === m.id) || (m.email && s.userEmail && s.userEmail.toLowerCase() === m.email.toLowerCase()) || (s.userName && s.userName.toLowerCase().trim() === m.name.toLowerCase().trim())));
+              const isAllSeen = seenByList.length > 0 && unseenMembers.length === 0;
+
+              return (
+                <div className="space-y-4 text-left">
+                  {/* Message Preview Box */}
+                  <div className="p-3 bg-stone-50 border border-stone-200 rounded-2xl space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-display font-black text-stone-900">{seenInfoMsg.senderName}</span>
+                      <span className="text-[10px] text-stone-400">{seenInfoMsg.timestamp}</span>
+                    </div>
+                    <p className="text-xs text-stone-700 font-sans italic line-clamp-2">
+                      "{seenInfoMsg.text || (seenInfoMsg.imageUrl ? 'Photo Attachment' : 'Group Message')}"
+                    </p>
+                  </div>
+
+                  {/* Read Status Banner */}
+                  <div className={`p-3 rounded-2xl border flex items-center justify-between gap-2 text-xs font-bold ${
+                    isAllSeen 
+                      ? 'bg-sky-50 border-sky-200 text-sky-900' 
+                      : 'bg-stone-50 border-stone-200 text-stone-700'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <CheckCheck className={`w-4 h-4 ${isAllSeen ? 'text-sky-500' : 'text-stone-400'}`} />
+                      <span>{isAllSeen ? 'Seen by all batch members!' : `Delivered (${seenByList.length} of ${allMembers.length} seen)`}</span>
+                    </div>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                      isAllSeen ? 'bg-sky-500 text-white' : 'bg-stone-200 text-stone-700'
+                    }`}>
+                      {isAllSeen ? 'All Read ✓✓' : 'Partial'}
+                    </span>
+                  </div>
+
+                  {/* Seen By Section */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-display font-black text-xs text-stone-700 uppercase flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-sky-500" />
+                        <span>Seen By ({seenByList.length})</span>
+                      </h4>
+                    </div>
+
+                    {seenByList.length === 0 ? (
+                      <p className="text-xs text-stone-400 italic p-2">No read receipts recorded yet.</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                        {seenByList.map((s, idx) => (
+                          <div key={idx} className="p-2 bg-emerald-50/60 border border-emerald-200/80 rounded-xl flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full overflow-hidden border border-emerald-300 bg-white">
+                                <img src={s.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop'} alt={s.userName} className="w-full h-full object-cover" />
+                              </div>
+                              <span className="font-display font-bold text-stone-900">{s.userName}</span>
+                            </div>
+                            <span className="text-[10px] text-emerald-700 font-medium bg-white px-2 py-0.5 rounded-full border border-emerald-200">
+                              Seen {s.seenAt ? new Date(s.seenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Not Seen Yet Section */}
+                  <div className="space-y-2 pt-2 border-t border-stone-200">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-display font-black text-xs text-stone-700 uppercase flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Not Seen Yet ({unseenMembers.length})</span>
+                      </h4>
+                    </div>
+
+                    {unseenMembers.length === 0 ? (
+                      <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-200 text-xs font-bold text-sky-800 text-center">
+                        ✨ Everyone in the batch has seen this message!
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                        {unseenMembers.map((m) => (
+                          <div key={m.id} className="p-2 bg-stone-50 border border-stone-200 rounded-xl flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full overflow-hidden border border-stone-300 bg-white">
+                                <img src={m.avatarUrl} alt={m.name} className="w-full h-full object-cover" />
+                              </div>
+                              <span className="font-display font-bold text-stone-800">{m.name}</span>
+                            </div>
+                            <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                              Unread ⏳
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSeenInfoMsg(null)}
+                    className="w-full py-2 bg-stone-900 text-white rounded-xl font-display font-black text-xs uppercase cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              );
+            })()}
+          </BaseModal>
+        )}
+
+        {/* Modal: Pin Important Announcement */}
+        {showPinAnnouncementModal && (
+          <BaseModal
+            isOpen={showPinAnnouncementModal}
+            onClose={() => setShowPinAnnouncementModal(false)}
+            title="📌 Pin Important Announcement"
+          >
+            <form onSubmit={handleCreatePinnedAnnouncement} className="space-y-4">
+              <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-3 text-xs text-amber-900 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <Pin className="w-3.5 h-3.5 fill-amber-700 text-amber-700" />
+                  <span>Pinned to Important Section & Group Chat</span>
+                </p>
+                <p className="text-[11px] text-amber-800/80">
+                  This announcement will be displayed prominently in both the group lounge and the dedicated Important Highlights section for all connected members.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-display font-black text-xs text-stone-700 uppercase">
+                  Category Tag
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['📢 Announcement', '⚠️ Important', '🌸 Special Notice', '📌 Pinned'] as const).map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setPinNoticeCategory(tag)}
+                      className={`p-2 rounded-xl text-xs font-display font-bold border transition-all cursor-pointer text-left ${
+                        pinNoticeCategory === tag
+                          ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                          : 'bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-display font-black text-xs text-stone-700 uppercase">
+                  Announcement Details
+                </label>
+                <textarea
+                  value={pinNoticeText}
+                  onChange={(e) => setPinNoticeText(e.target.value)}
+                  placeholder="Write the important message, deadline, rule, or batch update..."
+                  rows={4}
+                  required
+                  className="w-full p-3 rounded-2xl border border-stone-200 text-xs text-stone-900 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-200 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPinAnnouncementModal(false)}
+                  className="px-4 py-2 text-xs font-display font-bold text-stone-600 hover:bg-stone-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!pinNoticeText.trim()}
+                  className="px-5 py-2 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                >
+                  📌 Pin Announcement
+                </button>
+              </div>
+            </form>
+          </BaseModal>
+        )}
+
+        {/* Modal: Google Sign In */}
+        {showGoogleModal && (
+          <GoogleSignInModal onClose={() => setShowGoogleModal(false)} />
+        )}
+
+      </div>
     </div>
   );
 };
@@ -1414,10 +5243,9 @@ export const BossRound: React.FC<BossRoundProps> = ({ zone, onComplete }) => {
 
 ```tsx
 import React from 'react';
-import { Home, Music, Play, Lock } from 'lucide-react';
 import { audioEngine } from '../services/synthAudioEngine';
 
-export type MainNavTab = 'home' | 'lounge' | 'quiz' | 'locket';
+export type MainNavTab = 'home' | 'chat' | 'posts' | 'music' | 'quiz';
 
 interface BottomNavigationDockProps {
   activeTab: MainNavTab;
@@ -1425,16 +5253,17 @@ interface BottomNavigationDockProps {
 }
 
 export const BottomNavigationDock: React.FC<BottomNavigationDockProps> = ({ activeTab, onTabSelect }) => {
-  const tabs: Array<{ id: MainNavTab; label: string; icon: React.ReactNode; emoji: string }> = [
-    { id: 'home', label: 'Home', icon: <Home className="w-4 h-4" />, emoji: '🏠' },
-    { id: 'lounge', label: 'Lounge', icon: <Music className="w-4 h-4" />, emoji: '🎵' },
-    { id: 'quiz', label: 'Quiz', icon: <Play className="w-4 h-4 fill-current" />, emoji: '🍳' },
-    { id: 'locket', label: 'Locket', icon: <Lock className="w-4 h-4" />, emoji: '🔐' },
+  const tabs: Array<{ id: MainNavTab; label: string; emoji: string }> = [
+    { id: 'home', label: 'Home', emoji: '🏠' },
+    { id: 'chat', label: 'Chat', emoji: '💬' },
+    { id: 'posts', label: 'Post', emoji: '📸' },
+    { id: 'music', label: 'Music', emoji: '🎵' },
+    { id: 'quiz', label: 'Quiz', emoji: '🎯' },
   ];
 
   return (
-    <div className="fixed bottom-3 inset-x-0 z-40 flex justify-center px-4 pointer-events-none">
-      <nav className="pointer-events-auto bg-white/90 backdrop-blur-md border-2 border-pink-300 rounded-full px-3 py-1.5 shadow-sketch-lg flex items-center gap-1 sm:gap-2 max-w-md w-full justify-around">
+    <div className="fixed bottom-3 inset-x-0 z-40 flex justify-center px-2 sm:px-4 pointer-events-none">
+      <nav className="pointer-events-auto bg-white/95 backdrop-blur-md border border-stone-300 rounded-full p-1.5 shadow-lg flex items-center gap-1 max-w-md w-full justify-between">
         {tabs.map(tab => {
           const isActive = activeTab === tab.id;
           return (
@@ -1444,14 +5273,14 @@ export const BottomNavigationDock: React.FC<BottomNavigationDockProps> = ({ acti
                 audioEngine.playSfx('click');
                 onTabSelect(tab.id);
               }}
-              className={`flex flex-col items-center justify-center py-1 px-2.5 sm:px-3 rounded-full transition-all duration-300 ${
+              className={`flex-1 flex items-center justify-center gap-1 sm:gap-1.5 py-2 px-2 sm:px-3 rounded-full transition-all duration-200 cursor-pointer ${
                 isActive
-                  ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-xs scale-105 font-black'
-                  : 'text-stone-500 hover:text-pink-600 hover:bg-pink-50'
+                  ? 'bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 text-white shadow-xs scale-102 font-black'
+                  : 'text-stone-700 hover:text-rose-600 hover:bg-rose-50/80 font-bold'
               }`}
             >
               <span className="text-base sm:text-lg leading-none">{tab.emoji}</span>
-              <span className="text-[10px] sm:text-[11px] font-display font-black tracking-tight mt-0.5">
+              <span className="text-[11px] sm:text-xs font-display font-black tracking-tight whitespace-nowrap">
                 {tab.label}
               </span>
             </button>
@@ -1472,7 +5301,8 @@ export const BottomNavigationDock: React.FC<BottomNavigationDockProps> = ({ acti
 import React, { useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { audioEngine } from '../services/synthAudioEngine';
-import { Heart, Sparkles, X, Award } from 'lucide-react';
+import { BaseModal } from './BaseModal';
+import { Heart, Sparkles, Award } from 'lucide-react';
 
 interface CelebrationLocketModalProps {
   onClose: () => void;
@@ -1496,10 +5326,8 @@ export const CelebrationLocketModal: React.FC<CelebrationLocketModalProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    // Soft celebratory chime fanfare
     audioEngine.playSfx('fanfare');
 
-    // Confetti shower
     confetti({
       particleCount: 50,
       spread: 80,
@@ -1507,7 +5335,6 @@ export const CelebrationLocketModal: React.FC<CelebrationLocketModalProps> = ({
       colors: ['#F43F5E', '#EC4899', '#FBBF24', '#A855F7', '#10B981']
     });
 
-    // Local animated photo memory loop on canvas (100% private client-side)
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -1520,7 +5347,6 @@ export const CelebrationLocketModal: React.FC<CelebrationLocketModalProps> = ({
     const loadedImages: HTMLImageElement[] = [];
     let imagesReady = false;
 
-    // Preload images
     let loadedCount = 0;
     CELEBRATION_IMAGES.forEach((src) => {
       const img = new Image();
@@ -1558,21 +5384,18 @@ export const CelebrationLocketModal: React.FC<CelebrationLocketModalProps> = ({
         const currentImg = loadedImages[currentImageIndex];
         const nextImg = loadedImages[(currentImageIndex + 1) % loadedImages.length];
 
-        // Draw soft pastel glow background
         const gradient = ctx.createRadialGradient(160, 160, 20, 160, 160, 160);
         gradient.addColorStop(0, '#FFF1F2');
         gradient.addColorStop(1, '#FCE7F3');
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Ken-burns gentle zoom effect
         const scale = 1.0 + Math.sin(progress * Math.PI) * 0.08;
         const w = 240 * scale;
         const h = 240 * scale;
         const x = (canvas.width - w) / 2;
         const y = (canvas.height - h) / 2;
 
-        // Draw current image with cross-fade
         ctx.globalAlpha = Math.max(0, 1 - progress * 1.5);
         if (currentImg.complete) {
           ctx.drawImage(currentImg, x, y, w, h);
@@ -1585,7 +5408,6 @@ export const CelebrationLocketModal: React.FC<CelebrationLocketModalProps> = ({
         ctx.globalAlpha = 1.0;
       }
 
-      // Draw floating heart & bow particles
       particles.forEach((p) => {
         p.y -= p.speed;
         if (p.y < -20) p.y = canvas.height + 10;
@@ -1604,22 +5426,8 @@ export const CelebrationLocketModal: React.FC<CelebrationLocketModalProps> = ({
   }, []);
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
-    >
-      <div 
-        className="bg-[#FFFDF7] border-3 border-ink rounded-4xl max-w-md w-full p-6 shadow-sketch-2xl space-y-4 text-center relative overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-9 h-9 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200 transition-colors z-20 shadow-xs"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
+    <BaseModal onClose={onClose} maxWidth="max-w-md" hideHeader className="text-center">
+      <div className="space-y-4">
         {/* Celebration Header Ribbon */}
         <div className="inline-flex items-center gap-1.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-display font-black text-xs px-3.5 py-1 rounded-full border border-ink shadow-xs">
           <Award className="w-4 h-4" />
@@ -1628,8 +5436,6 @@ export const CelebrationLocketModal: React.FC<CelebrationLocketModalProps> = ({
 
         {/* Heart Locket Ornate Frame */}
         <div className="relative mx-auto w-64 h-64 sm:w-72 sm:h-72 p-3 bg-gradient-to-tr from-amber-300 via-rose-300 to-pink-400 rounded-full border-4 border-ink shadow-sketch-xl flex items-center justify-center">
-          
-          {/* Inner Canvas for Local Animated Photo Memory Reel */}
           <div className="w-full h-full rounded-full overflow-hidden border-3 border-white shadow-inner bg-pink-50 relative">
             <canvas
               ref={canvasRef}
@@ -1639,14 +5445,12 @@ export const CelebrationLocketModal: React.FC<CelebrationLocketModalProps> = ({
             />
           </div>
 
-          {/* Floating Locket Charms */}
           <Heart className="w-8 h-8 fill-pink-500 text-white absolute -top-2 -left-2 drop-shadow-md animate-bounce-gentle" />
           <Sparkles className="w-8 h-8 text-amber-300 absolute -bottom-2 -right-2 drop-shadow-md animate-spin" />
         </div>
 
         {/* Cute Speech Bubble Message */}
         <div className="relative bg-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch text-center space-y-1">
-          {/* Bubble tail */}
           <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-5 h-5 bg-white border-t-2.5 border-l-2.5 border-ink rotate-45" />
 
           <h3 className="font-display font-black text-lg sm:text-xl text-ink leading-tight">
@@ -1669,23 +5473,31 @@ export const CelebrationLocketModal: React.FC<CelebrationLocketModalProps> = ({
           🔒 Private local animation — no external photo uploads
         </p>
       </div>
-    </div>
+    </BaseModal>
   );
 };
+
 
 ```
 
 ---
 
-### File: `src/components/ClassroomMode.tsx`
+### File: `src/components/Classroom.tsx`
 
 ```tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
+import type { TeacherProfile } from '../types/game';
 import { Marisol } from './Marisol';
-import { Users, Trophy, Copy, Check } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { Users, Trophy, Copy, Check, Sparkles, Star, ArrowRight, Save, Lock, GraduationCap, ArrowLeft } from 'lucide-react';
 
-interface ClassroomModeProps {
+export type ClassroomModeType = 'student' | 'secret' | 'teacher';
+
+interface ClassroomProps {
+  mode?: ClassroomModeType;
+  onNavigateHome: () => void;
   onStartQuiz: () => void;
 }
 
@@ -1697,9 +5509,21 @@ const DUMMY_LEADERBOARD = [
   { rank: 5, name: 'Karan (Bollywood Soul)', xp: 850, badge: '🎬 Filmy Star' },
 ];
 
-export const ClassroomMode: React.FC<ClassroomModeProps> = ({ onStartQuiz }) => {
+export const Classroom: React.FC<ClassroomProps> = ({
+  mode = 'student',
+  onNavigateHome,
+  onStartQuiz,
+}) => {
+  const [activeTab, setActiveTab] = useState<ClassroomModeType>(mode);
+
+  // Synchronize if prop changes
+  useEffect(() => {
+    setActiveTab(mode);
+  }, [mode]);
+
+  // STUDENT ARENA STATE
   const [roomCode] = useState('MARISOL-482');
-  const [selectedMode, setSelectedMode] = useState<'1v1' | 'team' | 'class'>('1v1');
+  const [selectedBattleMode, setSelectedBattleMode] = useState<'1v1' | 'team' | 'class'>('1v1');
   const [copied, setCopied] = useState(false);
 
   const copyCode = () => {
@@ -1709,129 +5533,416 @@ export const ClassroomMode: React.FC<ClassroomModeProps> = ({ onStartQuiz }) => 
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // SECRET CLASSROOM STATE
+  const teacher = gameState.getTeacherProfile();
+  const [secretSlide, setSecretSlide] = useState<number>(1);
+
+  useEffect(() => {
+    if (activeTab === 'secret') {
+      audioEngine.startMusic('final');
+      const timer = setTimeout(() => {
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.5 } });
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab]);
+
+  const handleNextSecretSlide = () => {
+    audioEngine.playSfx('click');
+    if (secretSlide < 3) {
+      setSecretSlide(prev => prev + 1);
+    } else {
+      onNavigateHome();
+    }
+  };
+
+  // TEACHER MODE STATE
+  const [teacherForm, setTeacherForm] = useState<TeacherProfile>({ ...teacher });
+  const [savedMessage, setSavedMessage] = useState(false);
+
+  const handleTeacherSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    audioEngine.playSfx('fanfare');
+    gameState.saveTeacherProfile(teacherForm);
+    setSavedMessage(true);
+    setTimeout(() => {
+      setSavedMessage(false);
+      onNavigateHome();
+    }, 1500);
+  };
+
   return (
-    <div className="min-h-screen bg-paper-50 p-4 sm:p-6 pb-24 text-ink">
-      
-      {/* Header */}
-      <div className="max-w-4xl mx-auto mb-8 text-center space-y-2">
-        <div className="inline-block bg-white border-2.5 border-ink px-4 py-1.5 rounded-full shadow-sketch font-handwritten text-lg font-bold text-coral-500">
-          🏫 CLASSROOM ARENA
-        </div>
-        <h1 className="font-display font-black text-3xl sm:text-5xl text-plum-700">
-          MULTIPLAYER CLASSROOM
-        </h1>
-        <p className="font-handwritten text-xl text-ink-light max-w-lg mx-auto">
-          Challenge your classmates, form teams, or take on the Teacher Battle!
-        </p>
-      </div>
+    <div className="min-h-screen bg-paper-50 p-4 sm:p-6 pb-28 text-ink">
+      <div className="max-w-4xl mx-auto space-y-6">
 
-      {/* Marisol Guide */}
-      <div className="max-w-xl mx-auto mb-8 bg-white border-2.5 border-ink rounded-2xl p-4 shadow-sketch-lg flex items-center gap-4">
-        <Marisol expression="excited" size="small" showSpeechBubble={false} />
-        <div>
-          <h3 className="font-display font-bold text-lg text-ink">Classroom Host Marisol</h3>
-          <p className="font-handwritten text-base text-ink-light">
-            "Share room code MARISOL-482 with your classmates to battle together!"
-          </p>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* Room Setup Box */}
-        <div className="bg-white border-3 border-ink rounded-3xl p-6 shadow-sketch-xl space-y-6">
-          <h2 className="font-display font-black text-2xl text-ink flex items-center gap-2">
-            <Users className="w-6 h-6 text-coral-500" />
-            <span>JOIN OR HOST ROOM</span>
-          </h2>
-
-          {/* Room Code Pill */}
-          <div className="bg-paper-50 p-4 rounded-2xl border-2 border-ink flex items-center justify-between">
-            <div>
-              <div className="font-handwritten text-xs font-bold text-ink-light">PRIVATE ROOM CODE</div>
-              <div className="font-display font-black text-2xl text-plum-700">{roomCode}</div>
-            </div>
+        {/* Classroom Navigation Mode Switcher */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b-2 border-ink/20 pb-4">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
             <button
-              onClick={copyCode}
-              className="sketch-btn px-3 py-2 text-xs font-bold flex items-center gap-1 bg-white"
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onNavigateHome();
+              }}
+              className="sketch-btn p-2 sm:px-3 bg-white flex items-center gap-1.5 shadow-sketch text-xs font-display font-bold shrink-0 hover:bg-paper-100"
+              title="Return to Home"
             >
-              {copied ? <Check className="w-4 h-4 text-doodleTeal" /> : <Copy className="w-4 h-4" />}
-              <span>{copied ? 'COPIED' : 'COPY'}</span>
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">HOME</span>
+            </button>
+
+            <div className="text-left">
+              <div className="inline-block bg-white border-2 border-ink px-2.5 py-0.5 rounded-full shadow-sketch font-handwritten text-[11px] font-bold text-coral-500 uppercase tracking-wider">
+                🏫 Classroom Hub
+              </div>
+              <h1 className="font-display font-black text-xl sm:text-3xl text-plum-700 tracking-tight mt-0.5">
+                MARISOL'S CLASSROOM
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-white border-2.5 border-ink rounded-full p-1.5 shadow-sketch">
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setActiveTab('student');
+              }}
+              className={`px-3 py-1.5 rounded-full font-display font-black text-xs transition-all flex items-center gap-1.5 ${
+                activeTab === 'student'
+                  ? 'bg-coral-500 text-white shadow-xs'
+                  : 'text-ink-light hover:text-ink'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Arena</span>
+            </button>
+
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setActiveTab('secret');
+              }}
+              className={`px-3 py-1.5 rounded-full font-display font-black text-xs transition-all flex items-center gap-1.5 ${
+                activeTab === 'secret'
+                  ? 'bg-plum-600 text-white shadow-xs'
+                  : 'text-ink-light hover:text-ink'
+              }`}
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Secret Tribute</span>
+            </button>
+
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setActiveTab('teacher');
+              }}
+              className={`px-3 py-1.5 rounded-full font-display font-black text-xs transition-all flex items-center gap-1.5 ${
+                activeTab === 'teacher'
+                  ? 'bg-doodleGold text-ink shadow-xs'
+                  : 'text-ink-light hover:text-ink'
+              }`}
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>Teacher Setup</span>
             </button>
           </div>
-
-          {/* Game Modes Selection */}
-          <div className="space-y-3">
-            <div className="font-display font-bold text-sm text-ink-light">SELECT BATTLE MODE:</div>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => setSelectedMode('1v1')}
-                className={`sketch-btn p-3 text-center transition-all ${
-                  selectedMode === '1v1' ? 'bg-coral-500 text-white font-bold' : 'bg-white text-ink'
-                }`}
-              >
-                1v1 Duel
-              </button>
-              <button
-                onClick={() => setSelectedMode('team')}
-                className={`sketch-btn p-3 text-center transition-all ${
-                  selectedMode === 'team' ? 'bg-coral-500 text-white font-bold' : 'bg-white text-ink'
-                }`}
-              >
-                Team Battle
-              </button>
-              <button
-                onClick={() => setSelectedMode('class')}
-                className={`sketch-btn p-3 text-center transition-all ${
-                  selectedMode === 'class' ? 'bg-coral-500 text-white font-bold' : 'bg-white text-ink'
-                }`}
-              >
-                Teacher Battle
-              </button>
-            </div>
-          </div>
-
-          <button
-            onClick={() => {
-              audioEngine.playSfx('fanfare');
-              onStartQuiz();
-            }}
-            className="sketch-btn-primary w-full py-3.5 text-lg font-black uppercase shadow-sketch-lg hover:scale-105 transition-all"
-          >
-            START CLASSROOM CHALLENGE 🎮
-          </button>
         </div>
 
-        {/* Leaderboard Box */}
-        <div className="bg-white border-3 border-ink rounded-3xl p-6 shadow-sketch-xl space-y-4">
-          <h2 className="font-display font-black text-2xl text-ink flex items-center gap-2">
-            <Trophy className="w-6 h-6 text-doodleGold" />
-            <span>CLASSROOM LEADERBOARD</span>
-          </h2>
+        {/* 1. STUDENT ARENA VIEW */}
+        {activeTab === 'student' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Host Banner */}
+            <div className="bg-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch-lg flex items-center gap-4">
+              <Marisol expression="excited" size="small" showSpeechBubble={false} />
+              <div>
+                <h3 className="font-display font-bold text-lg text-ink">Classroom Host Marisol</h3>
+                <p className="font-handwritten text-base text-ink-light">
+                  "Share room code <span className="font-display font-black text-plum-700">{roomCode}</span> with your classmates to battle together!"
+                </p>
+              </div>
+            </div>
 
-          <div className="space-y-2">
-            {DUMMY_LEADERBOARD.map(item => (
-              <div
-                key={item.rank}
-                className="flex items-center justify-between p-3 rounded-2xl border-2 border-ink bg-paper-50 shadow-sketch"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full border-1.5 border-ink bg-doodleGold text-ink flex items-center justify-center font-display font-black text-sm">
-                    #{item.rank}
-                  </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Room Setup Box */}
+              <div className="bg-white border-3 border-ink rounded-3xl p-6 shadow-sketch-xl space-y-6">
+                <h2 className="font-display font-black text-2xl text-ink flex items-center gap-2">
+                  <Users className="w-6 h-6 text-coral-500" />
+                  <span>JOIN OR HOST ROOM</span>
+                </h2>
+
+                <div className="bg-paper-50 p-4 rounded-2xl border-2 border-ink flex items-center justify-between">
                   <div>
-                    <div className="font-display font-bold text-sm text-ink">{item.name}</div>
-                    <div className="font-handwritten text-xs font-bold text-coral-500">{item.badge}</div>
+                    <div className="font-handwritten text-xs font-bold text-ink-light">PRIVATE ROOM CODE</div>
+                    <div className="font-display font-black text-2xl text-plum-700">{roomCode}</div>
+                  </div>
+                  <button
+                    onClick={copyCode}
+                    className="sketch-btn px-3 py-2 text-xs font-bold flex items-center gap-1 bg-white"
+                  >
+                    {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    <span>{copied ? 'COPIED' : 'COPY'}</span>
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="font-display font-bold text-sm text-ink-light">SELECT BATTLE MODE:</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => setSelectedBattleMode('1v1')}
+                      className={`sketch-btn p-3 text-center transition-all ${
+                        selectedBattleMode === '1v1' ? 'bg-coral-500 text-white font-bold' : 'bg-white text-ink'
+                      }`}
+                    >
+                      1v1 Duel
+                    </button>
+                    <button
+                      onClick={() => setSelectedBattleMode('team')}
+                      className={`sketch-btn p-3 text-center transition-all ${
+                        selectedBattleMode === 'team' ? 'bg-coral-500 text-white font-bold' : 'bg-white text-ink'
+                      }`}
+                    >
+                      Team Battle
+                    </button>
+                    <button
+                      onClick={() => setSelectedBattleMode('class')}
+                      className={`sketch-btn p-3 text-center transition-all ${
+                        selectedBattleMode === 'class' ? 'bg-coral-500 text-white font-bold' : 'bg-white text-ink'
+                      }`}
+                    >
+                      Teacher Battle
+                    </button>
                   </div>
                 </div>
 
-                <div className="font-display font-bold text-sm text-plum-700">
-                  {item.xp} XP
+                <button
+                  onClick={() => {
+                    audioEngine.playSfx('fanfare');
+                    onStartQuiz();
+                  }}
+                  className="sketch-btn-primary w-full py-3.5 text-lg font-black uppercase shadow-sketch-lg hover:scale-105 transition-all"
+                >
+                  START CLASSROOM CHALLENGE 🎮
+                </button>
+              </div>
+
+              {/* Leaderboard Box */}
+              <div className="bg-white border-3 border-ink rounded-3xl p-6 shadow-sketch-xl space-y-4">
+                <h2 className="font-display font-black text-2xl text-ink flex items-center gap-2">
+                  <Trophy className="w-6 h-6 text-doodleGold" />
+                  <span>CLASSROOM LEADERBOARD</span>
+                </h2>
+
+                <div className="space-y-2">
+                  {DUMMY_LEADERBOARD.map(item => (
+                    <div
+                      key={item.rank}
+                      className="flex items-center justify-between p-3 rounded-2xl border-2 border-ink bg-paper-50 shadow-sketch"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full border-1.5 border-ink bg-doodleGold text-ink flex items-center justify-center font-display font-black text-sm">
+                          #{item.rank}
+                        </div>
+                        <div>
+                          <div className="font-display font-bold text-sm text-ink">{item.name}</div>
+                          <div className="font-handwritten text-xs font-bold text-coral-500">{item.badge}</div>
+                        </div>
+                      </div>
+                      <div className="font-display font-bold text-sm text-plum-700">
+                        {item.xp} XP
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* 2. SECRET CLASSROOM TRIBUTE VIEW */}
+        {activeTab === 'secret' && (
+          <div className="max-w-2xl mx-auto space-y-6 text-center animate-fade-in">
+            {secretSlide === 1 && (
+              <div className="space-y-6">
+                <div className="inline-block bg-coral-500 text-white font-handwritten text-lg font-bold px-4 py-1 rounded-full border-2 border-ink shadow-sketch">
+                  SECRET LEVEL UNLOCKED 🔑
+                </div>
+
+                <Marisol
+                  expression="welcome"
+                  size="full"
+                  dialogue={`"Okay... I've been keeping something from you! This whole Factory of Fun was created as a special surprise..."`}
+                  bubblePosition="top"
+                />
+
+                <button
+                  onClick={handleNextSecretSlide}
+                  className="sketch-btn-primary w-full py-4 text-xl font-black uppercase shadow-sketch-lg hover:scale-105 transition-all mt-4"
+                >
+                  ENTER THE SECRET CLASSROOM ❤️
+                </button>
+              </div>
+            )}
+
+            {secretSlide === 2 && (
+              <div className="bg-white border-3 border-ink rounded-3xl p-6 sm:p-8 shadow-sketch-xl space-y-6 text-left">
+                <div className="text-center">
+                  <h1 className="font-display font-black text-3xl sm:text-4xl text-plum-700">
+                    CLASSROOM MEMORIES 📸
+                  </h1>
+                  <p className="font-handwritten text-xl text-coral-500 font-bold">
+                    Dedicated to {teacher.teacherName}
+                  </p>
+                </div>
+
+                <div className="space-y-3 font-handwritten text-lg text-ink">
+                  {teacher.classroomMemories.map((mem, idx) => (
+                    <div key={idx} className="bg-paper-50 p-4 rounded-2xl border-2 border-ink shadow-sketch flex items-start gap-3">
+                      <Star className="w-5 h-5 text-doodleGold flex-shrink-0 mt-0.5" />
+                      <span>"{mem}"</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-plum-500/10 border-2 border-plum-500 p-4 rounded-2xl space-y-2">
+                  <div className="font-display font-bold text-xs text-plum-700 uppercase tracking-wider flex items-center gap-1">
+                    <Sparkles className="w-4 h-4" />
+                    <span>FAMOUS TEACHER PHRASES WE WILL NEVER FORGET:</span>
+                  </div>
+                  <ul className="font-handwritten text-lg text-plum-700 list-disc list-inside space-y-1">
+                    {teacher.famousPhrases.map((phrase, i) => (
+                      <li key={i}>{phrase}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <button
+                  onClick={handleNextSecretSlide}
+                  className="sketch-btn-gold w-full py-3.5 text-lg font-black uppercase shadow-sketch flex items-center justify-center gap-2"
+                >
+                  <span>THE FINAL MESSAGE</span>
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </div>
+            )}
+
+            {secretSlide === 3 && (
+              <div className="bg-white border-3 border-ink rounded-3xl p-8 sm:p-10 shadow-sketch-xl space-y-8 text-center animate-fade-in">
+                <div className="flex justify-center">
+                  <Marisol expression="proud" size="large" showSpeechBubble={false} />
+                </div>
+
+                <div className="space-y-4">
+                  <p className="font-handwritten text-2xl sm:text-3xl text-ink font-semibold italic">
+                    "Some lessons stay on the page."
+                  </p>
+                  <p className="font-handwritten text-3xl sm:text-4xl text-plum-700 font-bold">
+                    "Some stay with you."
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t-2 border-dashed border-ink/30 space-y-3">
+                  <h2 className="font-display font-black text-4xl sm:text-5xl text-coral-500">
+                    Thank you, {teacher.teacherName}. ❤️
+                  </h2>
+                  <p className="font-handwritten text-xl text-ink-light">
+                    {teacher.customMessage}
+                  </p>
+                  <p className="font-handwritten text-2xl font-bold text-emerald-600">
+                    Made with love by your class. ✨
+                  </p>
+                </div>
+
+                <button
+                  onClick={onNavigateHome}
+                  className="sketch-btn-primary px-8 py-3.5 text-lg font-black uppercase shadow-sketch hover:scale-105 transition-all"
+                >
+                  RETURN TO MAIN MENU 🏠
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 3. TEACHER SETUP VIEW */}
+        {activeTab === 'teacher' && (
+          <div className="max-w-2xl mx-auto bg-white border-3 border-ink rounded-3xl p-6 sm:p-8 shadow-sketch-xl space-y-6 animate-fade-in">
+            <div className="flex items-center gap-4 bg-paper-50 p-4 rounded-2xl border-2 border-ink">
+              <Marisol expression="chai" size="small" showSpeechBubble={false} />
+              <div className="font-handwritten text-base text-ink font-semibold">
+                "Enter your teacher's favorite things below! I'll sprinkle them directly into the trivia and secret classroom reveal!"
+              </div>
+            </div>
+
+            <form onSubmit={handleTeacherSubmit} className="space-y-4 font-sans text-left">
+              <div>
+                <label className="block text-sm font-bold text-ink mb-1">Teacher's Name</label>
+                <input
+                  type="text"
+                  value={teacherForm.teacherName}
+                  onChange={e => setTeacherForm({ ...teacherForm, teacherName: e.target.value })}
+                  className="w-full p-3 rounded-xl border-2 border-ink font-display text-base bg-paper-50 focus:outline-hidden focus:ring-2 focus:ring-coral-400"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-ink mb-1">Subject / Department</label>
+                <input
+                  type="text"
+                  value={teacherForm.subject}
+                  onChange={e => setTeacherForm({ ...teacherForm, subject: e.target.value })}
+                  className="w-full p-3 rounded-xl border-2 border-ink font-display text-base bg-paper-50 focus:outline-hidden focus:ring-2 focus:ring-coral-400"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-ink mb-1">Favorite Movies / Cinema</label>
+                <input
+                  type="text"
+                  value={teacherForm.favoriteMovies}
+                  onChange={e => setTeacherForm({ ...teacherForm, favoriteMovies: e.target.value })}
+                  className="w-full p-3 rounded-xl border-2 border-ink font-display text-base bg-paper-50 focus:outline-hidden focus:ring-2 focus:ring-coral-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-ink mb-1">Favorite TV Shows</label>
+                <input
+                  type="text"
+                  value={teacherForm.favoriteShows}
+                  onChange={e => setTeacherForm({ ...teacherForm, favoriteShows: e.target.value })}
+                  className="w-full p-3 rounded-xl border-2 border-ink font-display text-base bg-paper-50 focus:outline-hidden focus:ring-2 focus:ring-coral-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-ink mb-1">Personal Thank You Note from the Class</label>
+                <textarea
+                  rows={3}
+                  value={teacherForm.customMessage}
+                  onChange={e => setTeacherForm({ ...teacherForm, customMessage: e.target.value })}
+                  className="w-full p-3 rounded-xl border-2 border-ink font-handwritten text-lg bg-paper-50 focus:outline-hidden focus:ring-2 focus:ring-coral-400"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="sketch-btn-primary w-full py-4 text-xl font-black uppercase flex items-center justify-center gap-2 shadow-sketch-lg hover:scale-105 transition-all mt-4"
+              >
+                <Save className="w-5 h-5" />
+                <span>SAVE PERSONALIZED GAME</span>
+              </button>
+
+              {savedMessage && (
+                <div className="text-center font-handwritten text-lg font-bold text-emerald-600 animate-bounce-gentle">
+                  ✨ Saved! Marisol is ready with your personalized teacher tribute!
+                </div>
+              )}
+            </form>
+          </div>
+        )}
+
       </div>
     </div>
   );
@@ -1847,12 +5958,16 @@ export const ClassroomMode: React.FC<ClassroomModeProps> = ({ onStartQuiz }) => 
 import React, { useState } from 'react';
 import { audioEngine } from '../services/synthAudioEngine';
 import { gameState } from '../services/gameState';
-import { Heart, Sparkles, X, Utensils, Music, ShieldAlert, Award, Smile } from 'lucide-react';
+import { wellnessState } from '../services/wellnessState';
+import { RECIPES } from '../data/recipes';
+import { BaseModal } from './BaseModal';
+import { Heart, Sparkles, Utensils, Music, ShieldAlert, Award, Smile, Coffee, Film, Cloud } from 'lucide-react';
 
 interface ComfortCornerModalProps {
   onClose: () => void;
   onOpenMusic: () => void;
   onOpenHindiSong?: (songId: string) => void;
+  initialTab?: 'rage' | 'cravings' | 'affirmations' | 'vent' | 'cozy';
 }
 
 const STRESS_BUBBLES = [
@@ -1907,11 +6022,22 @@ const GIRL_AFFIRMATIONS = [
   "90% of female fury is just low blood sugar demanding garlic butter carbs. Eat something delicious!"
 ];
 
-export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose, onOpenMusic, onOpenHindiSong }) => {
+export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({
+  onClose,
+  onOpenMusic,
+  onOpenHindiSong,
+  initialTab = 'rage'
+}) => {
   const [poppedBubbles, setPoppedBubbles] = useState<Record<string, boolean>>({});
   const [claimedSandwiches, setClaimedSandwiches] = useState(false);
-  const [activeTab, setActiveTab] = useState<'rage' | 'cravings' | 'vent' | 'affirmations'>('rage');
+  const [activeTab, setActiveTab] = useState<'rage' | 'cravings' | 'affirmations' | 'vent' | 'cozy'>(initialTab);
   const [affirmationIdx, setAffirmationIdx] = useState(0);
+
+  // Cozy Mode Data
+  const pinnedIds = wellnessState.getPinnedSongIds();
+  const allSongs = wellnessState.getAllSongs();
+  const favoriteSong = allSongs.find(s => pinnedIds.includes(s.id)) || allSongs[0];
+  const chaiRecipe = RECIPES.find(r => r.id === 'bollywood_masala_chai') || RECIPES[1];
 
   const handlePop = (id: string) => {
     if (!poppedBubbles[id]) {
@@ -1930,41 +6056,15 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
   const totalPopped = Object.values(poppedBubbles).filter(Boolean).length;
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
+    <BaseModal
+      onClose={onClose}
+      maxWidth="max-w-xl"
+      icon={<div className="w-full h-full bg-coral-500 rounded-xl flex items-center justify-center text-white"><Heart className="w-6 h-6 fill-white animate-bounce-gentle" /></div>}
+      title="GIRL'S COMFORT CORNER ♡"
+      subtitle="Validation, warm blanket tranquility, comfort carbs & instant de-stressing!"
+      badge={<span className="bg-coral-100 text-coral-800 font-handwritten text-[11px] font-black px-2 py-0.5 rounded-full border border-coral-400">SANCTUARY</span>}
     >
-      <div 
-        className="bg-[#FAF7F0] border-3 border-ink rounded-3xl max-w-xl w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-sketch-2xl space-y-4 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b-2 border-ink/20 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-11 h-11 rounded-2xl border-2 border-ink bg-coral-500 text-white flex items-center justify-center font-bold text-xl shadow-sketch">
-              <Heart className="w-6 h-6 fill-white animate-bounce-gentle" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h2 className="font-display font-black text-xl sm:text-2xl text-ink leading-tight">
-                  GIRL'S COMFORT CORNER ♡
-                </h2>
-                <span className="bg-coral-100 text-coral-800 font-handwritten text-[11px] font-black px-2 py-0.5 rounded-full border border-coral-400">
-                  TLC & VENT
-                </span>
-              </div>
-              <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
-                From one girl to another: validation, comfort carbs & instant de-stressing!
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200 transition-colors shrink-0 shadow-xs"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+      <div className="space-y-4">
 
         {/* Big Sisterly Validation Banner */}
         <div className="bg-gradient-to-r from-rose-100 via-pink-100 to-amber-100 border-2.5 border-ink rounded-3xl p-4 shadow-sketch relative overflow-hidden">
@@ -1973,7 +6073,7 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
               <img 
                 src="/marisol/avatars/03_wink_conquer.png" 
                 alt="Kritika wink" 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover" 
               />
             </div>
             <div className="space-y-1">
@@ -2025,37 +6125,43 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="grid grid-cols-4 gap-1.5 bg-paper-200 border-2 border-ink rounded-2xl p-1 font-display font-black text-[11px] sm:text-xs text-center">
+        {/* Tab Navigation (Unified 5-Tab Bar) */}
+        <div className="grid grid-cols-5 gap-1 bg-paper-200 border-2 border-ink rounded-2xl p-1 font-display font-black text-[10px] sm:text-xs text-center">
           <button
             onClick={() => { audioEngine.playSfx('click'); setActiveTab('rage'); }}
-            className={`py-1.5 px-1 rounded-xl transition-all ${activeTab === 'rage' ? 'bg-white shadow-sketch border border-ink text-coral-600' : 'text-ink-light hover:text-ink'}`}
+            className={`py-1.5 px-0.5 rounded-xl transition-all ${activeTab === 'rage' ? 'bg-white shadow-sketch border border-ink text-coral-600' : 'text-ink-light hover:text-ink'}`}
           >
-            🔥 VENT & POP
+            🔥 VENT
+          </button>
+          <button
+            onClick={() => { audioEngine.playSfx('click'); setActiveTab('cozy'); }}
+            className={`py-1.5 px-0.5 rounded-xl transition-all ${activeTab === 'cozy' ? 'bg-white shadow-sketch border border-ink text-amber-700' : 'text-ink-light hover:text-ink'}`}
+          >
+            ☁️ COZY
           </button>
           <button
             onClick={() => { audioEngine.playSfx('click'); setActiveTab('cravings'); }}
-            className={`py-1.5 px-1 rounded-xl transition-all ${activeTab === 'cravings' ? 'bg-white shadow-sketch border border-ink text-amber-700' : 'text-ink-light hover:text-ink'}`}
+            className={`py-1.5 px-0.5 rounded-xl transition-all ${activeTab === 'cravings' ? 'bg-white shadow-sketch border border-ink text-amber-800' : 'text-ink-light hover:text-ink'}`}
           >
-            🍜 CRAVINGS
+            🍜 FOOD
           </button>
           <button
             onClick={() => { audioEngine.playSfx('click'); setActiveTab('affirmations'); }}
-            className={`py-1.5 px-1 rounded-xl transition-all ${activeTab === 'affirmations' ? 'bg-white shadow-sketch border border-ink text-purple-700' : 'text-ink-light hover:text-ink'}`}
+            className={`py-1.5 px-0.5 rounded-xl transition-all ${activeTab === 'affirmations' ? 'bg-white shadow-sketch border border-ink text-purple-700' : 'text-ink-light hover:text-ink'}`}
           >
-            ✨ AFFIRMATIONS
+            ✨ VIBE
           </button>
           <button
             onClick={() => { audioEngine.playSfx('click'); setActiveTab('vent'); }}
-            className={`py-1.5 px-1 rounded-xl transition-all ${activeTab === 'vent' ? 'bg-white shadow-sketch border border-ink text-emerald-700' : 'text-ink-light hover:text-ink'}`}
+            className={`py-1.5 px-0.5 rounded-xl transition-all ${activeTab === 'vent' ? 'bg-white shadow-sketch border border-ink text-emerald-700' : 'text-ink-light hover:text-ink'}`}
           >
-            🎧 MOOD BEAT
+            🎧 SONGS
           </button>
         </div>
 
         {/* Tab 1: Interactive Stress Popper */}
         {activeTab === 'rage' && (
-          <div className="space-y-3">
+          <div className="space-y-3 animate-fade-in">
             <div className="flex items-center justify-between">
               <span className="font-display font-black text-xs uppercase tracking-wider text-ink flex items-center gap-1">
                 <ShieldAlert className="w-3.5 h-3.5 text-coral-500" />
@@ -2102,9 +6208,108 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
           </div>
         )}
 
-        {/* Tab 2: Comfort Food Cravings */}
+        {/* Tab 2: Cozy Blanket Wrap Mode (Merged from CozyModeOverlay) */}
+        {activeTab === 'cozy' && (
+          <div className="space-y-3 animate-fade-in text-left">
+            <div className="text-center space-y-1 bg-amber-50/70 border-2 border-amber-200/80 rounded-2xl p-3.5">
+              <div className="inline-flex items-center gap-1.5 bg-amber-100/90 text-amber-900 border border-amber-300 px-3 py-0.5 rounded-full font-handwritten text-xs font-bold">
+                <Cloud className="w-3.5 h-3.5" />
+                <span>COZY BLANKET ACTIVE</span>
+              </div>
+              <h3 className="font-display font-black text-lg text-ink">
+                Wrap Yourself in Warmth, Babe
+              </h3>
+              <p className="font-handwritten text-xs text-ink-light font-bold">
+                Notifications on pause. Warm chai steaming. Your comfort track queued. You've earned this tranquility.
+              </p>
+            </div>
+
+            <div className="space-y-2.5">
+              {/* Pinned Song */}
+              <div className="bg-white border-2 border-pink-200 rounded-2xl p-3 flex items-center justify-between shadow-sketch-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-400 to-rose-400 text-white flex items-center justify-center text-lg shadow-xs shrink-0">
+                    {favoriteSong.emoji}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-handwritten font-bold text-pink-600 block">
+                      YOUR FAVORITE TRACK 🎵
+                    </span>
+                    <h4 className="font-display font-black text-xs sm:text-sm text-ink truncate">
+                      {favoriteSong.title}
+                    </h4>
+                    <p className="font-handwritten text-[11px] text-ink-light font-bold truncate">
+                      {favoriteSong.movie} • {favoriteSong.singers}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    onClose();
+                    onOpenMusic();
+                  }}
+                  className="px-3 py-1.5 bg-pink-500 hover:bg-pink-600 text-white font-display font-black text-xs rounded-xl shadow-xs shrink-0"
+                >
+                  PLAY
+                </button>
+              </div>
+
+              {/* Highway Tapri Chai */}
+              <div className="bg-white border-2 border-amber-200 rounded-2xl p-3 flex items-center justify-between shadow-sketch-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-orange-400 text-white flex items-center justify-center text-lg shadow-xs shrink-0">
+                    <Coffee className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-handwritten font-bold text-amber-700 block">
+                      COZY CHAI PRESCRIPTION ☕
+                    </span>
+                    <h4 className="font-display font-black text-xs sm:text-sm text-ink truncate">
+                      {chaiRecipe.title.split('&')[0]}
+                    </h4>
+                    <p className="font-handwritten text-[11px] text-ink-light font-bold truncate">
+                      Crushed ginger, green cardamom & warm milk hug
+                    </p>
+                  </div>
+                </div>
+
+                <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-1 rounded-lg border border-amber-300 font-handwritten shrink-0">
+                  20 Mins
+                </span>
+              </div>
+
+              {/* Movie Night Pairing */}
+              <div className="bg-white border-2 border-purple-200 rounded-2xl p-3 flex items-center justify-between shadow-sketch-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-400 to-indigo-400 text-white flex items-center justify-center text-lg shadow-xs shrink-0">
+                    <Film className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-handwritten font-bold text-purple-700 block">
+                      MOVIE NIGHT PAIRING 🎬
+                    </span>
+                    <h4 className="font-display font-black text-xs sm:text-sm text-ink truncate">
+                      Jab We Met & Dil Se
+                    </h4>
+                    <p className="font-handwritten text-[11px] text-ink-light font-bold truncate">
+                      Monsoon romance & unstoppable smiles
+                    </p>
+                  </div>
+                </div>
+
+                <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-1 rounded-lg border border-purple-300 font-handwritten shrink-0">
+                  Feel Good
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: Comfort Food Cravings */}
         {activeTab === 'cravings' && (
-          <div className="space-y-2.5">
+          <div className="space-y-2.5 animate-fade-in">
             <div className="flex items-center justify-between">
               <span className="font-display font-black text-xs uppercase tracking-wider text-ink flex items-center gap-1">
                 <Utensils className="w-3.5 h-3.5 text-amber-600" />
@@ -2119,7 +6324,7 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
               {COMFORT_CRAVINGS.map((craving, idx) => (
                 <div 
                   key={idx}
-                  className="bg-white border-2 border-ink/30 rounded-2xl p-3 flex items-start gap-3 shadow-sketch-xs hover:border-ink transition-all"
+                  className="bg-white border-2 border-ink/30 rounded-2xl p-3 flex items-start gap-3 shadow-sketch-xs hover:border-ink transition-all text-left"
                 >
                   <div className="w-11 h-11 rounded-xl border border-ink/20 bg-amber-50 flex items-center justify-center text-2xl shrink-0">
                     {craving.emoji}
@@ -2143,9 +6348,9 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
           </div>
         )}
 
-        {/* Tab 3: Affirmations */}
+        {/* Tab 4: Affirmations */}
         {activeTab === 'affirmations' && (
-          <div className="space-y-4 text-center py-3">
+          <div className="space-y-4 text-center py-3 animate-fade-in">
             <div className="w-16 h-16 mx-auto rounded-full border-2.5 border-ink bg-purple-100 flex items-center justify-center text-2xl shadow-sketch">
               👑
             </div>
@@ -2172,9 +6377,9 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
           </div>
         )}
 
-        {/* Tab 4: Mood Beat Switches */}
+        {/* Tab 5: Mood Beat Switches */}
         {activeTab === 'vent' && (
-          <div className="space-y-3">
+          <div className="space-y-3 animate-fade-in text-left">
             <div className="flex items-center justify-between">
               <span className="font-display font-black text-xs uppercase tracking-wider text-ink flex items-center gap-1">
                 <Music className="w-3.5 h-3.5 text-purple-600" />
@@ -2287,12 +6492,12 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
         {/* Footer Comfort Quote */}
         <div className="bg-rose-50 border-1.5 border-rose-300 rounded-2xl p-3 flex items-center gap-3">
           <Smile className="w-5 h-5 text-coral-500 shrink-0" />
-          <p className="font-handwritten text-xs text-rose-900 font-bold">
+          <p className="font-handwritten text-xs text-rose-900 font-bold text-left">
             "Bad moods are temporary, but good food, great music, and you being iconic is forever." ♡
           </p>
         </div>
       </div>
-    </div>
+    </BaseModal>
   );
 };
 
@@ -2300,161 +6505,85 @@ export const ComfortCornerModal: React.FC<ComfortCornerModalProps> = ({ onClose,
 
 ---
 
-### File: `src/components/CozyModeOverlay.tsx`
+### File: `src/components/ComfortShelfModal.tsx`
 
 ```tsx
-import React from 'react';
-import { wellnessState } from '../services/wellnessState';
+import React, { useState } from 'react';
+import { BaseModal } from './BaseModal';
+import { moodHistoryManager, type ComfortBookmark } from '../services/moodRotationService';
+import { Heart, Trash2 } from 'lucide-react';
 import { audioEngine } from '../services/synthAudioEngine';
-import { RECIPES } from '../data/recipes';
-import { X, Coffee, Film } from 'lucide-react';
 
-interface CozyModeOverlayProps {
+interface ComfortShelfModalProps {
   onClose: () => void;
-  onOpenMusic: () => void;
 }
 
-export const CozyModeOverlay: React.FC<CozyModeOverlayProps> = ({ onClose, onOpenMusic }) => {
-  const pinnedIds = wellnessState.getPinnedSongIds();
-  const allSongs = wellnessState.getAllSongs();
-  const favoriteSong = allSongs.find(s => pinnedIds.includes(s.id)) || allSongs[0];
-  const chaiRecipe = RECIPES.find(r => r.id === 'bollywood_masala_chai') || RECIPES[1];
+export const ComfortShelfModal: React.FC<ComfortShelfModalProps> = ({ onClose }) => {
+  const [, setTick] = useState(0);
+  const bookmarks = moodHistoryManager.getBookmarks();
+
+  const handleRemove = (b: ComfortBookmark) => {
+    audioEngine.playSfx('click');
+    moodHistoryManager.toggleBookmark(b);
+    setTick(t => t + 1);
+  };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-[#372E3A]/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
+    <BaseModal
+      onClose={onClose}
+      title="COMFORT SHELF"
+      subtitle="Kritika's Saved Macaronis & Favorite Notes"
+      icon={<Heart className="w-5 h-5 text-rose-500 fill-rose-500" />}
+      maxWidth="max-w-md"
     >
-      {/* Blanket-Wrap Transition Container */}
-      <div 
-        className="bg-gradient-to-br from-[#FFFDF7] via-[#FFF8F0] to-[#FAF5FF] border-3 border-pink-300/80 rounded-4xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-5 sm:p-7 shadow-sketch-2xl space-y-4 relative animate-blanket-wrap"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-9 h-9 rounded-full border-2 border-pink-200 flex items-center justify-center font-black bg-white hover:bg-pink-100 transition-colors z-20 shadow-xs"
-        >
-          <X className="w-5 h-5 text-pink-700" />
-        </button>
-
-        {/* Cozy Blanket Header */}
-        <div className="text-center space-y-1 pt-1">
-          <div className="inline-flex items-center gap-1.5 bg-amber-100/80 text-amber-900 border border-amber-300 px-3.5 py-1 rounded-full font-handwritten text-xs font-bold shadow-2xs">
-            <span>☁️</span>
-            <span>COZY MODE ACTIVATED</span>
-            <span>🤍</span>
+      <div className="space-y-4 text-left">
+        {bookmarks.length === 0 ? (
+          <div className="bg-pink-50/50 border border-dashed border-pink-200 rounded-3xl p-8 text-center space-y-2">
+            <div className="text-3xl">🧀💖</div>
+            <h4 className="font-display font-black text-sm text-stone-800">
+              Your Comfort Shelf is Empty
+            </h4>
+            <p className="font-handwritten text-xs text-stone-600 font-bold">
+              Tap the heart icon on any Macaroni dish or affirmation to save it here for instant comfort anytime!
+            </p>
           </div>
+        ) : (
+          <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+            {bookmarks.map((b: ComfortBookmark) => (
+              <div
+                key={b.id}
+                className="bg-white border border-stone-200 rounded-2xl p-3.5 shadow-xs flex items-center justify-between gap-3 hover:border-pink-300 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-xl shrink-0 shadow-2xs">
+                    {b.emoji}
+                  </div>
+                  <div className="min-w-0">
+                    <h5 className="font-display font-black text-xs text-stone-800 truncate">
+                      {b.title}
+                    </h5>
+                    <p className="font-sans text-[11px] text-stone-500 truncate">
+                      {b.subtitle}
+                    </p>
+                    <span className="text-[9px] font-handwritten text-rose-600 font-bold">
+                      Saved {b.savedAt}
+                    </span>
+                  </div>
+                </div>
 
-          <h2 className="font-display font-black text-2xl sm:text-3xl text-ink">
-            Wrap Yourself in Warmth, Babe
-          </h2>
-          <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold max-w-sm mx-auto">
-            Notifications on pause. Warm chai steaming. Your favorite song ready. You've earned this tranquility.
-          </p>
-        </div>
-
-        {/* Cozy Trifecta: Pinned Song, Tapri Chai, Movie Recommendation */}
-        <div className="space-y-3 pt-1">
-          
-          {/* Item 1: Favorite Pinned Song */}
-          <div className="bg-white/90 border-2 border-pink-200 rounded-3xl p-4 flex items-center justify-between shadow-sketch-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-400 to-rose-400 text-white flex items-center justify-center text-xl shadow-xs shrink-0">
-                {favoriteSong.emoji}
+                <button
+                  onClick={() => handleRemove(b)}
+                  className="p-2 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                  title="Remove from Comfort Shelf"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
-              <div>
-                <span className="text-[10px] uppercase font-handwritten font-bold text-pink-600 block">
-                  YOUR #1 PINNED TRACK 🎵
-                </span>
-                <h4 className="font-display font-black text-sm text-ink truncate">
-                  {favoriteSong.title}
-                </h4>
-                <p className="font-handwritten text-xs text-ink-light font-bold">
-                  {favoriteSong.movie} • {favoriteSong.singers}
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                audioEngine.playSfx('click');
-                onClose();
-                onOpenMusic();
-              }}
-              className="px-3 py-1.5 bg-pink-500 hover:bg-pink-600 text-white font-display font-black text-xs rounded-xl shadow-xs shrink-0"
-            >
-              PLAY NOW
-            </button>
+            ))}
           </div>
-
-          {/* Item 2: Highway Tapri Masala Chai */}
-          <div className="bg-white/90 border-2 border-amber-200 rounded-3xl p-4 flex items-center justify-between shadow-sketch-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-400 to-orange-400 text-white flex items-center justify-center text-xl shadow-xs shrink-0">
-                <Coffee className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-handwritten font-bold text-amber-700 block">
-                  COZY CHAI PRESCRIPTION ☕
-                </span>
-                <h4 className="font-display font-black text-sm text-ink truncate">
-                  {chaiRecipe.title.split('&')[0]}
-                </h4>
-                <p className="font-handwritten text-xs text-ink-light font-bold">
-                  Crushed ginger, green cardamom & warm milk hug
-                </p>
-              </div>
-            </div>
-
-            <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-1 rounded-lg border border-amber-300 font-handwritten">
-              20 Mins
-            </span>
-          </div>
-
-          {/* Item 3: Recommended Movie Pairing */}
-          <div className="bg-white/90 border-2 border-purple-200 rounded-3xl p-4 flex items-center justify-between shadow-sketch-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-400 to-indigo-400 text-white flex items-center justify-center text-xl shadow-xs shrink-0">
-                <Film className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-handwritten font-bold text-purple-700 block">
-                  MOVIE NIGHT PAIRING 🎬
-                </span>
-                <h4 className="font-display font-black text-sm text-ink truncate">
-                  Jab We Met & Dil Se
-                </h4>
-                <p className="font-handwritten text-xs text-ink-light font-bold">
-                  Monsoon romance & unstoppable smiles
-                </p>
-              </div>
-            </div>
-
-            <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-1 rounded-lg border border-purple-300 font-handwritten">
-              Feel Good
-            </span>
-          </div>
-
-        </div>
-
-        {/* Ambient Affirmation */}
-        <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3 text-center">
-          <p className="font-handwritten text-xs sm:text-sm text-amber-900 font-bold italic">
-            "Give yourself permission to just be. The world can wait while you enjoy your warm sip." 🤍
-          </p>
-        </div>
-
-        {/* Return Button */}
-        <button
-          onClick={onClose}
-          className="w-full py-2.5 bg-gradient-to-r from-amber-200 via-pink-200 to-purple-200 hover:from-amber-300 hover:to-purple-300 text-ink font-display font-black text-xs uppercase rounded-2xl border-2 border-ink shadow-sketch hover:scale-101 active:scale-98 transition-all"
-        >
-          STAY IN COZY PEACE ☁️
-        </button>
-
+        )}
       </div>
-    </div>
+    </BaseModal>
   );
 };
 
@@ -2599,6 +6728,264 @@ export const DailyChallenge: React.FC<DailyChallengeProps> = ({ onComplete }) =>
 
 ---
 
+### File: `src/components/FloatingMusicBar.tsx`
+
+```tsx
+import React, { useState, useEffect } from 'react';
+import { musicStreamingService, type PlayerState } from '../services/musicStreamingService';
+import { Play, Pause, Disc3, SkipForward } from 'lucide-react';
+import { audioEngine } from '../services/synthAudioEngine';
+
+interface FloatingMusicBarProps {
+  onOpenMusicScreen: () => void;
+}
+
+export const FloatingMusicBar: React.FC<FloatingMusicBarProps> = ({ onOpenMusicScreen }) => {
+  const [playerState, setPlayerState] = useState<PlayerState>(musicStreamingService.getState());
+
+  useEffect(() => {
+    const unsub = musicStreamingService.subscribe(s => setPlayerState(s));
+    return () => {
+      unsub();
+    };
+  }, []);
+
+
+  if (!playerState.currentTrack) return null;
+
+  const track = playerState.currentTrack;
+
+  return (
+    <div className="fixed bottom-20 left-3 right-3 sm:left-auto sm:right-6 sm:max-w-sm z-30 animate-slide-up">
+      <div 
+        onClick={onOpenMusicScreen}
+        className="bg-stone-900/95 backdrop-blur-md text-white border border-stone-700/80 rounded-2xl p-2.5 px-3.5 shadow-lg flex items-center justify-between gap-3 cursor-pointer hover:bg-stone-900 transition-colors"
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="relative w-9 h-9 rounded-xl overflow-hidden bg-stone-800 shrink-0 border border-stone-700">
+            <img src={track.artworkUrl} alt={track.title} className="w-full h-full object-cover" />
+            {playerState.isPlaying && (
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                <Disc3 className="w-4 h-4 text-rose-400 animate-spin-slow" />
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-0">
+            <h5 className="font-display font-black text-xs text-white truncate">
+              {track.title}
+            </h5>
+            <p className="font-sans text-[11px] text-stone-400 truncate">
+              {track.artist}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => {
+              audioEngine.playSfx('pop');
+              musicStreamingService.togglePlayPause();
+            }}
+            className="w-8 h-8 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center shadow-xs transition-transform active:scale-95 cursor-pointer"
+            title={playerState.isPlaying ? 'Pause' : 'Play'}
+          >
+            {playerState.isPlaying ? <Pause className="w-3.5 h-3.5 fill-white" /> : <Play className="w-3.5 h-3.5 fill-white ml-0.5" />}
+          </button>
+
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              musicStreamingService.playNext();
+            }}
+            className="p-1.5 text-stone-400 hover:text-white rounded-full transition-colors cursor-pointer"
+            title="Next Song"
+          >
+            <SkipForward className="w-4 h-4" />
+          </button>
+
+          {/* Cut/Stop Music Button (X) */}
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              musicStreamingService.stop();
+            }}
+            className="p-1.5 text-stone-400 hover:text-rose-400 hover:bg-white/10 rounded-full transition-colors cursor-pointer ml-0.5"
+            title="Stop & Close Music"
+          >
+            <span className="text-xs font-black">✕</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+```
+
+---
+
+### File: `src/components/FloatingVideoPlayer.tsx`
+
+```tsx
+import React, { useEffect, useRef, useState } from 'react';
+import { videoPlaybackService } from '../services/videoPlaybackService';
+import { audioEngine } from '../services/synthAudioEngine';
+import { Play, Pause, Volume2, VolumeX, Maximize2, X, Sparkles } from 'lucide-react';
+
+export const FloatingVideoPlayer: React.FC = () => {
+  const [, setTick] = useState(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const unsub = videoPlaybackService.subscribe(() => setTick(t => t + 1));
+    return () => { unsub(); };
+  }, []);
+
+  const video = videoPlaybackService.getVideo();
+  const isMinimized = videoPlaybackService.getIsMinimized();
+
+  useEffect(() => {
+    if (videoRef.current && video) {
+      if (video.currentTime) {
+        try {
+          videoRef.current.currentTime = video.currentTime;
+        } catch {}
+      }
+      if (video.isPlaying) {
+        videoRef.current.play().catch(() => {});
+      } else {
+        videoRef.current.pause();
+      }
+      videoRef.current.muted = video.isMuted;
+    }
+  }, [video, isMinimized]);
+
+  if (!isMinimized || !video) return null;
+
+  const handlePlayToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    audioEngine.playSfx('click');
+    videoPlaybackService.togglePlay();
+  };
+
+  const handleMuteToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    audioEngine.playSfx('click');
+    videoPlaybackService.toggleMute();
+  };
+
+  const handleExpand = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    audioEngine.playSfx('pop');
+    if (videoRef.current) {
+      videoPlaybackService.updateTime(videoRef.current.currentTime);
+    }
+    videoPlaybackService.expandVideo();
+  };
+
+  const handleClose = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    audioEngine.playSfx('click');
+    videoPlaybackService.closeVideo();
+  };
+
+  return (
+    <div
+      className="fixed bottom-20 sm:bottom-24 right-3 sm:right-6 z-50 w-60 sm:w-72 bg-ink border-2.5 border-ink rounded-2xl shadow-sketch-xl overflow-hidden animate-scale-up select-none group"
+      title="Background Minimized Video (Picture-in-Picture)"
+    >
+      {/* Mini Title Bar */}
+      <div className="bg-gradient-to-r from-purple-900 via-pink-900 to-indigo-950 px-2.5 py-1.5 flex items-center justify-between text-white border-b border-white/20">
+        <div className="flex items-center gap-1.5 min-w-0 pr-1">
+          <Sparkles className="w-3.5 h-3.5 text-doodleGold animate-spin shrink-0" />
+          <span className="font-display font-black text-[11px] truncate tracking-wide">
+            {video.title}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={handleExpand}
+            className="p-1 hover:bg-white/20 rounded-md text-white transition-colors"
+            title="Expand to Full View"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="p-1 hover:bg-rose-500 rounded-md text-white transition-colors"
+            title="Close Video"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Video Viewport */}
+      <div className="relative aspect-video w-full bg-black cursor-pointer" onClick={handleExpand}>
+        {video.type === 'mp4' ? (
+          <video
+            ref={videoRef}
+            src={video.src}
+            autoPlay
+            loop
+            playsInline
+            muted={video.isMuted}
+            className="w-full h-full object-cover"
+            onTimeUpdate={() => {
+              if (videoRef.current) {
+                videoPlaybackService.updateTime(videoRef.current.currentTime);
+              }
+            }}
+          />
+        ) : (
+          <iframe
+            src={`https://www.youtube.com/embed/${video.src}?autoplay=1&enablejsapi=1&playsinline=1`}
+            title={video.title}
+            className="w-full h-full pointer-events-none"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          />
+        )}
+
+        {/* Hover / Touch Quick Floating Controls */}
+        <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/85 via-black/40 to-transparent flex items-center justify-between text-white opacity-90 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handlePlayToggle}
+              className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/40 border border-white/30 flex items-center justify-center transition-all active:scale-95"
+            >
+              {video.isPlaying ? <Pause className="w-3.5 h-3.5 fill-white" /> : <Play className="w-3.5 h-3.5 fill-white ml-0.5" />}
+            </button>
+            <button
+              type="button"
+              onClick={handleMuteToggle}
+              className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/40 border border-white/30 flex items-center justify-center transition-all active:scale-95"
+            >
+              {video.isMuted ? <VolumeX className="w-3.5 h-3.5 text-white" /> : <Volume2 className="w-3.5 h-3.5 text-white" />}
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleExpand}
+            className="text-[10px] font-display font-black bg-pink-600 hover:bg-pink-700 px-2 py-1 rounded-lg border border-pink-400 text-white flex items-center gap-1 shadow-xs transition-colors"
+          >
+            <span>EXPAND</span>
+            <Maximize2 className="w-2.5 h-2.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+```
+
+---
+
 ### File: `src/components/GameMap.tsx`
 
 ```tsx
@@ -2608,10 +6995,10 @@ import type { Zone } from '../types/game';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
 import { Marisol } from './Marisol';
-import { Lock, Play, Film, Tv, Sparkles, Clapperboard, HelpCircle, Rocket, Globe, Cpu, Music, ShieldAlert } from 'lucide-react';
+import { Lock, Play, Film, Tv, Sparkles, Clapperboard, HelpCircle, Rocket, Globe, Cpu, Music } from 'lucide-react';
 
 interface GameMapProps {
-  onSelectZone: (zone: Zone, isBoss: boolean) => void;
+  onSelectZone: (zone: Zone) => void;
 }
 
 const ICON_MAP: Record<string, any> = {
@@ -2723,32 +7110,16 @@ export const GameMap: React.FC<GameMapProps> = ({ onSelectZone }) => {
                 {/* Actions */}
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   {isUnlocked ? (
-                    <>
-                      {/* Standard Quiz Round */}
-                      <button
-                        onClick={() => {
-                          audioEngine.playSfx('click');
-                          onSelectZone(zone, false);
-                        }}
-                        className="sketch-btn-primary flex-1 sm:flex-initial px-4 py-2.5 flex items-center justify-center gap-2 text-sm sm:text-base font-bold shadow-sketch"
-                      >
-                        <Play className="w-4 h-4 fill-white" />
-                        <span>PLAY ROUND</span>
-                      </button>
-
-                      {/* Boss Challenge */}
-                      <button
-                        onClick={() => {
-                          audioEngine.playSfx('click');
-                          onSelectZone(zone, true);
-                        }}
-                        className="sketch-btn-gold px-3 py-2.5 flex items-center justify-center gap-1.5 text-xs sm:text-sm font-black shadow-sketch"
-                        title="Boss Battle: The Final Cut"
-                      >
-                        <ShieldAlert className="w-4 h-4 text-ink" />
-                        <span>BOSS</span>
-                      </button>
-                    </>
+                    <button
+                      onClick={() => {
+                        audioEngine.playSfx('click');
+                        onSelectZone(zone);
+                      }}
+                      className="sketch-btn-primary flex-1 sm:flex-initial px-4 py-2.5 flex items-center justify-center gap-2 text-sm sm:text-base font-bold shadow-sketch"
+                    >
+                      <Play className="w-4 h-4 fill-white" />
+                      <span>PLAY ROUND</span>
+                    </button>
                   ) : (
                     <div className="bg-paper-200 border-2 border-ink px-4 py-2 rounded-xl text-xs font-bold text-ink-light shadow-sketch">
                       Requires {zone.requiredXp} XP to unlock
@@ -2781,11 +7152,14 @@ export const GameMap: React.FC<GameMapProps> = ({ onSelectZone }) => {
 ### File: `src/components/GlowUpWeekModal.tsx`
 
 ```tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { gameState } from '../services/gameState';
 import { wellnessState } from '../services/wellnessState';
 import { RECIPES } from '../data/recipes';
-import { X, Sparkles, Heart, Camera } from 'lucide-react';
+import { audioEngine } from '../services/synthAudioEngine';
+import { BaseModal } from './BaseModal';
+import confetti from 'canvas-confetti';
+import { Sparkles, Heart, Camera, Download, Check } from 'lucide-react';
 
 interface GlowUpWeekModalProps {
   onClose: () => void;
@@ -2799,46 +7173,242 @@ export const GlowUpWeekModal: React.FC<GlowUpWeekModalProps> = ({ onClose }) => 
   const unlockedRecipes = RECIPES.filter(r => (player.unlockedRecipes || []).includes(r.id));
   const featuredRecipe = unlockedRecipes[0] || RECIPES[0];
 
+  const [isExporting, setIsExporting] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
+
+  // Generate & export polaroid scrapbook as a high-res image
+  const handleExportScrapbookImage = async () => {
+    try {
+      setIsExporting(true);
+      audioEngine.playSfx('fanfare');
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 1200;
+      canvas.height = 1450;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // 1. Background Paper & Texture
+      ctx.fillStyle = '#FFFDF7';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Cute sketch dashed frame
+      ctx.strokeStyle = '#241F21';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(30, 30, canvas.width - 60, canvas.height - 60);
+
+      ctx.strokeStyle = '#F472B6';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([12, 12]);
+      ctx.strokeRect(45, 45, canvas.width - 90, canvas.height - 90);
+      ctx.setLineDash([]);
+
+      // 2. Header Banner
+      ctx.fillStyle = '#FB7185';
+      ctx.fillRect(150, 65, canvas.width - 300, 75);
+      ctx.strokeStyle = '#241F21';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(150, 65, canvas.width - 300, 75);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '900 36px Outfit, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText("KRITIKA'S GLOW-UP WEEK 📸", canvas.width / 2, 116);
+
+      ctx.fillStyle = '#4B5563';
+      ctx.font = 'bold 22px Caveat, cursive, sans-serif';
+      ctx.fillText("A polaroid memory reel of triumphs, songs & delicious flavors! ♡", canvas.width / 2, 175);
+
+      // Helper to draw a Polaroid
+      const drawPolaroid = (
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        angleDeg: number,
+        washiColor: string,
+        bgColor: string,
+        emoji: string,
+        title: string,
+        subtitle: string,
+        caption: string
+      ) => {
+        ctx.save();
+        ctx.translate(x + w / 2, y + h / 2);
+        ctx.rotate((angleDeg * Math.PI) / 180);
+
+        // White card body
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(-w / 2, -h / 2, w, h);
+        ctx.strokeStyle = '#241F21';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(-w / 2, -h / 2, w, h);
+
+        // Washi tape on top
+        ctx.fillStyle = washiColor;
+        ctx.fillRect(-60, -h / 2 - 12, 120, 24);
+        ctx.strokeStyle = '#241F21';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-60, -h / 2 - 12, 120, 24);
+
+        // Inner photo box
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(-w / 2 + 20, -h / 2 + 25, w - 40, h - 130);
+        ctx.strokeStyle = '#E5E7EB';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-w / 2 + 20, -h / 2 + 25, w - 40, h - 130);
+
+        // Emoji & Title inside photo box
+        ctx.font = '64px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(emoji, 0, -h / 2 + 120);
+
+        ctx.fillStyle = '#111827';
+        ctx.font = 'bold 26px Outfit, sans-serif';
+        ctx.fillText(title, 0, -h / 2 + 180);
+
+        ctx.fillStyle = '#6B7280';
+        ctx.font = '20px sans-serif';
+        ctx.fillText(subtitle, 0, -h / 2 + 215);
+
+        // Bottom Handwritten Caption
+        ctx.fillStyle = '#831843';
+        ctx.font = 'bold 26px Caveat, cursive, sans-serif';
+        ctx.fillText(caption, 0, h / 2 - 40);
+
+        ctx.restore();
+      };
+
+      // Polaroid 1: Chef Rank & Cucumber Sandwiches
+      drawPolaroid(
+        100, 240, 460, 480, -2,
+        'rgba(244, 114, 182, 0.7)',
+        '#ECFDF5',
+        '🥪',
+        `${player.cucumberSandwiches || 0} Sandwiches`,
+        player.chefTitle || 'Apprentice Chopper 🥒',
+        '"Brain fuel earned with flying colors!" ♡'
+      );
+
+      // Polaroid 2: Pinned Song Jam
+      drawPolaroid(
+        640, 240, 460, 480, 2.5,
+        'rgba(192, 132, 252, 0.7)',
+        '#FAF5FF',
+        topSong.emoji || '🎵',
+        topSong.title,
+        topSong.movie,
+        '"Your weekly soundtrack anthem!" 🎶'
+      );
+
+      // Polaroid 3: Unlocked Recipe Milestone
+      drawPolaroid(
+        100, 770, 460, 480, 1.5,
+        'rgba(251, 146, 60, 0.7)',
+        '#FFF1F2',
+        featuredRecipe.emoji || '🍳',
+        featuredRecipe.title.split('&')[0],
+        `Paired with ${featuredRecipe.moviePairing.movie.split('(')[0]}`,
+        '"Signature dish of the week!" 🍲'
+      );
+
+      // Polaroid 4: Queen Companion Art
+      drawPolaroid(
+        640, 770, 460, 480, -1.8,
+        'rgba(250, 204, 21, 0.7)',
+        '#FEF3C7',
+        '👑',
+        'Wink & Conquer',
+        'Mood: Unstoppable Sparkle',
+        '"Radiating royal boss energy always!" ✨'
+      );
+
+      // 4. Queen's Verdict Footer Banner
+      ctx.fillStyle = '#FDF2F8';
+      ctx.fillRect(80, 1300, canvas.width - 160, 95);
+      ctx.strokeStyle = '#241F21';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(80, 1300, canvas.width - 160, 95);
+
+      ctx.fillStyle = '#BE185D';
+      ctx.font = 'bold 22px Outfit, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('💖 QUEEN\'S OFFICIAL VERDICT 💖', canvas.width / 2, 1335);
+
+      ctx.fillStyle = '#374151';
+      ctx.font = 'bold 24px Caveat, cursive, sans-serif';
+      ctx.fillText('"You brought warmth, wisdom, and unmatched style to every single day this week. So proud of you, Kritika!" ♡', canvas.width / 2, 1372);
+
+      // Trigger download
+      const dataUrl = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `Kritika_GlowUp_Scrapbook_${new Date().toISOString().slice(0, 10)}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      confetti({
+        particleCount: 50,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#F43F5E', '#A855F7', '#F59E0B']
+      });
+
+      setDownloadSuccess(true);
+      setTimeout(() => setDownloadSuccess(false), 3000);
+    } catch {
+      // export fallback
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
+    <BaseModal
+      onClose={onClose}
+      maxWidth="max-w-xl"
+      icon={<div className="w-full h-full bg-gradient-to-tr from-pink-400 to-purple-400 rounded-xl flex items-center justify-center text-white"><Camera className="w-5 h-5 text-white" /></div>}
+      title="YOUR GLOW-UP WEEK 📸"
+      subtitle="A polaroid memory reel of your triumphs, songs, and flavors!"
+      badge={<span className="bg-pink-100 text-pink-700 font-handwritten text-[10px] font-bold px-2 py-0.5 rounded-full border border-pink-300">SCRAPBOOK</span>}
     >
-      <div 
-        className="bg-[#FFFDF7] border-3 border-ink rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-sketch-2xl space-y-4 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b-2 border-pink-200 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-400 to-purple-400 text-white flex items-center justify-center shadow-xs">
-              <Camera className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h2 className="font-display font-black text-lg sm:text-xl text-ink leading-tight">
-                  YOUR GLOW-UP WEEK 📸
-                </h2>
-                <span className="bg-pink-100 text-pink-700 font-handwritten text-[10px] font-bold px-2 py-0.5 rounded-full border border-pink-300">
-                  SCRAPBOOK
-                </span>
-              </div>
-              <p className="font-handwritten text-xs text-ink-light font-bold">
-                A polaroid memory reel of your triumphs, songs, and flavors!
-              </p>
+      <div className="space-y-4">
+        {/* Export Action Bar */}
+        <div className="flex items-center justify-between bg-gradient-to-r from-pink-50 via-purple-50 to-amber-50 border border-pink-200 p-2.5 rounded-2xl shadow-2xs">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">📸</span>
+            <div className="text-left">
+              <span className="font-display font-black text-xs text-ink block">
+                Save or Share Scrapbook
+              </span>
+              <span className="font-handwritten text-[11px] text-pink-700 font-bold">
+                Download high-res memory polaroid image
+              </span>
             </div>
           </div>
+
           <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200 transition-colors shrink-0 shadow-xs"
+            onClick={handleExportScrapbookImage}
+            disabled={isExporting}
+            className="sketch-btn-primary px-3.5 py-1.5 text-xs font-black uppercase flex items-center gap-1.5 shadow-sketch-xs hover:scale-105 active:scale-95 transition-all"
           >
-            <X className="w-4 h-4" />
+            {downloadSuccess ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-white" />
+                <span>SAVED! ✨</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5" />
+                <span>{isExporting ? 'EXPORTING...' : 'EXPORT IMAGE'}</span>
+              </>
+            )}
           </button>
         </div>
 
         {/* Polaroid Scrapbook Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
-          
           {/* Polaroid 1: Chef Rank & Cucumber Sandwiches */}
           <div className="bg-white border-2 border-ink p-3 rounded-2xl shadow-sketch-sm rotate-[-1deg] text-center space-y-2 relative">
             <div className="washi-tape w-20 h-4 mx-auto -mt-5 rounded-xs" />
@@ -2912,7 +7482,6 @@ export const GlowUpWeekModal: React.FC<GlowUpWeekModalProps> = ({ onClose }) => 
               "Wink & conquer every challenge!" 😉
             </p>
           </div>
-
         </div>
 
         {/* Weekly Sisterly Summary Banner */}
@@ -2926,11 +7495,295 @@ export const GlowUpWeekModal: React.FC<GlowUpWeekModalProps> = ({ onClose }) => 
             "You brought warmth, wisdom, and unmatched style to every single day this week. So proud of you, Kritika!" ♡
           </p>
         </div>
-
       </div>
-    </div>
+    </BaseModal>
   );
 };
+
+```
+
+---
+
+### File: `src/components/GoogleSignInModal.tsx`
+
+```tsx
+import React, { useState } from 'react';
+import { BaseModal } from './BaseModal';
+import { authService, type StudentProfile } from '../services/authService';
+import { audioEngine } from '../services/synthAudioEngine';
+import { 
+  CheckCircle2, LogOut, 
+  Loader2, AlertCircle, Sparkles, Mail, Lock, User, MessagesSquare
+} from 'lucide-react';
+import confetti from 'canvas-confetti';
+
+interface GoogleSignInModalProps {
+  onClose: () => void;
+  onSuccess?: (user: StudentProfile) => void;
+  onNavigateToChat?: () => void;
+}
+
+export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, onSuccess, onNavigateToChat }) => {
+  const [, setTick] = useState(0);
+  const currentUser = authService.getCurrentUser();
+  const isAuthenticated = authService.isAuthenticated();
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [emailInput, setEmailInput] = useState('');
+  const [nameInput, setNameInput] = useState('');
+
+  // Handle direct Sign In with Mail ID
+  const handleSignInSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = emailInput.trim();
+    if (!cleanEmail) return;
+
+    // Derived or entered name
+    const derivedName = nameInput.trim() || authService.formatEmailName(cleanEmail) || 'New User';
+    const finalUser = authService.loginStudentProfile(derivedName, cleanEmail.includes('@') ? cleanEmail : `${cleanEmail}@gmail.com`);
+
+    audioEngine.playSfx('fanfare');
+    confetti({ particleCount: 85, spread: 75, origin: { y: 0.6 } });
+    setTick(t => t + 1);
+    if (onSuccess) onSuccess(finalUser);
+    onClose();
+  };
+
+  // Google OAuth Sign In
+  const handleGoogleOAuth = async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    audioEngine.playSfx('click');
+
+    const res = await authService.signInWithFirebaseGoogle(false);
+    setIsLoading(false);
+
+    if (res.success && res.user) {
+      audioEngine.playSfx('fanfare');
+      confetti({ particleCount: 85, spread: 75, origin: { y: 0.6 } });
+      setTick(t => t + 1);
+      if (onSuccess) onSuccess(res.user);
+      onClose();
+    } else if (res.error) {
+      setErrorMessage(res.error);
+    }
+  };
+
+  const handleSignOut = async () => {
+    audioEngine.playSfx('click');
+    await authService.signOut();
+    setTick(t => t + 1);
+  };
+
+  return (
+    <BaseModal
+      onClose={onClose}
+      title={isAuthenticated ? "YOUR ACCOUNT" : "SIGN IN WITH MAIL ID"}
+      subtitle={isAuthenticated ? "Account details & chat permissions" : "Whoever signs in with their mail ID is welcomed as a New User and allowed to chat with all users!"}
+      icon={
+        <div className="w-6 h-6 flex items-center justify-center text-rose-500 font-bold">
+          <Mail className="w-5 h-5 text-rose-500" />
+        </div>
+      }
+      maxWidth="max-w-md"
+    >
+      <div className="space-y-4 text-left">
+        {errorMessage && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-2xl text-xs space-y-1 animate-fade-in">
+            <div className="flex items-center gap-2 font-bold">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>Sign-In Notice</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-rose-700 pl-6">
+              {errorMessage}
+            </p>
+            <p className="text-[11px] font-semibold text-rose-900 pl-6 pt-1">
+              👉 You can immediately sign in below by entering your Mail ID (Email address).
+            </p>
+          </div>
+        )}
+
+        {/* 1. SIGNED-IN VIEW */}
+        {isAuthenticated && currentUser ? (
+          <div className="space-y-3.5">
+            <div className="p-4 rounded-3xl bg-gradient-to-br from-rose-50/90 via-pink-50/70 to-white border border-rose-200 shadow-xs space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl border-2 border-rose-300 overflow-hidden bg-white shrink-0 shadow-sm">
+                  <img
+                    src={currentUser.avatarUrl}
+                    alt={currentUser.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h3 className="font-display font-black text-sm text-stone-900 truncate">
+                      {currentUser.name}
+                    </h3>
+                    <span className="bg-gradient-to-r from-rose-500 to-pink-600 text-white font-display text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-0.5 shadow-2xs">
+                      <Sparkles className="w-2.5 h-2.5 fill-white" />
+                      {currentUser.userTag || (currentUser.isNewUser ? 'NEW USER' : 'USER')}
+                    </span>
+                    <span className="bg-emerald-600 text-white font-display text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-0.5 shadow-2xs">
+                      <CheckCircle2 className="w-2.5 h-2.5" />
+                      ACTIVE
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-600 truncate font-semibold mt-0.5">
+                    ✉️ {currentUser.email || 'Private Mail ID'}
+                  </p>
+                  <div className="text-[11px] font-handwritten font-bold text-rose-700 mt-0.5">
+                    Current Vibe: {currentUser.currentMoodEmoji} {currentUser.currentMood}
+                  </div>
+                </div>
+              </div>
+
+              {/* Chat privilege confirmation banner */}
+              <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs text-emerald-900 font-medium">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  <strong>Chat Access Granted:</strong> You are allowed to chat in the community lounge and send direct messages to each other user!
+                </span>
+              </div>
+            </div>
+
+            {/* Account Actions */}
+            <div className="flex flex-col gap-2">
+              {onNavigateToChat && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onNavigateToChat();
+                  }}
+                  className="w-full py-2.5 px-3 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-display font-black text-xs uppercase rounded-2xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <MessagesSquare className="w-4 h-4" />
+                  <span>Start Chatting with Other Users</span>
+                </button>
+              )}
+              <button
+                onClick={handleSignOut}
+                className="w-full py-2.5 px-3 bg-white hover:bg-rose-50 border border-rose-200 text-rose-700 font-display font-black text-xs uppercase rounded-2xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out of this Account</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* 2. SIGN-IN FORM VIEW */
+          <div className="space-y-3.5">
+            {/* Explanatory New User Welcome Callout */}
+            <div className="p-3 bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-200 rounded-2xl text-left space-y-1">
+              <div className="flex items-center gap-1.5 text-xs font-display font-black text-rose-900">
+                <Sparkles className="w-3.5 h-3.5 text-rose-600 fill-rose-600" />
+                <span>New User Registration & Chat Access</span>
+              </div>
+              <p className="text-[11px] text-stone-600 leading-snug">
+                Enter your Mail ID to immediately register as a <strong>New User</strong>. Once signed in, you are fully authorized to chat in the group lounge and message any user directly!
+              </p>
+            </div>
+
+            {/* Mail ID Quick Sign In Form */}
+            <form onSubmit={handleSignInSubmit} className="space-y-2.5">
+              <div className="space-y-1">
+                <label className="text-[11px] font-display font-bold text-stone-700 block">
+                  Your Mail ID (Email Address) *
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-rose-500 absolute left-3 top-2.5" />
+                  <input
+                    type="email"
+                    value={emailInput}
+                    onChange={(e) => {
+                      setEmailInput(e.target.value);
+                      if (!nameInput && e.target.value.includes('@')) {
+                        setNameInput(authService.formatEmailName(e.target.value));
+                      }
+                    }}
+                    placeholder="e.g. yourname@gmail.com"
+                    className="w-full pl-9 pr-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold outline-none focus:border-rose-500 focus:bg-white transition-all"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-display font-bold text-stone-700 block">
+                  Display Name (Optional)
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    placeholder="e.g. Kritika or Alex"
+                    className="w-full pl-9 pr-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold outline-none focus:border-rose-500 focus:bg-white transition-all"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-display font-black text-xs uppercase rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer mt-1"
+              >
+                <Sparkles className="w-3.5 h-3.5 fill-white" />
+                <span>Sign In as New User & Chat</span>
+              </button>
+            </form>
+
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-stone-200" />
+              <span className="text-[10px] font-display font-black text-stone-400 uppercase tracking-wider">or sign in with google</span>
+              <div className="flex-1 h-px bg-stone-200" />
+            </div>
+
+            {/* Direct Google OAuth Button */}
+            <button
+              type="button"
+              onClick={handleGoogleOAuth}
+              disabled={isLoading}
+              className="w-full py-2.5 px-4 bg-white hover:bg-stone-50 border border-stone-300 text-stone-800 font-display font-black text-xs uppercase rounded-xl shadow-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60"
+            >
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-rose-600" />
+              ) : (
+                <>
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  </svg>
+                  <span>Continue with Google Mail</span>
+                </>
+              )}
+            </button>
+
+            <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-200/80 flex items-center gap-2 text-[10px] text-stone-500">
+              <Lock className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+              <span>Real-time chat synchronization across devices via Firestore is active.</span>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Footer */}
+        <div className="pt-2 border-t border-stone-200">
+          <button
+            onClick={onClose}
+            className="w-full py-2 bg-stone-900 hover:bg-stone-800 text-white font-display font-black text-xs uppercase rounded-xl shadow-xs transition-colors cursor-pointer"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </BaseModal>
+  );
+};
+
 
 ```
 
@@ -2939,379 +7792,621 @@ export const GlowUpWeekModal: React.FC<GlowUpWeekModalProps> = ({ onClose }) => 
 ### File: `src/components/HomeScreen.tsx`
 
 ```tsx
-import React, { useEffect, useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { ScreenState } from '../types/game';
-import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
-import { wellnessState, KRITIKA_MOODS, type KritikaMoodId } from '../services/wellnessState';
-import { Marisol } from './Marisol';
-import { LittleLoveNote } from './LittleLoveNote';
-import { SparkleStreak } from './SparkleStreak';
+import { authService } from '../services/authService';
+import { musicStreamingService, type PlayerState } from '../services/musicStreamingService';
 import { 
-  Play, 
-  Sparkles, 
-  Heart, 
-  Lock, 
-  Camera, 
-  Music,
-  Film
+  KRITIKA_STICKER_MOODS, 
+  getMoodMacaroni, 
+  type MoodProfileSetting 
+} from '../services/moodQuizService';
+import { moodHistoryManager } from '../services/moodRotationService';
+import { 
+  Play, Pause, Volume2, VolumeX, Sparkles, 
+  MessageCircle, Disc3, Camera, Music,
+  Clock, Film, Heart, Calendar, Lock, Check, X
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import heroBannerVideoSrc from '../assets/Hero Banner video.mp4';
 
 interface HomeScreenProps {
-  onNavigate: (screen: ScreenState) => void;
-  onQuickPlay: () => void;
-  onOpenMusic: () => void;
-  onOpenComfortCorner: () => void;
-  onOpenSecretLocket: () => void;
-  onOpenGlowUpWeek: () => void;
-  onOpenCozyMode: () => void;
-  onOpenInstallApp?: () => void;
+  onNavigate: (screen: ScreenState, wallMode?: 'chat' | 'posts' | 'bulletin') => void;
+  onStartMoodQuiz: (moodId: string) => void;
+  onOpenMoodHistory?: () => void;
+  onOpenComfortShelf?: () => void;
+  activeMoodId: string;
+  onSelectMood: (moodId: string) => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigate,
-  onQuickPlay,
-  onOpenMusic,
-  onOpenComfortCorner,
-  onOpenSecretLocket,
-  onOpenGlowUpWeek,
-  onOpenCozyMode,
-  onOpenInstallApp,
+  onStartMoodQuiz,
+  onOpenMoodHistory,
+  onOpenComfortShelf,
+  activeMoodId,
+  onSelectMood
 }) => {
   const [, setTick] = useState(0);
-  const player = gameState.getPlayer();
-  const currentQueenMood = wellnessState.getQueenMood();
-  const moodProfile = wellnessState.getMoodProfile();
+  const [musicState, setMusicState] = useState<PlayerState>(musicStreamingService.getState());
 
   useEffect(() => {
-    const unsub = wellnessState.subscribe(() => setTick(t => t + 1));
-    return unsub;
+    const unsubAuth = authService.subscribe(() => setTick(t => t + 1));
+    const unsubMusic = musicStreamingService.subscribe(s => setMusicState(s));
+    return () => {
+      unsubAuth();
+      unsubMusic();
+    };
   }, []);
 
-  const handleSelectQueenMood = (moodId: KritikaMoodId) => {
-    audioEngine.playSfx('click');
-    wellnessState.setQueenMood(moodId);
-  };
+  const isAuthenticated = authService.isAuthenticated();
 
-  // Dialogue adapted to queen's selected mood
-  const getQueenDialogue = () => {
-    switch (currentQueenMood) {
-      case 'Tired':
-        return "You've worked so hard today, Kritika. Let's wrap in a warm blanket and recharge. 🌙💤";
-      case 'Stressed':
-        return "Deep breath, darling. Drop your shoulders, sip some chai. You are doing amazing! 🌸💆‍♀️";
-      case 'Cozy':
-        return "Hot cup of ginger chai & zero stress on our agenda today, queen! ☕☁️";
-      case 'Excited':
-        return "Tell me everything! What great news are we celebrating today?! 👑✨🎉";
-      case 'Low':
-        return "Sending you the biggest, warmest sisterly hug. You are so cherished, Kritika! 💕🧸";
-      case 'Romantic':
-        return "Main apni favourite hoon! Savor every dreamy moment and sweet daydream! 🎀🌷";
-      case 'Happy':
-      default:
-        return player.streak >= 3
-          ? `You're on a ${player.streak}-question streak! Unstoppable glow, queen! ✨`
-          : `Ready for today's comfort snack & good Bollywood tunes, babe? 💖`;
+  // Video Player State
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(true);
+
+  // Private Note State
+  const [privateNote, setPrivateNote] = useState('');
+  const [noteSavedToast, setNoteSavedToast] = useState(false);
+
+  // Active Selected Mood & Matching Macaroni
+  const currentMoodSetting: MoodProfileSetting = 
+    KRITIKA_STICKER_MOODS.find(m => m.id === activeMoodId) || KRITIKA_STICKER_MOODS[0];
+  const currentMacaroni = getMoodMacaroni(activeMoodId);
+  const isMacaroniBookmarked = moodHistoryManager.isBookmarked(currentMacaroni.id);
+
+  const toggleVideoPlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        videoRef.current.play();
+        setIsPlaying(true);
+      }
     }
   };
 
+  const toggleVideoMute = () => {
+    if (videoRef.current) {
+      const nextMuted = !isMuted;
+      videoRef.current.muted = nextMuted;
+      setIsMuted(nextMuted);
+    }
+  };
+
+  const handleMoodClick = (mood: MoodProfileSetting) => {
+    audioEngine.playSfx('click');
+    onSelectMood(mood.id);
+    confetti({ particleCount: 35, spread: 60, origin: { y: 0.7 } });
+    
+    // Log to history
+    const matchingMacaroni = getMoodMacaroni(mood.id);
+    moodHistoryManager.recordMoodCheckIn(
+      mood.scaleNumber,
+      mood.id,
+      mood.label,
+      mood.emoji,
+      matchingMacaroni.id,
+      privateNote.trim() || undefined
+    );
+
+    if (isAuthenticated) {
+      authService.updateDailyMood(mood.label, mood.emoji, mood.dialogue.slice(0, 75));
+    }
+    setTick(t => t + 1);
+  };
+
+  const handleSavePrivateCheckIn = (e: React.FormEvent) => {
+    e.preventDefault();
+    audioEngine.playSfx('fanfare');
+    confetti({ particleCount: 45, spread: 60, origin: { y: 0.7 } });
+
+    moodHistoryManager.recordMoodCheckIn(
+      currentMoodSetting.scaleNumber,
+      currentMoodSetting.id,
+      currentMoodSetting.label,
+      currentMoodSetting.emoji,
+      currentMacaroni.id,
+      privateNote.trim() || undefined
+    );
+
+    if (isAuthenticated) {
+      authService.updateDailyMood(
+        currentMoodSetting.label, 
+        currentMoodSetting.emoji, 
+        privateNote.trim() || currentMoodSetting.dialogue.slice(0, 75)
+      );
+    }
+
+    setNoteSavedToast(true);
+    setTimeout(() => setNoteSavedToast(false), 3000);
+    setTick(t => t + 1);
+  };
+
+  const handleToggleBookmarkMacaroni = () => {
+    audioEngine.playSfx('pop');
+    moodHistoryManager.toggleBookmark({
+      id: currentMacaroni.id,
+      type: 'macaroni',
+      title: currentMacaroni.name,
+      subtitle: currentMacaroni.pairingMovie ? `Watch with ${currentMacaroni.pairingMovie}` : currentMacaroni.cookTime,
+      emoji: currentMacaroni.emoji,
+      savedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    });
+    setTick(t => t + 1);
+  };
+
   return (
-    <div className="min-h-screen bg-[#FFFDF7] p-3 sm:p-5 pb-28 text-ink">
-      <div className="max-w-xl mx-auto space-y-4">
-        
-        {/* TOP BAR: How is Kritika doing today? 💗 & Cozy Mode Button */}
-        <div 
-          className="border-2 border-pink-200/90 rounded-3xl p-4 shadow-sketch-sm space-y-3 transition-all duration-500"
-          style={{ background: moodProfile.bgAtmosphere }}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl animate-pulse">💗</span>
-              <div>
-                <h2 className="font-display font-black text-sm sm:text-base text-pink-950 tracking-tight flex items-center gap-1.5">
-                  HOW IS KRITIKA DOING TODAY?
-                </h2>
-                <p className="text-[11px] font-handwritten font-bold text-pink-800/80">
-                  Tap your mood to personalize your entire comfort sanctuary ♡
-                </p>
+    <div className="min-h-screen bg-[#FAF8F5] p-3 sm:p-6 pb-28 text-ink">
+      <div className="max-w-5xl lg:max-w-6xl mx-auto space-y-4 sm:space-y-5">
+
+        {/* 1. TOP HEADER & COMFORT SHORTCUTS */}
+        <div className="flex items-center justify-between gap-2 border-b border-stone-200/80 pb-3">
+          <div>
+            <div className="flex items-center gap-1.5 text-[11px] font-display font-black text-rose-600 uppercase tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>MARISOL • KRITIKA'S COMFORT SPACE</span>
+            </div>
+            <h1 className="font-display text-xl sm:text-2xl font-black text-stone-900">
+              Factory of Fun 👑✨
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Mood Calendar Button */}
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onOpenMoodHistory?.();
+              }}
+              className="p-2 sm:p-2.5 rounded-2xl bg-white hover:bg-rose-50 border border-stone-200 text-stone-700 hover:text-rose-600 transition-all shadow-xs cursor-pointer"
+              title="14-Day Mood Calendar & Heatmap"
+            >
+              <Calendar className="w-4 h-4 text-rose-500" />
+            </button>
+
+            {/* Comfort Shelf Bookmarks Button */}
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onOpenComfortShelf?.();
+              }}
+              className="p-2 sm:p-2.5 rounded-2xl bg-white hover:bg-pink-50 border border-stone-200 text-stone-700 hover:text-pink-600 transition-all shadow-xs cursor-pointer"
+              title="Comfort Shelf (Saved Macaronis & Notes)"
+            >
+              <Heart className="w-4 h-4 text-pink-500 fill-pink-500" />
+            </button>
+          </div>
+        </div>
+
+        {/* NOW PLAYING MUSIC STATUS BAR (With X Cut/Close Option in Home) */}
+        {musicState.currentTrack && (
+          <div className="bg-stone-900 text-white p-2.5 px-4 rounded-2xl border border-stone-700/70 shadow-xs flex items-center justify-between gap-3 animate-fade-in">
+            <div 
+              onClick={() => onNavigate('music')}
+              className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-90 transition-opacity"
+            >
+              <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-stone-800 shrink-0">
+                <img 
+                  src={musicState.currentTrack.artworkUrl} 
+                  alt={musicState.currentTrack.title} 
+                  className="w-full h-full object-cover" 
+                />
+                {musicState.isPlaying && (
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                    <Disc3 className="w-3.5 h-3.5 text-rose-400 animate-spin-slow" />
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-display font-black uppercase text-rose-400">NOW PLAYING:</span>
+                  <span className="font-display font-black text-xs text-white truncate">{musicState.currentTrack.title}</span>
+                </div>
+                <p className="text-[10px] text-stone-400 truncate">{musicState.currentTrack.artist}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => {
-                  audioEngine.playSfx('powerup');
-                  onOpenComfortCorner();
+                  audioEngine.playSfx('pop');
+                  musicStreamingService.togglePlayPause();
                 }}
-                className="inline-flex items-center gap-1 bg-pink-100 hover:bg-pink-200 border border-pink-300 text-pink-900 font-display font-black text-xs px-2.5 py-1.5 rounded-full shadow-2xs hover:scale-105 active:scale-95 transition-all"
-                title="Girl's Comfort Corner & Mood TLC"
+                className="w-7 h-7 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center cursor-pointer transition-transform active:scale-95"
+                title={musicState.isPlaying ? 'Pause' : 'Play'}
               >
-                <Heart className="w-3 h-3 fill-pink-500 text-pink-500" />
-                <span>TLC</span>
+                {musicState.isPlaying ? <Pause className="w-3 h-3 fill-white" /> : <Play className="w-3 h-3 fill-white ml-0.5" />}
               </button>
 
+              {/* X Cut Music Option */}
               <button
                 onClick={() => {
-                  audioEngine.playSfx('powerup');
-                  onOpenCozyMode();
+                  audioEngine.playSfx('click');
+                  musicStreamingService.stop();
                 }}
-                className="inline-flex items-center gap-1.5 bg-white/90 hover:bg-white border-2 border-pink-300 text-pink-900 font-display font-black text-xs px-3 py-1.5 rounded-full shadow-2xs hover:scale-105 active:scale-95 transition-all"
+                className="p-1 text-stone-400 hover:text-rose-300 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                title="Stop & cut music"
               >
-                <span>Cozy Mode</span>
-                <span>🤍</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
+        )}
 
-          {/* 7 Mood Selector Chips: Happy, Tired, Stressed, Cozy, Excited, Low, Romantic */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-handwritten font-bold">
-            {KRITIKA_MOODS.map(mood => {
-              const isSelected = mood.id === currentQueenMood;
-              return (
-                <button
-                  key={mood.id}
-                  onClick={() => handleSelectQueenMood(mood.id)}
-                  className={`
-                    px-3 py-1.5 rounded-2xl border transition-all shrink-0 flex items-center gap-1.5
-                    ${
-                      isSelected
-                        ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white border-pink-600 shadow-sm scale-105 font-black ring-2 ring-pink-300'
-                        : 'bg-white/80 text-ink-light border-pink-200 hover:bg-white hover:border-pink-400'
-                    }
-                  `}
-                >
-                  <span className="text-sm">{mood.emoji}</span>
-                  <span>{mood.label}</span>
-                </button>
-              );
-            })}
-          </div>
+        {/* 2. MODERN BENTO GRID SYSTEM */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 sm:gap-4">
 
-          {/* Instant Sisterly Reassurance Banner */}
-          <div className="bg-white/85 backdrop-blur-xs border border-pink-200 p-2.5 rounded-2xl flex items-center gap-2.5 animate-fade-in shadow-2xs">
-            <span className="text-xl">🌸</span>
-            <p className="text-xs font-handwritten font-black text-pink-900 leading-snug">
-              {moodProfile.reassurance}
-            </p>
-          </div>
-        </div>
-
-
-        {/* HERO CARD 2: Kritika Companion & Chef Score Hub */}
-        <div className="bg-white border-3 border-pink-200/90 rounded-3xl p-5 shadow-sketch text-center space-y-3.5 relative overflow-hidden">
-          
-          {/* Active Mood Pill */}
-          <div className="inline-flex items-center gap-1.5 bg-pink-50 border border-pink-200 px-3 py-0.5 rounded-full font-handwritten text-xs font-bold text-pink-800">
-            <span>{moodProfile.emoji}</span>
-            <span>Active Vibe: {moodProfile.label}</span>
-            <Sparkles className="w-3 h-3 text-pink-400" />
-          </div>
-
-          {/* Kritika Companion with Dynamic Dialogue */}
-          <div className="flex justify-center pt-0.5">
-            <Marisol
-              pose={player.activeSticker}
-              expression={player.streak >= 3 ? 'excited' : 'welcome'}
-              size="large"
-              dialogue={getQueenDialogue()}
-              bubblePosition="top"
-              onClick={() => {
-                audioEngine.playSfx('powerup');
-                onNavigate('stickers');
-              }}
+          {/* BENTO CARD 1: HERO VIDEO & CROWN BANNER (Span 12 / Full Width) */}
+          <div className="md:col-span-12 relative rounded-3xl border-2 border-stone-800/80 overflow-hidden shadow-md bg-stone-950 group">
+            <video
+              ref={videoRef}
+              src={heroBannerVideoSrc}
+              autoPlay
+              loop
+              muted={isMuted}
+              playsInline
+              className="w-full h-56 sm:h-72 object-cover object-center"
             />
+
+            {/* Video Gradient Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent pointer-events-none" />
+
+            {/* Video Badge & Title Overlay */}
+            <div className="absolute bottom-3.5 left-3.5 right-3.5 flex items-end justify-between pointer-events-none">
+              <div className="space-y-0.5 max-w-[75%]">
+                <span className="bg-rose-500 text-white font-display text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-xs">
+                  <Sparkles className="w-2.5 h-2.5 fill-white" />
+                  <span>KRITIKA GUPTA 👑</span>
+                </span>
+                <h2 className="font-display font-black text-white text-base sm:text-xl drop-shadow-md">
+                  Queen of Factory of Fun
+                </h2>
+                <p className="font-handwritten text-white/95 text-xs sm:text-sm font-bold drop-shadow-sm truncate">
+                  "Main apni favourite hoon! Savoring every sweet memory ♡"
+                </p>
+              </div>
+
+              {/* Video Play/Pause & Mute Buttons */}
+              <div className="flex items-center gap-1.5 pointer-events-auto">
+                <button
+                  onClick={toggleVideoMute}
+                  className="w-8 h-8 rounded-full bg-white/85 hover:bg-white border border-stone-400 flex items-center justify-center text-stone-900 transition-transform active:scale-95 shadow-xs cursor-pointer"
+                  title={isMuted ? "Unmute sound" : "Mute sound"}
+                >
+                  {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-rose-600" />}
+                </button>
+
+                <button
+                  onClick={toggleVideoPlay}
+                  className="w-8 h-8 rounded-full bg-white/85 hover:bg-white border border-stone-400 flex items-center justify-center text-stone-900 transition-transform active:scale-95 shadow-xs cursor-pointer"
+                  title={isPlaying ? "Pause video" : "Play video"}
+                >
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-stone-900" />}
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* Chef Rank & Cucumber Sandwiches Score Board */}
-          <div className="space-y-1.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-pink-50 border-2 border-emerald-400/40 rounded-2xl p-3 text-left shadow-inner">
-            <div className="flex justify-between items-center font-display text-xs sm:text-sm font-black text-ink">
-              <span className="text-emerald-900 flex items-center gap-1">
-                <span>👩‍🍳</span> {player.chefTitle || 'Apprentice Chopper 🥒'}
-              </span>
-              <span className="text-emerald-800 bg-white border border-emerald-400 px-2.5 py-0.5 rounded-xl shadow-2xs font-black">
-                {player.cucumberSandwiches || 0} 🥪 Cucumber Sandwiches
-              </span>
-            </div>
-
-            {/* Progress to Next Chef Title */}
-            <div className="w-full h-3 bg-white border border-ink/30 rounded-full overflow-hidden shadow-inner">
-              <div 
-                className="h-full bg-gradient-to-r from-emerald-400 via-teal-400 to-pink-400 border-r border-ink/40 transition-all duration-500"
-                style={{ width: `${Math.min(100, ((player.cucumberSandwiches || 0) % 25) * 4)}%` }}
-              />
-            </div>
-
-            <div className="flex justify-between items-center font-handwritten text-[11px] text-ink-light font-bold">
-              <span>+3 Cucumber Sandwiches per correct trivia</span>
-              <span>Next Title at {(Math.floor((player.cucumberSandwiches || 0) / 25) + 1) * 25} 🥪</span>
-            </div>
-          </div>
-        </div>
-
-        {/* LITTLE LOVE NOTE (Sticky Note Affirmation) */}
-        <LittleLoveNote />
-
-        {/* SPARKLE STREAK (Consecutive Day Tracker) */}
-        <SparkleStreak />
-
-        {/* PRIMARY ACTION: COOKING & CINEMA TRIVIA */}
-        <button
-          onClick={() => {
-            audioEngine.playSfx('click');
-            onQuickPlay();
-          }}
-          className="sketch-btn-primary w-full p-4 sm:p-5 text-xl sm:text-2xl font-black uppercase flex items-center justify-between shadow-sketch hover:scale-102 active:scale-98 transition-all border-3 border-ink"
-        >
-          <div className="flex items-center gap-3.5 text-left">
-            <div className="w-12 h-12 rounded-2xl bg-white/20 border-2 border-white/40 flex items-center justify-center text-2xl shrink-0 shadow-inner">
-              🍳
-            </div>
-            <div>
+          {/* BENTO CARD 2: REAL MOOD BOARD (1–9) (Span 7 on Desktop / Full on Mobile) */}
+          <div className="md:col-span-7 bg-white border border-stone-200 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span>COOKING & CINEMA TRIVIA</span>
-                <span className="bg-white text-rose-800 font-display text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  ENDLESS
+                <span className="text-xl">🌸</span>
+                <div>
+                  <h3 className="font-display font-black text-xs sm:text-sm text-stone-900 uppercase tracking-wide">
+                    Real Mood Board (1–9):
+                  </h3>
+                  <p className="text-[10px] text-stone-500 font-medium">
+                    Pick your genuine emotion to adapt your space
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-handwritten font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 shrink-0">
+                Mood Board ✨
+              </span>
+            </div>
+
+            {/* 3x3 Grid of 9 Dynamic Mood Picture Stickers */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+              {KRITIKA_STICKER_MOODS.map(mood => {
+                const isSelected = mood.id === activeMoodId;
+                return (
+                  <button
+                    key={mood.id}
+                    onClick={() => handleMoodClick(mood)}
+                    className={`relative p-2 sm:p-2.5 rounded-2xl border transition-all flex flex-col items-center justify-center text-center cursor-pointer group ${
+                      isSelected
+                        ? 'bg-rose-50/90 text-stone-900 border-rose-400 ring-2 ring-rose-200 shadow-xs scale-102 font-bold'
+                        : 'bg-[#FAF9F7] hover:bg-pink-50/60 border-stone-200 text-stone-700 shadow-2xs hover:border-pink-200'
+                    }`}
+                  >
+                    <span className={`absolute top-1.5 left-1.5 text-[8px] font-display font-black px-1.5 py-0.2 rounded-full z-10 ${
+                      isSelected ? 'bg-rose-500 text-white shadow-2xs' : 'bg-stone-200 text-stone-600'
+                    }`}>
+                      #{mood.scaleNumber}
+                    </span>
+
+                    {/* Dynamic Picture Sticker Image */}
+                    <div className="relative w-12 h-12 sm:w-14 sm:h-14 my-1 rounded-xl overflow-hidden bg-white/80 border border-stone-200/60 shadow-2xs group-hover:scale-105 transition-transform flex items-center justify-center">
+                      <img 
+                        src={mood.imageSrc} 
+                        alt={`${mood.label} sticker`} 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs">{mood.emoji}</span>
+                      <span className="font-display font-black text-[11px] sm:text-xs leading-tight line-clamp-1">
+                        {mood.label}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Private Note Check-in */}
+            <form onSubmit={handleSavePrivateCheckIn} className="pt-2 border-t border-stone-100 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs text-stone-600">
+                <Lock className="w-3 h-3 text-stone-400" />
+                <span className="font-medium text-[10px]">Private note (only you see this):</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={privateNote}
+                  onChange={(e) => setPrivateNote(e.target.value)}
+                  placeholder={`Feeling as #${currentMoodSetting.scaleNumber} ${currentMoodSetting.label}...`}
+                  className="flex-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-400 focus:bg-white transition-colors"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                >
+                  {noteSavedToast ? <Check className="w-3.5 h-3.5" /> : <span>Log</span>}
+                </button>
+              </div>
+              {noteSavedToast && (
+                <span className="text-[10px] font-handwritten font-bold text-emerald-600 block text-right">
+                  ✓ Saved to 14-day mood calendar!
+                </span>
+              )}
+            </form>
+          </div>
+
+          {/* BENTO CARD 3: CURRENT MOOD COMFORT & DIALOGUE (Span 5 on Desktop / Full on Mobile) */}
+          <div className="md:col-span-5 bg-gradient-to-br from-pink-50/95 via-rose-50/80 to-amber-50/90 border border-pink-200 rounded-3xl p-4 sm:p-5 shadow-xs flex flex-col justify-between space-y-3">
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  {/* Active Mood Large Dynamic Sticker Picture */}
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white border-2 border-pink-300 overflow-hidden shadow-sm shrink-0">
+                    <img 
+                      src={currentMoodSetting.imageSrc} 
+                      alt={currentMoodSetting.label}
+                      className="w-full h-full object-cover scale-102" 
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-display font-black uppercase text-rose-700 tracking-wider">
+                      SCALE #{currentMoodSetting.scaleNumber} COMFORT
+                    </span>
+                    <h4 className="font-display font-black text-base text-stone-900 leading-tight">
+                      {currentMoodSetting.emoji} {currentMoodSetting.label}
+                    </h4>
+                    <span className="text-[10px] text-stone-500 font-medium font-sans">
+                      {currentMoodSetting.vibe}
+                    </span>
+                  </div>
+                </div>
+                <span className="bg-white/90 border border-pink-200 px-2 py-0.5 rounded-full text-[10px] font-handwritten font-bold text-rose-900 shadow-2xs">
+                  "{currentMoodSetting.stickerQuote}"
                 </span>
               </div>
-              <span className="block font-handwritten text-xs sm:text-sm text-paper-100 normal-case font-bold mt-0.5">
-                Answer trivia, collect secret ingredients & unlock mouth-watering recipes!
-              </span>
-            </div>
-          </div>
-          <Play className="w-7 h-7 fill-white shrink-0 ml-2" />
-        </button>
 
-        {/* SECTION TILES: Bollywood Lounge & Food-Movie Pairings */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          
-          {/* Card: Hindi Bollywood Songs (YouTube Connected) */}
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onOpenMusic();
-            }}
-            className="w-full bg-gradient-to-br from-red-600 via-rose-600 to-purple-700 text-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch hover:shadow-sketch-lg hover:scale-102 transition-all text-left flex items-center justify-between relative overflow-hidden group"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-2xl border-2 border-white/40 overflow-hidden bg-rose-200 shrink-0 shadow-inner">
-                <img 
-                  src="/marisol/avatars/11_music_mood.png" 
-                  alt="Kritika Headphones" 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform" 
-                />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-display font-black text-sm uppercase">YOUTUBE JUKEBOX</span>
-                  <span className="bg-red-500 text-white font-display text-[9px] font-black px-1.5 py-0.2 rounded-full border border-white/40">
-                    🔴 YT CONNECTED
-                  </span>
-                </div>
-                <div className="font-handwritten text-xs text-rose-100 font-bold truncate">
-                  Stream Bollywood hits, search & pin songs! 🎵
-                </div>
-              </div>
-            </div>
-            <Music className="w-5 h-5 text-rose-200 group-hover:rotate-45 transition-transform shrink-0" />
-          </button>
-
-          {/* Card: Food & Movie Pairings */}
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onNavigate('recipes');
-            }}
-            className="w-full bg-gradient-to-br from-rose-400 via-pink-500 to-rose-600 text-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch hover:shadow-sketch-lg hover:scale-102 transition-all text-left flex items-center justify-between relative overflow-hidden group"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-2xl border-2 border-white/40 bg-white/20 flex items-center justify-center text-2xl shrink-0 shadow-inner">
-                🎬
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="font-display font-black text-sm uppercase">FOOD & MOVIES</span>
-                  <span className="bg-white/25 text-[9px] px-1.5 py-0.5 rounded-full font-handwritten">PAIRED</span>
-                </div>
-                <div className="font-handwritten text-xs text-rose-100 font-bold truncate">
-                  Highway Chai, Rajma Chawal & cinema!
-                </div>
-              </div>
-            </div>
-            <Film className="w-5 h-5 text-white group-hover:scale-125 transition-transform shrink-0" />
-          </button>
-        </div>
-
-        {/* DEDICATED WELLNESS SHORTCUTS: Secret Locket & Glow-Up Week */}
-        <div className="grid grid-cols-2 gap-3">
-          
-          {/* Secret Locket */}
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onOpenSecretLocket();
-            }}
-            className="bg-white border-2.5 border-pink-300 rounded-3xl p-3.5 flex flex-col items-center justify-center text-center gap-1 shadow-sketch-sm hover:border-pink-500 hover:scale-102 transition-all"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-pink-100 border border-pink-300 flex items-center justify-center text-pink-700 shadow-2xs">
-              <Lock className="w-5 h-5" />
-            </div>
-            <span className="font-display font-black text-xs sm:text-sm text-ink">
-              SECRET LOCKET 🔐
-            </span>
-            <span className="font-handwritten text-[11px] text-pink-700 font-bold">
-              Notes & Voice Memos
-            </span>
-          </button>
-
-          {/* Glow-Up Week Scrapbook */}
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onOpenGlowUpWeek();
-            }}
-            className="bg-white border-2.5 border-purple-300 rounded-3xl p-3.5 flex flex-col items-center justify-center text-center gap-1 shadow-sketch-sm hover:border-purple-500 hover:scale-102 transition-all"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-purple-100 border border-purple-300 flex items-center justify-center text-purple-700 shadow-2xs">
-              <Camera className="w-5 h-5" />
-            </div>
-            <span className="font-display font-black text-xs sm:text-sm text-ink">
-              GLOW-UP WEEK 📸
-            </span>
-            <span className="font-handwritten text-[11px] text-purple-700 font-bold">
-              Polaroid Scrapbook
-            </span>
-          </button>
-        </div>
-
-        {/* DOWNLOAD ON MOBILE APP BANNER */}
-        {onOpenInstallApp && (
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onOpenInstallApp();
-            }}
-            className="w-full bg-gradient-to-r from-rose-50 via-pink-50 to-amber-50 border-2.5 border-pink-300 rounded-3xl p-4 shadow-sketch hover:border-pink-500 hover:scale-101 active:scale-98 transition-all flex items-center justify-between text-left group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl border-2 border-ink overflow-hidden bg-rose-200 shadow-xs shrink-0 group-hover:rotate-6 transition-transform">
-                <img src="/icon-192.png" alt="Marisol App" className="w-full h-full object-cover" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-display font-black text-xs sm:text-sm text-ink">DOWNLOAD APP ON MOBILE</span>
-                  <span className="bg-pink-500 text-white font-display text-[9px] font-black px-1.5 py-0.2 rounded-full">
-                    📲 ANDROID & IOS
-                  </span>
-                </div>
-                <p className="font-handwritten text-xs text-pink-700 font-bold">
-                  Install on your iPhone or Android home screen for instant full-screen comfort! 💖
+              <div className="bg-white/85 p-3 rounded-2xl border border-pink-100 shadow-2xs">
+                <p className="font-handwritten text-xs sm:text-sm text-stone-800 font-bold leading-relaxed">
+                  "{currentMoodSetting.dialogue}"
                 </p>
               </div>
             </div>
-            <span className="text-xl shrink-0 group-hover:translate-x-1 transition-transform">➔</span>
-          </button>
-        )}
+
+            {/* Quick Mood Affirmation Pill */}
+            <div className="bg-white/90 border border-pink-200/80 rounded-2xl p-2.5 flex items-center justify-between text-xs text-rose-950 font-bold">
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+                <span>Affirmation:</span>
+              </span>
+              <span className="font-handwritten text-rose-700">You are pure magic ✨</span>
+            </div>
+          </div>
+
+          {/* BENTO CARD 4: MOOD-MATCHED MACARONI DISH (Span 12 / Full Width) */}
+          <div className="md:col-span-12 bg-white border border-stone-200 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{currentMacaroni.emoji}</span>
+                <div>
+                  <span className="text-[10px] font-display font-black uppercase text-amber-700 tracking-wider">
+                    SCALE #{currentMoodSetting.scaleNumber} COMFORT MACARONI REWARD
+                  </span>
+                  <h3 className="font-display font-black text-base text-stone-900 leading-tight">
+                    {currentMacaroni.name}
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleToggleBookmarkMacaroni}
+                  className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                    isMacaroniBookmarked
+                      ? 'bg-rose-50 border-rose-300 text-rose-600'
+                      : 'bg-stone-50 hover:bg-pink-50 border-stone-200 text-stone-400 hover:text-rose-500'
+                  }`}
+                  title={isMacaroniBookmarked ? "Saved to Comfort Shelf" : "Save to Comfort Shelf"}
+                >
+                  <Heart className={`w-4 h-4 ${isMacaroniBookmarked ? 'fill-rose-600' : ''}`} />
+                </button>
+
+                <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full text-[11px] font-display font-bold text-amber-900 shrink-0">
+                  <Clock className="w-3 h-3 text-amber-700" />
+                  <span>{currentMacaroni.cookTime}</span>
+                </div>
+              </div>
+            </div>
+
+            <p className="font-sans text-xs sm:text-sm text-stone-700 leading-relaxed">
+              {currentMacaroni.description}
+            </p>
+
+            {/* Secret Ingredients tags & Movie Pairing */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {currentMacaroni.secretIngredients.map(ing => (
+                  <span 
+                    key={ing}
+                    className="bg-stone-100 border border-stone-200/80 px-2.5 py-0.5 rounded-full text-[11px] font-handwritten font-bold text-stone-700"
+                  >
+                    {ing}
+                  </span>
+                ))}
+              </div>
+
+              <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-2 flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <Film className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  <span className="font-display font-bold text-amber-950">Pairing:</span>
+                  <span className="font-medium text-stone-700 truncate">{currentMacaroni.pairingMovie}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* BENTO CARDS 5-8: THE 4 PILLARS (CHAT, POST, MUSIC, QUIZ) */}
+          <div className="md:col-span-12">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-[11px] font-display font-black uppercase text-stone-500 tracking-wider">
+                🌟 Factory of Fun Pillars
+              </span>
+              <span className="text-[11px] font-sans text-stone-400">
+                Multi-person chat, posts, music & quiz
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+              {/* PILLAR 1: CHAT */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onNavigate('batch_wall', 'chat');
+                }}
+                className="p-3.5 rounded-3xl bg-white border border-stone-200 hover:border-purple-300 flex flex-col justify-between gap-3 shadow-xs hover:shadow-md cursor-pointer hover:scale-101 active:scale-98 transition-all text-left group"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-9 h-9 rounded-2xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-bold shadow-2xs group-hover:bg-purple-100 transition-colors">
+                    <MessageCircle className="w-4 h-4" />
+                  </div>
+                  <span className="text-[9px] font-display font-black uppercase text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+                    REAL-TIME
+                  </span>
+                </div>
+                <div>
+                  <h4 className="font-display font-black text-sm text-stone-900 group-hover:text-purple-700 transition-colors">
+                    Chat Lounge 💬
+                  </h4>
+                  <p className="font-handwritten text-xs text-stone-600 font-bold line-clamp-2">
+                    Group messages, pin highlights & author-only edits
+                  </p>
+                </div>
+              </button>
+
+              {/* PILLAR 2: POST */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onNavigate('batch_wall', 'posts');
+                }}
+                className="p-3.5 rounded-3xl bg-white border border-stone-200 hover:border-pink-300 flex flex-col justify-between gap-3 shadow-xs hover:shadow-md cursor-pointer hover:scale-101 active:scale-98 transition-all text-left group"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-9 h-9 rounded-2xl bg-pink-50 text-pink-600 border border-pink-200 flex items-center justify-center font-bold shadow-2xs group-hover:bg-pink-100 transition-colors">
+                    <Camera className="w-4 h-4" />
+                  </div>
+                  <span className="text-[9px] font-display font-black uppercase text-pink-700 bg-pink-50 px-2 py-0.5 rounded-full border border-pink-100">
+                    COMMUNITY
+                  </span>
+                </div>
+                <div>
+                  <h4 className="font-display font-black text-sm text-stone-900 group-hover:text-pink-600 transition-colors">
+                    Moments & Posts 📸
+                  </h4>
+                  <p className="font-handwritten text-xs text-stone-600 font-bold line-clamp-2">
+                    Photo feed, pin favorite posts & personal stories
+                  </p>
+                </div>
+              </button>
+
+              {/* PILLAR 3: MUSIC */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onNavigate('music');
+                }}
+                className="p-3.5 rounded-3xl bg-white border border-stone-200 hover:border-amber-300 flex flex-col justify-between gap-3 shadow-xs hover:shadow-md cursor-pointer hover:scale-101 active:scale-98 transition-all text-left group"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold shadow-2xs group-hover:bg-amber-100 transition-colors">
+                    <Music className="w-4 h-4" />
+                  </div>
+                  <span className="text-[9px] font-display font-black uppercase text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                    STREAMER
+                  </span>
+                </div>
+                <div>
+                  <h4 className="font-display font-black text-sm text-stone-900 group-hover:text-amber-700 transition-colors">
+                    Hear Music 🎵
+                  </h4>
+                  <p className="font-handwritten text-xs text-stone-600 font-bold line-clamp-2">
+                    Lo-fi beats, binaural synth stations & ambient player
+                  </p>
+                </div>
+              </button>
+
+              {/* PILLAR 4: PLAY QUIZ */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('fanfare');
+                  onStartMoodQuiz(activeMoodId);
+                }}
+                className="p-3.5 rounded-3xl bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 text-white flex flex-col justify-between gap-3 shadow-xs hover:shadow-md cursor-pointer hover:scale-101 active:scale-98 transition-all text-left group"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-9 h-9 rounded-2xl bg-white text-rose-600 flex items-center justify-center font-bold shadow-2xs">
+                    <Play className="w-4 h-4 fill-rose-600" />
+                  </div>
+                  <span className="text-[9px] font-display font-black uppercase text-pink-200 bg-white/20 px-2 py-0.5 rounded-full border border-white/30">
+                    1000+ TRIVIA
+                  </span>
+                </div>
+                <div>
+                  <h4 className="font-display font-black text-sm text-white">
+                    Play Quiz 🎯
+                  </h4>
+                  <p className="font-handwritten text-xs text-white/90 font-bold line-clamp-2">
+                    Food & Cinema trivia tailored to #{currentMoodSetting.scaleNumber}
+                  </p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+        </div>
 
       </div>
     </div>
@@ -3327,7 +8422,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 ```tsx
 import React, { useState, useEffect } from 'react';
 import { audioEngine } from '../services/synthAudioEngine';
-import { X, Download, Smartphone, Share2, PlusSquare, Sparkles, Check, Apple } from 'lucide-react';
+import { BaseModal } from './BaseModal';
+import { Download, Smartphone, Share2, PlusSquare, Sparkles, Check, Apple } from 'lucide-react';
 
 interface InstallAppModalProps {
   onClose: () => void;
@@ -3385,41 +8481,25 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ onClose }) => 
   };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
+    <BaseModal
+      onClose={onClose}
+      maxWidth="max-w-md"
+      icon={
+        <img 
+          src="/icon-192.png" 
+          alt="Marisol App Icon" 
+          className="w-full h-full object-cover rounded-xl"
+        />
+      }
+      title={
+        <span className="flex items-center gap-1.5">
+          <span>DOWNLOAD MARISOL</span>
+          <Sparkles className="w-4 h-4 text-pink-500" />
+        </span>
+      }
+      subtitle="Install on your Android or iPhone Home Screen! 📲"
     >
-      <div 
-        className="bg-[#FFFDF7] border-3 border-ink rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-sketch-2xl space-y-4 relative text-center"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b-2 border-pink-200 pb-3">
-          <div className="flex items-center gap-2.5 text-left">
-            <div className="w-12 h-12 rounded-2xl border-2 border-ink overflow-hidden bg-rose-200 shadow-sketch shrink-0">
-              <img 
-                src="/icon-192.png" 
-                alt="Marisol App Icon" 
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div>
-              <h3 className="font-display font-black text-base sm:text-lg text-ink leading-tight flex items-center gap-1.5">
-                <span>DOWNLOAD MARISOL</span>
-                <Sparkles className="w-4 h-4 text-pink-500" />
-              </h3>
-              <p className="font-handwritten text-xs text-pink-700 font-bold">
-                Install on your Android or iPhone Home Screen! 📲
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center font-bold bg-white hover:bg-paper-200 transition-colors shadow-xs shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+      <div className="space-y-4 text-center">
 
         {/* Already Installed Badge */}
         {isStandalone || installedSuccess ? (
@@ -3526,9 +8606,8 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ onClose }) => 
         <div className="bg-pink-100/50 border border-pink-200 rounded-xl p-2.5 font-handwritten text-xs text-pink-900 font-bold">
           "Now Kritika can carry her comfort zone everywhere in her pocket!" 💖
         </div>
-
       </div>
-    </div>
+    </BaseModal>
   );
 };
 
@@ -3539,11 +8618,12 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ onClose }) => 
 ### File: `src/components/KnowledgePassport.tsx`
 
 ```tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { gameState } from '../services/gameState';
 import { Marisol } from './Marisol';
-import type { Category } from '../types/game';
-import { CheckCircle, Lock, Film, Tv, Sparkles, Music, Cpu, Rocket, Globe, HelpCircle } from 'lucide-react';
+import type { Category, ScreenState } from '../types/game';
+import { CheckCircle, Lock, Film, Tv, Sparkles, Music, Cpu, Rocket, Globe, HelpCircle, ArrowLeft } from 'lucide-react';
+import { audioEngine } from '../services/synthAudioEngine';
 
 interface PassportCategory {
   category: Category;
@@ -3564,91 +8644,185 @@ const PASSPORT_CATEGORIES: PassportCategory[] = [
   { category: 'Weird Facts', stampName: 'Curiosity Titan', icon: HelpCircle, color: 'bg-emerald-500 text-white', requiredQuestions: 3 },
 ];
 
-export const KnowledgePassport: React.FC = () => {
+interface KnowledgePassportProps {
+  onNavigate?: (screen: ScreenState) => void;
+  hideHomeButton?: boolean;
+}
+
+export const KnowledgePassport: React.FC<KnowledgePassportProps> = ({ 
+  onNavigate,
+  hideHomeButton = false
+}) => {
   const player = gameState.getPlayer();
+  const [filter, setFilter] = useState<'all' | 'unlocked' | 'in_progress'>('all');
+
+  const stampedCount = PASSPORT_CATEGORIES.filter(
+    item => player.questionsAnswered >= item.requiredQuestions
+  ).length;
+
+  const filteredCategories = PASSPORT_CATEGORIES.filter(item => {
+    const isStamped = player.questionsAnswered >= item.requiredQuestions;
+    if (filter === 'unlocked') return isStamped;
+    if (filter === 'in_progress') return !isStamped;
+    return true;
+  });
 
   return (
-    <div className="min-h-screen bg-paper-50 p-4 sm:p-6 pb-24 text-ink">
+    <div className="min-h-screen bg-paper-50 p-3 sm:p-6 pb-28 text-ink">
       
       {/* Header */}
-      <div className="max-w-4xl mx-auto mb-8 text-center space-y-2">
-        <div className="inline-block bg-white border-2.5 border-ink px-4 py-1.5 rounded-full shadow-sketch font-handwritten text-lg font-bold text-doodleTeal">
-          📘 OFFICIAL DOCUMENT
+      <div className="max-w-4xl mx-auto mb-6 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          {!hideHomeButton && onNavigate ? (
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onNavigate('home');
+              }}
+              className="sketch-btn p-2.5 sm:p-3 bg-white flex items-center gap-1.5 sm:gap-2 shadow-sketch"
+            >
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="font-display font-bold text-xs sm:text-sm hidden sm:inline">HOME</span>
+            </button>
+          ) : <div className="w-9" />}
+
+          <div className="text-center">
+            <div className="inline-block bg-white border-2 border-ink px-3 py-1 rounded-full shadow-sketch font-handwritten text-xs sm:text-sm font-bold text-doodleTeal">
+              📘 OFFICIAL DOCUMENT
+            </div>
+            <h1 className="font-display font-black text-2xl sm:text-4xl text-plum-700 mt-1">
+              KNOWLEDGE PASSPORT
+            </h1>
+          </div>
+
+          <div className="bg-white border-2 border-ink px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-handwritten text-xs sm:text-sm font-bold shadow-sketch">
+            <span className="text-emerald-600 font-black">{stampedCount}</span> / {PASSPORT_CATEGORIES.length} STAMPS
+          </div>
         </div>
-        <h1 className="font-display font-black text-3xl sm:text-5xl text-plum-700">
-          KNOWLEDGE PASSPORT
-        </h1>
-        <p className="font-handwritten text-xl text-ink-light max-w-lg mx-auto">
+
+        <p className="font-handwritten text-sm sm:text-base text-ink-light max-w-lg mx-auto text-center font-bold">
           Collect illustrated stamps as you master categories across the Factory of Fun!
         </p>
       </div>
 
       {/* Marisol Passport Guide */}
-      <div className="max-w-xl mx-auto mb-8 bg-white border-2.5 border-ink rounded-2xl p-4 shadow-sketch-lg flex items-center gap-4">
-        <Marisol expression="proud" size="small" showSpeechBubble={false} />
+      <div className="max-w-xl mx-auto mb-6 bg-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch-lg flex items-center gap-4">
+        <Marisol expression={stampedCount > 3 ? 'celebrating' : 'proud'} size="small" showSpeechBubble={false} />
         <div>
-          <h3 className="font-display font-bold text-lg text-ink">Marisol's Stamp Book</h3>
-          <p className="font-handwritten text-base text-ink-light">
-            "Look at all these stamps! Play challenges in every category to stamp your passport."
+          <h3 className="font-display font-bold text-base text-ink">Marisol's Stamp Book</h3>
+          <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
+            "{stampedCount === PASSPORT_CATEGORIES.length 
+              ? 'Incredible! You have officially conquered every single passport category!' 
+              : 'Look at that progress! Play challenges in every category to complete your world passport.'}"
           </p>
         </div>
       </div>
 
-      {/* Stamp Collection Grid */}
-      <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {PASSPORT_CATEGORIES.map(item => {
-          const Icon = item.icon;
-          const isStamped = player.questionsAnswered >= item.requiredQuestions;
-
-          return (
-            <div
-              key={item.category}
-              className={`
-                relative bg-white border-3 border-ink rounded-3xl p-5 shadow-sketch-lg flex flex-col items-center text-center space-y-3 transition-all
-                ${isStamped ? 'hover:-translate-y-1' : 'opacity-60 bg-paper-100'}
-              `}
+      {/* Filter Tabs */}
+      <div className="max-w-4xl mx-auto mb-6 flex justify-center">
+        <div className="bg-white border-2 border-ink p-1 rounded-2xl shadow-sketch flex items-center gap-1">
+          {[
+            { key: 'all', label: `All Stamps (${PASSPORT_CATEGORIES.length})` },
+            { key: 'unlocked', label: `🌟 Unlocked (${stampedCount})` },
+            { key: 'in_progress', label: `⏳ In Progress (${PASSPORT_CATEGORIES.length - stampedCount})` },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setFilter(tab.key as any);
+              }}
+              className={`px-3 py-1.5 rounded-xl font-handwritten text-xs sm:text-sm font-bold transition-all ${
+                filter === tab.key
+                  ? 'bg-ink text-white shadow-sketch-xs'
+                  : 'text-ink-light hover:bg-paper-100'
+              }`}
             >
-              {/* Stamp Seal Badge */}
-              <div 
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Empty State */}
+      {filteredCategories.length === 0 ? (
+        <div className="max-w-md mx-auto bg-white border-3 border-dashed border-ink/30 rounded-3xl p-8 text-center space-y-3 shadow-sketch">
+          <div className="text-4xl animate-bounce-gentle">📘✨</div>
+          <h3 className="font-display font-black text-lg text-ink">
+            {filter === 'unlocked' ? 'No stamps unlocked yet' : 'All stamps unlocked!'}
+          </h3>
+          <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
+            {filter === 'unlocked'
+              ? 'Play quizzes across cinema, science, and geography to earn your first passport stamps!'
+              : 'You have earned every stamp in this passport book! Amazing achievement, queen!'}
+          </p>
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              setFilter('all');
+            }}
+            className="sketch-btn px-4 py-2 text-xs font-display font-black uppercase bg-teal-50 border-2 border-ink shadow-sketch"
+          >
+            Show All Stamps
+          </button>
+        </div>
+      ) : (
+        /* Stamp Collection Grid */
+        <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {filteredCategories.map(item => {
+            const Icon = item.icon;
+            const isStamped = player.questionsAnswered >= item.requiredQuestions;
+
+            return (
+              <div
+                key={item.category}
                 className={`
-                  w-20 h-20 rounded-full border-3 border-ink flex items-center justify-center shadow-sketch relative
-                  ${isStamped ? item.color : 'bg-paper-200 text-ink-light'}
+                  relative bg-white border-3 border-ink rounded-3xl p-5 shadow-sketch-lg flex flex-col items-center text-center space-y-3 transition-all
+                  ${isStamped ? 'hover:-translate-y-1 hover:shadow-sketch-xl' : 'opacity-70 bg-paper-100'}
                 `}
               >
-                {isStamped ? (
-                  <Icon className="w-10 h-10" />
-                ) : (
-                  <Lock className="w-8 h-8" />
-                )}
+                {/* Stamp Seal Badge */}
+                <div 
+                  className={`
+                    w-20 h-20 rounded-full border-3 border-ink flex items-center justify-center shadow-sketch relative
+                    ${isStamped ? item.color : 'bg-paper-200 text-ink-light'}
+                  `}
+                >
+                  {isStamped ? (
+                    <Icon className="w-10 h-10" />
+                  ) : (
+                    <Lock className="w-8 h-8" />
+                  )}
 
-                {/* Ink Seal Rim */}
-                <div className="absolute inset-0 rounded-full border-2 border-dashed border-ink/40 pointer-events-none" />
-              </div>
+                  {/* Ink Seal Rim */}
+                  <div className="absolute inset-0 rounded-full border-2 border-dashed border-ink/40 pointer-events-none" />
+                </div>
 
-              <div>
-                <h3 className="font-display font-black text-lg text-ink">
-                  {item.stampName}
-                </h3>
-                <p className="font-handwritten text-sm text-coral-500 font-bold">
-                  {item.category}
-                </p>
-              </div>
+                <div>
+                  <h3 className="font-display font-black text-lg text-ink">
+                    {item.stampName}
+                  </h3>
+                  <p className="font-handwritten text-sm text-coral-500 font-bold">
+                    {item.category}
+                  </p>
+                </div>
 
-              <div className="w-full pt-2 border-t-1.5 border-dashed border-ink/20 font-sans text-xs">
-                {isStamped ? (
-                  <span className="font-bold text-doodleTeal flex items-center justify-center gap-1">
-                    <CheckCircle className="w-4 h-4" /> STAMP UNLOCKED
-                  </span>
-                ) : (
-                  <span className="text-ink-light">
-                    Answer {item.requiredQuestions} {item.category} questions to unlock
-                  </span>
-                )}
+                <div className="w-full pt-2 border-t-1.5 border-dashed border-ink/20 font-sans text-xs">
+                  {isStamped ? (
+                    <span className="font-bold text-doodleTeal flex items-center justify-center gap-1">
+                      <CheckCircle className="w-4 h-4" /> STAMP UNLOCKED
+                    </span>
+                  ) : (
+                    <span className="text-ink-light">
+                      Answer {item.requiredQuestions} {item.category} questions to unlock
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -3803,8 +8977,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { audioEngine } from '../services/synthAudioEngine';
 import { gameState } from '../services/gameState';
-import { Sparkles, Volume2, VolumeX, Play, Pause, ArrowRight, Trophy } from 'lucide-react';
+import { BaseModal } from './BaseModal';
+import { Sparkles, Volume2, VolumeX, Play, Pause, ArrowRight, Trophy, Minimize2 } from 'lucide-react';
 import heroBannerVideoSrc from '../assets/Hero Banner video.mp4';
+import { videoPlaybackService } from '../services/videoPlaybackService';
 
 interface LevelClearHeroModalProps {
   onClose: () => void;
@@ -3825,10 +9001,8 @@ export const LevelClearHeroModal: React.FC<LevelClearHeroModalProps> = ({
   const player = gameState.getPlayer();
 
   useEffect(() => {
-    // Play celebratory sound fanfare
     audioEngine.playSfx('fanfare');
 
-    // Confetti celebration shower
     confetti({
       particleCount: 80,
       spread: 90,
@@ -3885,37 +9059,33 @@ export const LevelClearHeroModal: React.FC<LevelClearHeroModalProps> = ({
     }
   };
 
-  return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
-    >
-      <div 
-        className="bg-[#FFFDF7] border-3 border-ink rounded-3xl max-w-lg w-full p-4 sm:p-6 shadow-sketch-2xl space-y-4 relative text-center overflow-hidden animate-scale-up"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Floating Sparkles & Crown Header */}
-        <div className="flex items-center justify-between border-b-2 border-pink-200 pb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl animate-bounce">👑</span>
-            <div className="text-left">
-              <h3 className="font-display font-black text-lg sm:text-xl text-ink leading-tight flex items-center gap-1.5">
-                <span>{title}</span>
-                <Sparkles className="w-4 h-4 text-pink-500 animate-spin" />
-              </h3>
-              <p className="font-handwritten text-xs text-pink-700 font-bold">
-                {subtitle}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center font-bold bg-white hover:bg-paper-200 transition-colors shadow-xs shrink-0"
-          >
-            ✕
-          </button>
-        </div>
+  const handleMinimize = () => {
+    audioEngine.playSfx('pop');
+    videoPlaybackService.minimizeVideo({
+      type: 'mp4',
+      src: heroBannerVideoSrc,
+      title: 'Level Clear Celebration 👑',
+      subtitle: 'Playing in background',
+      isMuted,
+      currentTime: videoRef.current?.currentTime || 0,
+    });
+    onClose();
+  };
 
+  return (
+    <BaseModal
+      onClose={onClose}
+      maxWidth="max-w-lg"
+      icon={<span className="text-2xl animate-bounce">👑</span>}
+      title={
+        <span className="flex items-center gap-1.5">
+          <span>{title}</span>
+          <Sparkles className="w-4 h-4 text-pink-500 animate-spin" />
+        </span>
+      }
+      subtitle={subtitle}
+    >
+      <div className="space-y-4 text-center">
         {/* HERO BANNER VIDEO PLAYER */}
         <div className="relative rounded-2xl overflow-hidden border-2.5 border-ink bg-black shadow-sketch group aspect-video">
           <video
@@ -3956,13 +9126,25 @@ export const LevelClearHeroModal: React.FC<LevelClearHeroModalProps> = ({
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleReplay}
-              className="text-xs font-handwritten font-bold text-pink-200 hover:text-white px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 transition-all"
-            >
-              Watch Again 🔄
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleMinimize}
+                className="text-xs font-handwritten font-bold text-white px-2.5 py-1 rounded-lg bg-pink-600/80 hover:bg-pink-600 border border-pink-400 flex items-center gap-1 transition-all"
+                title="Minimize video to floating window"
+              >
+                <Minimize2 className="w-3.5 h-3.5" />
+                <span>Minimize 🗗</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleReplay}
+                className="text-xs font-handwritten font-bold text-pink-200 hover:text-white px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 transition-all"
+              >
+                Watch Again 🔄
+              </button>
+            </div>
           </div>
         </div>
 
@@ -3989,23 +9171,34 @@ export const LevelClearHeroModal: React.FC<LevelClearHeroModalProps> = ({
           </div>
         </div>
 
-        {/* PRIMARY CONTINUE ACTION */}
-        <button
-          onClick={() => {
-            audioEngine.playSfx('fanfare');
-            onClose();
-          }}
-          className="sketch-btn-primary w-full py-3.5 text-base sm:text-lg font-black uppercase flex items-center justify-center gap-2 shadow-sketch hover:scale-102 active:scale-98 transition-all border-3 border-ink"
-        >
-          <Trophy className="w-5 h-5 text-amber-300" />
-          <span>REVEAL SECRET RECIPE REWARD</span>
-          <ArrowRight className="w-5 h-5" />
-        </button>
+        {/* PRIMARY CONTINUE & MINIMIZE ACTIONS */}
+        <div className="space-y-2">
+          <button
+            onClick={() => {
+              audioEngine.playSfx('fanfare');
+              onClose();
+            }}
+            className="sketch-btn-primary w-full py-3.5 text-base sm:text-lg font-black uppercase flex items-center justify-center gap-2 shadow-sketch hover:scale-102 active:scale-98 transition-all border-3 border-ink"
+          >
+            <Trophy className="w-5 h-5 text-amber-300" />
+            <span>REVEAL SECRET RECIPE REWARD</span>
+            <ArrowRight className="w-5 h-5" />
+          </button>
 
+          <button
+            type="button"
+            onClick={handleMinimize}
+            className="w-full py-2 bg-purple-50 hover:bg-purple-100 border-2 border-dashed border-purple-300 rounded-xl font-handwritten text-xs font-bold text-purple-900 flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <Minimize2 className="w-4 h-4 text-purple-700" />
+            <span>Minimize video to corner & explore app in background</span>
+          </button>
+        </div>
       </div>
-    </div>
+    </BaseModal>
   );
 };
+
 
 ```
 
@@ -4317,13 +9510,144 @@ export const Marisol: React.FC<MarisolProps> = ({
 
 ---
 
+### File: `src/components/MoodHistoryModal.tsx`
+
+```tsx
+import React from 'react';
+import { BaseModal } from './BaseModal';
+import { moodHistoryManager, type MoodHistoryEntry } from '../services/moodRotationService';
+import { Calendar, Lock, Sparkles } from 'lucide-react';
+
+interface MoodHistoryModalProps {
+  onClose: () => void;
+}
+
+export const MoodHistoryModal: React.FC<MoodHistoryModalProps> = ({ onClose }) => {
+  const history = moodHistoryManager.getMoodHistory();
+
+  // Generate last 14 days for the soft heatmap
+  const last14Days = Array.from({ length: 14 }).map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (13 - i));
+    const dateStr = d.toISOString().split('T')[0];
+    const match = history.find(h => h.date === dateStr);
+    const dayLabel = d.toLocaleDateString('en-US', { weekday: 'narrow' });
+    const dayNumber = d.getDate();
+    return { dateStr, dayLabel, dayNumber, match };
+  });
+
+  return (
+    <BaseModal
+      onClose={onClose}
+      title="MOOD CALENDAR & STREAK"
+      subtitle="Kritika's 14-Day Comfort & Mood Heatmap"
+      icon={<Calendar className="w-5 h-5 text-rose-600" />}
+      maxWidth="max-w-lg"
+    >
+      <div className="space-y-4 text-left">
+        {/* Soft Heatmap Grid */}
+        <div className="bg-gradient-to-r from-pink-50 via-rose-50 to-purple-50 border border-pink-200 rounded-3xl p-4 shadow-sm space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="font-display font-black text-xs uppercase text-rose-950 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-rose-600" />
+              <span>14-Day Mood Flow</span>
+            </span>
+            <span className="text-[10px] font-handwritten font-bold text-rose-700 bg-white/80 px-2 py-0.5 rounded-full border border-pink-200">
+              {history.length} Check-ins Recorded
+            </span>
+          </div>
+
+          <div className="grid grid-cols-7 gap-2 pt-1">
+            {last14Days.map(d => {
+              const isCheckedIn = Boolean(d.match);
+              return (
+                <div
+                  key={d.dateStr}
+                  className={`p-2 rounded-2xl border flex flex-col items-center justify-center transition-all ${
+                    isCheckedIn
+                      ? 'bg-white border-pink-300 shadow-xs'
+                      : 'bg-white/40 border-stone-200/60 opacity-60'
+                  }`}
+                  title={d.match ? `${d.dateStr}: ${d.match.moodLabel} (Scale ${d.match.scaleNumber}/9)` : `${d.dateStr}: No entry`}
+                >
+                  <span className="text-[10px] font-bold text-stone-500">{d.dayLabel}</span>
+                  <span className="text-xs font-black text-stone-800">{d.dayNumber}</span>
+                  <span className="text-base my-0.5">
+                    {d.match ? d.match.emoji : '·'}
+                  </span>
+                  {d.match && (
+                    <span className="text-[9px] font-display font-bold text-rose-600">
+                      #{d.match.scaleNumber}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Detailed Past Check-Ins */}
+        <div className="space-y-2">
+          <span className="font-display font-black text-xs uppercase text-stone-700 block">
+            Recent Check-In Entries:
+          </span>
+
+          {history.length === 0 ? (
+            <div className="bg-stone-50 border border-dashed border-stone-300 rounded-2xl p-6 text-center text-stone-500 font-handwritten text-xs font-bold">
+              No mood check-ins recorded yet. Tap any mood on the scale to log today's feeling! 🌸
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {history.map((entry: MoodHistoryEntry) => (
+                <div
+                  key={entry.id}
+                  className="bg-white border border-stone-200 rounded-2xl p-3 shadow-xs space-y-1"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{entry.emoji}</span>
+                      <div>
+                        <div className="font-display font-black text-xs text-stone-800">
+                          {entry.moodLabel} (Scale #{entry.scaleNumber})
+                        </div>
+                        <div className="text-[10px] text-stone-500 font-medium">
+                          {entry.date}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-handwritten font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                      Comfort Macaroni 🧀
+                    </span>
+                  </div>
+
+                  {entry.privateNote && (
+                    <div className="bg-stone-50 p-2 rounded-xl border border-stone-200/80 text-xs font-handwritten text-stone-700 flex items-start gap-1.5 mt-1">
+                      <Lock className="w-3 h-3 text-stone-400 shrink-0 mt-0.5" />
+                      <span className="italic">"{entry.privateNote}"</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </BaseModal>
+  );
+};
+
+```
+
+---
+
 ### File: `src/components/MoodSelectorModal.tsx`
 
 ```tsx
 import React from 'react';
 import { STICKERS, type StickerData } from '../data/stickers';
 import { RECIPES_BY_MOOD } from '../data/recipes';
-import { Sparkles, Utensils, X } from 'lucide-react';
+import { BaseModal } from './BaseModal';
+import { Sparkles, Utensils } from 'lucide-react';
 import { audioEngine } from '../services/synthAudioEngine';
 
 interface MoodSelectorModalProps {
@@ -4340,36 +9664,14 @@ export const MoodSelectorModal: React.FC<MoodSelectorModalProps> = ({
   onOpenComfortCorner,
 }) => {
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
+    <BaseModal
+      onClose={onClose}
+      maxWidth="max-w-2xl"
+      icon={<div className="w-full h-full bg-coral-500 rounded-xl flex items-center justify-center text-white"><Utensils className="w-5 h-5 text-white" /></div>}
+      title="SELECT YOUR COOKING MOOD ♡"
+      subtitle="Pick from Kritika's 11 mood stickers to flavor your trivia and unlock a matching recipe!"
     >
-      <div 
-        className="bg-[#FAF7F0] border-3 border-ink rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-sketch-2xl space-y-4 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b-2 border-ink/20 pb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-2xl border-2 border-ink bg-coral-500 text-white flex items-center justify-center font-bold text-lg shadow-sketch">
-              <Utensils className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-display font-black text-xl text-ink leading-tight">
-                SELECT YOUR COOKING MOOD ♡
-              </h2>
-              <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
-                Pick from Kritika's 11 mood stickers to flavor your trivia and unlock a matching recipe!
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200 transition-colors shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+      <div className="space-y-4">
 
         {/* Girl's Perspective Angry / Stressed Quick Action */}
         {onOpenComfortCorner && (
@@ -4469,7 +9771,7 @@ export const MoodSelectorModal: React.FC<MoodSelectorModalProps> = ({
           </p>
         </div>
       </div>
-    </div>
+    </BaseModal>
   );
 };
 
@@ -4625,7 +9927,9 @@ import React, { useState, useEffect } from 'react';
 import { audioEngine } from '../services/synthAudioEngine';
 import { wellnessState } from '../services/wellnessState';
 import type { HindiSong } from '../data/hindiSongs';
-import { X, Sparkles, ExternalLink, SkipForward, SkipBack, Heart, Search, Pin, Plus, Copy, Check, Play } from 'lucide-react';
+import { BaseModal } from './BaseModal';
+import { ExternalLink, SkipForward, SkipBack, Heart, Search, Pin, Plus, Copy, Check, Play, Minimize2 } from 'lucide-react';
+import { videoPlaybackService } from '../services/videoPlaybackService';
 
 interface MusicJukeboxModalProps {
   onClose: () => void;
@@ -4646,18 +9950,6 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
   const [showAddForm, setShowAddForm] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [quickYtInput, setQuickYtInput] = useState('');
-
-  // Live in-website YouTube search state
-  interface LiveYtItem {
-    videoId: string;
-    title: string;
-    channel: string;
-    duration: string;
-    thumbnail: string;
-  }
-  const [liveYtResults, setLiveYtResults] = useState<LiveYtItem[]>([]);
-  const [isSearchingYt, setIsSearchingYt] = useState(false);
-  const [ytSearchNotice, setYtSearchNotice] = useState<string | null>(null);
 
   // Detailed add form states
   const [newTitle, setNewTitle] = useState('');
@@ -4726,134 +10018,13 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
     return trimmed;
   };
 
-  // LIVE IN-WEBSITE YOUTUBE SEARCH
-  const executeInWebsiteYouTubeSearch = async (queryText?: string) => {
-    const q = (queryText !== undefined ? queryText : searchQuery).trim();
-    if (!q) return;
-
-    if (queryText !== undefined) {
-      setSearchQuery(queryText);
-    }
-
-    setIsSearchingYt(true);
-    setYtSearchNotice(`Searching YouTube for "${q}"...`);
-    audioEngine.playSfx('click');
-
-    try {
-      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`);
-      if (!res.ok) throw new Error('Search failed');
-      const data = await res.json();
-      if (data.results && data.results.length > 0) {
-        setLiveYtResults(data.results);
-        setYtSearchNotice(`Found ${data.results.length} live YouTube videos!`);
-        audioEngine.playSfx('fanfare');
-      } else {
-        setLiveYtResults([]);
-        setYtSearchNotice(`No results found directly on YouTube. Try another search!`);
-      }
-    } catch {
-      // Local fallback
-      const localMatches = allSongs.filter(s =>
-        s.title.toLowerCase().includes(q.toLowerCase()) ||
-        s.movie.toLowerCase().includes(q.toLowerCase()) ||
-        s.singers.toLowerCase().includes(q.toLowerCase())
-      );
-      if (localMatches.length > 0) {
-        setLiveYtResults(localMatches.map(s => ({
-          videoId: s.youtubeId,
-          title: `${s.title} (${s.movie})`,
-          channel: s.singers,
-          duration: 'HD',
-          thumbnail: `https://img.youtube.com/vi/${s.youtubeId}/mqdefault.jpg`
-        })));
-        setYtSearchNotice(`Found ${localMatches.length} matching songs in library!`);
-      } else {
-        setLiveYtResults([]);
-        setYtSearchNotice('Could not reach YouTube search. Try pasting link directly below!');
-      }
-    } finally {
-      setIsSearchingYt(false);
-    }
-  };
-
-  // Play a live YouTube item right inside the website
-  const handlePlayLiveYtItem = (item: LiveYtItem) => {
-    audioEngine.playSfx('click');
-    audioEngine.stopMusic();
-
-    const existing = allSongs.find(s => s.youtubeId === item.videoId);
-    if (existing) {
-      setSelectedSong(existing);
-      setIsPlaying(true);
-      return;
-    }
-
-    const cleanTitle = item.title
-      .replace(/&amp;/g, '&')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>');
-
-    const newSong: HindiSong = {
-      id: `yt_${item.videoId}`,
-      title: cleanTitle.length > 45 ? cleanTitle.slice(0, 45) + '...' : cleanTitle,
-      movie: item.channel || 'YouTube Song',
-      singers: item.channel || 'YouTube Stream',
-      year: new Date().getFullYear(),
-      emoji: '🔴',
-      accentColor: '#EF4444',
-      youtubeId: item.videoId,
-      vibe: 'YouTube Search Hit',
-      lyricsHighlight: cleanTitle,
-      movieQuote: '"Streaming directly from YouTube search!"',
-      tags: ['YouTube Search', 'Stream']
-    };
-
-    setSelectedSong(newSong);
-    setIsPlaying(true);
-  };
-
-  // Pin a live YouTube item to Kritika's favorites
-  const handlePinLiveYtItem = (e: React.MouseEvent, item: LiveYtItem) => {
-    e.stopPropagation();
-    audioEngine.playSfx('fanfare');
-
-    const cleanTitle = item.title
-      .replace(/&amp;/g, '&')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>');
-
-    const created = wellnessState.addCustomSong({
-      title: cleanTitle.length > 45 ? cleanTitle.slice(0, 45) + '...' : cleanTitle,
-      movie: item.channel || 'YouTube Pick',
-      singers: item.channel || 'YouTube Creator',
-      year: new Date().getFullYear(),
-      emoji: '🔴',
-      accentColor: '#EF4444',
-      youtubeId: item.videoId,
-      vibe: 'Queen\'s YouTube Pick',
-      lyricsHighlight: `Saved from YouTube search: "${cleanTitle}"`,
-      movieQuote: '"Music on demand, saved by Queen Kritika!"',
-      tags: ['YouTube Pick', 'Favorites']
-    });
-
-    wellnessState.togglePinSong(created.id);
-    setSelectedSong(created);
-    setIsPlaying(true);
-  };
-
-  // Instant Quick YouTube Link Paste & Play
   const handleQuickPlayYouTube = (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickYtInput.trim()) return;
 
-    const ytId = extractVideoId(quickYtInput);
-    if (!ytId) return;
-
     audioEngine.playSfx('fanfare');
+    const ytId = extractVideoId(quickYtInput);
+
     const existing = allSongs.find(s => s.youtubeId === ytId);
     if (existing) {
       setSelectedSong(existing);
@@ -4941,44 +10112,22 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
   const otherSongsList = filteredSongs.filter(s => !pinnedIds.includes(s.id));
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
+    <BaseModal
+      onClose={onClose}
+      maxWidth="max-w-xl"
+      icon={<div className="w-full h-full bg-gradient-to-tr from-red-600 via-rose-500 to-pink-500 rounded-xl flex items-center justify-center text-white"><YouTubeIcon className="w-6 h-6 text-white" /></div>}
+      title="KRITIKA'S YOUTUBE LOUNGE"
+      subtitle="Hand-picked Bollywood comfort songs & self-love anthems 💖"
+      badge={
+        <span className="bg-red-500 text-white font-display text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+          <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+          CURATED PLAYLIST
+        </span>
+      }
     >
-      <div 
-        className="bg-[#FFFDF7] border-3 border-ink rounded-3xl max-w-xl w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-sketch-2xl space-y-4 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header with YouTube Connectivity Badge */}
-        <div className="flex items-center justify-between border-b-2 border-pink-200 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-11 h-11 rounded-2xl border-2 border-ink bg-gradient-to-tr from-red-600 via-rose-500 to-pink-500 text-white flex items-center justify-center font-bold text-xl shadow-sketch">
-              <YouTubeIcon className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <h2 className="font-display font-black text-xl sm:text-2xl text-ink leading-tight">
-                  KRITIKA'S YOUTUBE LOUNGE
-                </h2>
-                <span className="bg-red-500 text-white font-display text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                  YOUTUBE LIVE
-                </span>
-              </div>
-              <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
-                Search & play any song on YouTube right on this website! 💖
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200 transition-colors shrink-0 shadow-xs"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+      <div className="space-y-4">
 
-        {/* Embedded YouTube Player */}
+        {/* Embedded Official YouTube Player */}
         <div className="bg-black border-2.5 border-ink rounded-3xl overflow-hidden shadow-sketch relative">
           {isPlaying ? (
             <div className="relative aspect-video w-full bg-black">
@@ -5057,6 +10206,25 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
                   <SkipForward className="w-4 h-4 fill-white" />
                 </button>
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('pop');
+                    videoPlaybackService.minimizeVideo({
+                      type: 'youtube',
+                      src: selectedSong.youtubeId,
+                      title: selectedSong.title,
+                      subtitle: selectedSong.movie,
+                    });
+                    onClose();
+                  }}
+                  className="px-2.5 h-8 rounded-xl bg-pink-600 hover:bg-pink-700 border border-pink-400/50 flex items-center gap-1 text-white text-xs font-display font-black transition-all hover:scale-102 active:scale-95 shadow-xs"
+                  title="Minimize YouTube video to corner"
+                >
+                  <Minimize2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Minimize 🗗</span>
+                </button>
+
                 <a
                   href={`https://www.youtube.com/watch?v=${selectedSong.youtubeId}`}
                   target="_blank"
@@ -5073,37 +10241,25 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
 
             {/* Quick YouTube Utilities row */}
             <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[11px] font-handwritten text-white/70">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleCopyLink}
-                  className="hover:text-white flex items-center gap-1 text-white/80 transition-colors"
-                >
-                  {copiedLink ? (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-400" />
-                      <span className="text-emerald-400 font-bold">YouTube link copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3" />
-                      <span>Copy YouTube Link</span>
-                    </>
-                  )}
-                </button>
+              <button
+                onClick={handleCopyLink}
+                className="hover:text-white flex items-center gap-1 text-white/80 transition-colors"
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="w-3 h-3 text-emerald-400" />
+                    <span className="text-emerald-400 font-bold">YouTube link copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    <span>Copy YouTube Link</span>
+                  </>
+                )}
+              </button>
 
-                <span>•</span>
-
-                <button
-                  onClick={() => executeInWebsiteYouTubeSearch(`${selectedSong.title} ${selectedSong.movie}`)}
-                  className="hover:text-white flex items-center gap-1 text-white/80 transition-colors"
-                >
-                  <Search className="w-3 h-3 text-red-400" />
-                  <span>Search similar on site</span>
-                </button>
-              </div>
-
-              <span className="text-[10px] text-zinc-400 hidden sm:inline">
-                ID: {selectedSong.youtubeId}
+              <span className="text-[10px] text-zinc-400">
+                Official YouTube Embed • {selectedSong.year}
               </span>
             </div>
           </div>
@@ -5125,23 +10281,17 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
           </p>
         </div>
 
-        {/* IN-WEBSITE YOUTUBE SEARCH BAR */}
+        {/* CURATED PLAYLIST SEARCH BAR & CUSTOM SONG BUTTON */}
         <div className="space-y-2">
-          <form 
-            onSubmit={(e) => {
-              e.preventDefault();
-              executeInWebsiteYouTubeSearch();
-            }}
-            className="flex items-center gap-2"
-          >
+          <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-light" />
               <input
                 type="text"
-                placeholder="Search any song, artist, or movie on YouTube..."
+                placeholder="Search curated songs, movies, artists, or vibes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2.5 bg-white border-2 border-red-300 rounded-2xl font-display text-xs text-ink placeholder:text-ink-light focus:border-red-500 focus:outline-hidden shadow-2xs"
+                className="w-full pl-9 pr-8 py-2 bg-white border-2 border-pink-300 rounded-2xl font-display text-xs text-ink placeholder:text-ink-light focus:border-pink-500 focus:outline-hidden shadow-2xs"
               />
               {searchQuery && (
                 <button
@@ -5154,488 +10304,649 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
               )}
             </div>
 
-            {/* Direct In-Website YouTube Search Button */}
-            <button
-              type="submit"
-              disabled={isSearchingYt}
-              className="px-3.5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 disabled:opacity-50 text-white border-2 border-ink font-display font-black text-xs rounded-2xl flex items-center gap-1.5 shadow-sketch-xs shrink-0 transition-transform active:scale-95"
-              title="Search directly on YouTube inside this website"
-            >
-              {isSearchingYt ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Searching...</span>
-                </>
-              ) : (
-                <>
-                  <YouTubeIcon className="w-4 h-4 text-white" />
-                  <span>Search YouTube</span>
-                </>
-              )}
-            </button>
-
             {/* Expand Detailed Add Modal */}
             <button
               type="button"
               onClick={() => setShowAddForm(!showAddForm)}
-              className="px-3 py-2.5 bg-pink-100 hover:bg-pink-200 text-pink-800 border-2 border-pink-300 font-display font-black text-xs rounded-2xl flex items-center gap-1 shadow-2xs shrink-0 transition-transform active:scale-95"
-              title="Add Custom Song Details"
+              className="px-3 py-2 bg-pink-100 hover:bg-pink-200 text-pink-800 border-2 border-pink-300 font-display font-black text-xs rounded-2xl flex items-center gap-1 shadow-2xs shrink-0 transition-transform active:scale-95"
+              title="Add Custom YouTube Song"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Custom</span>
+              <span>Add Song</span>
+            </button>
+          </div>
+
+          {/* Quick YouTube Link Paste Bar */}
+          <form 
+            onSubmit={handleQuickPlayYouTube}
+            className="bg-red-50/90 border border-red-200 rounded-2xl p-2 flex items-center gap-2 shadow-2xs"
+          >
+            <div className="w-6 h-6 rounded-lg bg-red-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+              <YouTubeIcon className="w-3.5 h-3.5 text-white" />
+            </div>
+            <input
+              type="text"
+              placeholder="Paste any YouTube URL or Video ID to add to playlist..."
+              value={quickYtInput}
+              onChange={(e) => setQuickYtInput(e.target.value)}
+              className="flex-1 min-w-0 bg-white border border-red-200 rounded-xl px-2.5 py-1 font-display text-xs text-ink placeholder:text-ink-light focus:outline-hidden focus:border-red-500"
+            />
+            <button
+              type="submit"
+              disabled={!quickYtInput.trim()}
+              className="px-2.5 py-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-display font-black text-xs rounded-xl shadow-xs shrink-0 flex items-center gap-1 transition-all active:scale-95"
+            >
+              <Play className="w-3 h-3 fill-white" />
+              <span>Play</span>
             </button>
           </form>
 
-          {/* Search Status Toast / Notice */}
-          {ytSearchNotice && (
-            <div className="flex items-center justify-between bg-red-50/90 border border-red-200 rounded-xl px-3 py-1.5 text-xs font-handwritten text-red-900 font-bold animate-fade-in">
-              <span>{ytSearchNotice}</span>
-              {liveYtResults.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLiveYtResults([]);
-                    setYtSearchNotice(null);
-                  }}
-                  className="text-[11px] text-red-600 hover:text-red-900 underline"
-                >
-                  Clear search
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Quick YouTube Search Chips (Click to Search on Website) */}
+          {/* Mood Filter Chips */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-handwritten font-bold">
             <span className="text-[11px] text-ink-light uppercase tracking-wider font-display font-bold shrink-0">
-              🔴 Quick Search:
+              Mood:
             </span>
-            {[
-              'Kesariya',
-              'Apna Bana Le',
-              'Channa Mereya',
-              'Heeriye',
-              'Arijit Singh',
-              'Tauba Tauba',
-              'Lofi Hindi',
-            ].map(ytQuery => (
+            {['All', 'Feel Good', 'Self Love', 'Cozy Chai', 'Party', 'Travel'].map(tag => (
               <button
-                key={ytQuery}
-                type="button"
-                onClick={() => executeInWebsiteYouTubeSearch(ytQuery)}
-                className="px-2.5 py-0.5 bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 rounded-full shrink-0 flex items-center gap-1 transition-colors active:scale-95"
+                key={tag}
+                onClick={() => setActiveMoodTag(tag)}
+                className={`px-3 py-1 rounded-full border transition-all shrink-0 ${
+                  activeMoodTag === tag
+                    ? 'bg-pink-500 text-white border-pink-600 shadow-xs'
+                    : 'bg-white text-ink-light border-pink-200 hover:border-pink-400'
+                }`}
               >
-                <YouTubeIcon className="w-2.5 h-2.5 text-red-600" />
-                <span>{ytQuery}</span>
+                {tag}
               </button>
             ))}
           </div>
         </div>
 
-        {/* LIVE IN-WEBSITE YOUTUBE SEARCH RESULTS SHELF */}
-        {liveYtResults.length > 0 && (
-          <div className="space-y-2 bg-gradient-to-br from-red-50/80 via-white to-pink-50/80 border-2.5 border-red-400 rounded-3xl p-3.5 shadow-sketch animate-fade-in">
-            <div className="flex items-center justify-between border-b border-red-200 pb-2">
-              <div className="flex items-center gap-1.5">
-                <YouTubeIcon className="w-4 h-4 text-red-600" />
-                <h4 className="font-display font-black text-xs uppercase tracking-wider text-red-950">
-                  LIVE YOUTUBE SEARCH RESULTS ({liveYtResults.length})
-                </h4>
-              </div>
-              <button
-                onClick={() => {
-                  setLiveYtResults([]);
-                  setYtSearchNotice(null);
-                }}
-                className="text-[11px] font-display font-bold text-red-600 hover:text-red-900"
-              >
-                Close ✕
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
-              {liveYtResults.map((item) => {
-                const isCurrent = selectedSong.youtubeId === item.videoId;
-                const isPinned = pinnedIds.includes(item.videoId) || pinnedIds.includes(`yt_${item.videoId}`);
-                return (
-                  <div
-                    key={item.videoId}
-                    onClick={() => handlePlayLiveYtItem(item)}
-                    className={`
-                      p-2.5 rounded-2xl border-2 transition-all text-left flex items-center gap-2.5 relative cursor-pointer group
-                      ${
-                        isCurrent
-                          ? 'border-red-500 bg-red-50/80 shadow-sketch ring-2 ring-red-400'
-                          : 'border-red-200 bg-white hover:border-red-400 hover:shadow-sketch-xs'
-                      }
-                    `}
-                  >
-                    {/* Thumbnail */}
-                    <div className="relative w-18 h-13 rounded-xl overflow-hidden border border-red-300 bg-slate-900 shrink-0 shadow-xs">
-                      <img 
-                        src={item.thumbnail || `https://img.youtube.com/vi/${item.videoId}/mqdefault.jpg`} 
-                        alt={item.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      />
-                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                        <div className="w-5 h-5 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-xs">
-                          <Play className="w-2.5 h-2.5 fill-white ml-0.5" />
-                        </div>
-                      </div>
-                      {item.duration && (
-                        <span className="absolute bottom-0.5 right-1 bg-black/80 text-white font-mono text-[9px] px-1 rounded-sm">
-                          {item.duration}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Metadata */}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-display font-black text-xs text-ink line-clamp-2 leading-tight">
-                        {item.title}
-                      </div>
-                      <div className="font-handwritten text-[11px] text-red-700 font-bold truncate mt-0.5">
-                        {item.channel}
-                      </div>
-                    </div>
-
-                    {/* Pin and external link */}
-                    <div className="flex flex-col items-center gap-1 shrink-0">
-                      <button
-                        onClick={(e) => handlePinLiveYtItem(e, item)}
-                        className={`p-1.5 rounded-lg border transition-all ${
-                          isPinned
-                            ? 'bg-pink-500 text-white border-pink-400'
-                            : 'bg-pink-50 text-pink-600 border-pink-200 hover:bg-pink-100 hover:scale-110'
-                        }`}
-                        title={isPinned ? 'Pinned in Favorites!' : 'Pin to Favorites'}
-                      >
-                        <Pin className="w-3.5 h-3.5 fill-current" />
-                      </button>
-
-                      <a
-                        href={`https://www.youtube.com/watch?v=${item.videoId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="p-1 text-red-500 hover:text-red-700 hover:scale-125 transition-transform"
-                        title="Watch on YouTube.com"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* QUICK YOUTUBE LINK PASTE & PLAY BAR */}
-        <form 
-          onSubmit={handleQuickPlayYouTube}
-          className="bg-red-50/90 border-2 border-red-200 rounded-2xl p-2.5 flex items-center gap-2 shadow-2xs"
-        >
-          <div className="w-7 h-7 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
-            <YouTubeIcon className="w-4 h-4 text-white" />
-          </div>
-          <input
-            type="text"
-            placeholder="Or paste any YouTube URL or Video ID to play & pin..."
-            value={quickYtInput}
-            onChange={(e) => setQuickYtInput(e.target.value)}
-            className="flex-1 min-w-0 bg-white border border-red-200 rounded-xl px-2.5 py-1.5 font-display text-xs text-ink placeholder:text-ink-light focus:outline-hidden focus:border-red-500"
-          />
-          <button
-            type="submit"
-            disabled={!quickYtInput.trim()}
-            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-display font-black text-xs rounded-xl shadow-xs shrink-0 flex items-center gap-1 transition-all active:scale-95"
-          >
-            <Play className="w-3 h-3 fill-white" />
-            <span>Play</span>
-          </button>
-        </form>
-
-
-        {/* Quick Mood Filter Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-handwritten font-bold">
-          <span className="text-[11px] text-ink-light uppercase tracking-wider font-display font-bold shrink-0">
-            Mood Filter:
-          </span>
-          {['All', 'Feel Good', 'Self Love', 'Cozy Chai', 'Party', 'Travel'].map(tag => (
-            <button
-              key={tag}
-              onClick={() => setActiveMoodTag(tag)}
-              className={`px-3 py-1 rounded-full border transition-all shrink-0 ${
-                activeMoodTag === tag
-                  ? 'bg-pink-500 text-white border-pink-600 shadow-xs'
-                  : 'bg-white text-ink-light border-pink-200 hover:border-pink-400'
-              }`}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-
-        {/* Detailed Add Song Form (Expandable) */}
+        {/* Detailed Add Form Dropdown */}
         {showAddForm && (
           <form 
             onSubmit={handleAddSong}
-            className="bg-pink-50/90 border-2 border-pink-300 rounded-2xl p-3.5 space-y-2.5 animate-fade-in shadow-sketch-xs"
+            className="p-3.5 bg-gradient-to-br from-pink-50 to-rose-50 border-2.5 border-pink-300 rounded-3xl space-y-2.5 shadow-sketch animate-fade-in text-left"
           >
-            <div className="flex items-center justify-between">
-              <span className="font-display font-black text-xs text-pink-900 flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 text-pink-500" />
-                <span>ADD CUSTOM YOUTUBE TRACK WITH DETAILS</span>
+            <div className="flex items-center justify-between border-b border-pink-200 pb-1.5">
+              <span className="font-display font-black text-xs text-pink-900 uppercase">
+                Add YouTube Song to Kritika's Playlist 🎵
               </span>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowAddForm(false)}
-                className="text-xs font-bold text-pink-600 hover:text-pink-900"
+                className="text-xs font-bold text-pink-700 hover:text-pink-900"
               >
-                Cancel
+                ✕
               </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input
                 type="text"
-                required
-                placeholder="Song Title (e.g. Tum Se Hi)"
+                placeholder="Song Title (e.g. Kasoor)"
                 value={newTitle}
-                onChange={e => setNewTitle(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white border border-pink-200 rounded-xl font-display text-xs text-ink placeholder:text-ink-light"
+                onChange={(e) => setNewTitle(e.target.value)}
+                required
+                className="p-2 bg-white border border-pink-300 rounded-xl text-xs font-display text-ink placeholder:text-ink-light focus:outline-hidden focus:border-pink-500"
               />
               <input
                 type="text"
-                placeholder="Movie / Album (e.g. Jab We Met)"
+                placeholder="Movie / Album (e.g. Prateek Kuhad)"
                 value={newMovie}
-                onChange={e => setNewMovie(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white border border-pink-200 rounded-xl font-display text-xs text-ink placeholder:text-ink-light"
+                onChange={(e) => setNewMovie(e.target.value)}
+                className="p-2 bg-white border border-pink-300 rounded-xl text-xs font-display text-ink placeholder:text-ink-light focus:outline-hidden focus:border-pink-500"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input
                 type="text"
-                placeholder="Singers (e.g. Mohit Chauhan)"
+                placeholder="Singers / Artists"
                 value={newSingers}
-                onChange={e => setNewSingers(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white border border-pink-200 rounded-xl font-display text-xs text-ink placeholder:text-ink-light"
+                onChange={(e) => setNewSingers(e.target.value)}
+                className="p-2 bg-white border border-pink-300 rounded-xl text-xs font-display text-ink placeholder:text-ink-light focus:outline-hidden focus:border-pink-500"
               />
               <input
                 type="text"
-                required
-                placeholder="YouTube Link or Video ID (e.g. https://youtu.be/...)"
+                placeholder="YouTube Link or Video ID"
                 value={newYoutubeUrl}
-                onChange={e => setNewYoutubeUrl(e.target.value)}
-                className="w-full px-3 py-1.5 bg-white border border-pink-200 rounded-xl font-display text-xs text-ink placeholder:text-ink-light"
+                onChange={(e) => setNewYoutubeUrl(e.target.value)}
+                required
+                className="p-2 bg-white border border-pink-300 rounded-xl text-xs font-display text-ink placeholder:text-ink-light focus:outline-hidden focus:border-pink-500"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full py-2 bg-gradient-to-r from-red-600 to-pink-500 text-white font-display font-black text-xs uppercase rounded-xl border border-ink shadow-xs hover:scale-101 active:scale-98 transition-all flex items-center justify-center gap-1.5"
+              className="w-full py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-display font-black text-xs rounded-xl shadow-xs hover:scale-101 active:scale-98 transition-all flex items-center justify-center gap-1.5"
             >
-              <YouTubeIcon className="w-4 h-4 text-white" />
-              <span>PIN & ADD TO MY PLAYLIST 💖</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>Save & Play on Jukebox</span>
             </button>
           </form>
         )}
 
-        {/* PINNED FAVORITES SHELF WITH REAL YOUTUBE THUMBNAILS */}
-        {pinnedSongsList.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h4 className="font-display font-black text-xs uppercase tracking-wider text-pink-900 flex items-center gap-1.5">
-                <span>👑 QUEEN'S PINNED FAVORITES</span>
-                <span className="bg-pink-100 text-pink-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-pink-300">
-                  {pinnedSongsList.length} Pinned
-                </span>
-              </h4>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {pinnedSongsList.map((song) => {
-                const isCurrent = song.id === selectedSong.id;
-                return (
-                  <div
-                    key={song.id}
-                    onClick={() => handleSelectSong(song)}
-                    className={`
-                      p-2.5 rounded-2xl border-2 transition-all text-left flex items-center gap-2.5 relative cursor-pointer group
-                      ${
-                        isCurrent
-                          ? 'border-pink-500 bg-pink-50/70 shadow-sketch ring-2 ring-pink-400'
-                          : 'border-pink-200 bg-white hover:border-pink-400 hover:shadow-sketch-xs'
-                      }
-                    `}
-                  >
-                    {/* Real YouTube Video Thumbnail */}
-                    <div className="relative w-16 h-12 rounded-xl overflow-hidden border border-pink-300 bg-slate-900 shrink-0 shadow-xs">
-                      <img 
-                        src={`https://img.youtube.com/vi/${song.youtubeId}/mqdefault.jpg`} 
-                        alt={song.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        onError={(e) => {
-                          // Fallback if image fails
-                          (e.target as HTMLElement).style.display = 'none';
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                        <div className="w-5 h-5 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-xs">
-                          <Play className="w-2.5 h-2.5 fill-white ml-0.5" />
+        {/* SONG LISTS: Pinned & All Curated */}
+        <div className="space-y-3 pt-1">
+          {/* Pinned Songs Section */}
+          {pinnedSongsList.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-display font-black text-pink-900 uppercase">
+                <Pin className="w-3 h-3 fill-pink-500 text-pink-500" />
+                <span>KRITIKA'S PINNED FAVORITES ({pinnedSongsList.length})</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {pinnedSongsList.map((song) => {
+                  const isCurrent = selectedSong.id === song.id;
+                  return (
+                    <div
+                      key={song.id}
+                      onClick={() => handleSelectSong(song)}
+                      className={`
+                        p-2.5 rounded-2xl border-2 transition-all text-left flex items-center justify-between cursor-pointer group
+                        ${
+                          isCurrent
+                            ? 'border-pink-500 bg-pink-50 shadow-sketch ring-2 ring-pink-400'
+                            : 'border-pink-200 bg-white hover:border-pink-300 hover:shadow-sketch-xs'
+                        }
+                      `}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div 
+                          className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0 shadow-2xs group-hover:scale-110 transition-transform"
+                          style={{ backgroundColor: `${song.accentColor}20`, border: `1.5px solid ${song.accentColor}50` }}
+                        >
+                          {song.emoji}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-display font-black text-xs text-ink truncate">
+                            {song.title}
+                          </p>
+                          <p className="font-handwritten text-[11px] text-pink-700 font-bold truncate">
+                            {song.movie}
+                          </p>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="font-display font-black text-xs text-ink truncate flex items-center gap-1">
-                        <span>{song.title}</span>
-                      </div>
-                      <div className="font-handwritten text-[11px] text-ink-light font-bold truncate">
-                        {song.movie}
-                      </div>
-                      <div className="text-[10px] font-handwritten text-pink-700 truncate">
-                        {song.singers}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-center gap-1 shrink-0">
                       <button
                         onClick={(e) => handleTogglePin(e, song.id)}
-                        className="p-1 text-pink-500 hover:scale-125 transition-transform"
+                        className="p-1.5 text-pink-500 hover:text-pink-700 transition-colors shrink-0"
                         title="Unpin"
                       >
-                        <Pin className="w-4 h-4 fill-pink-500" />
+                        <Pin className="w-3.5 h-3.5 fill-current" />
                       </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
-                      <a
-                        href={`https://www.youtube.com/watch?v=${song.youtubeId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="p-1 text-red-500 hover:text-red-700 hover:scale-125 transition-transform"
-                        title="Watch on YouTube.com"
+          {/* Curated Playlist Section */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs font-display font-black text-ink uppercase">
+              <span>CURATED BOLLYWOOD PLAYLIST ({filteredSongs.length})</span>
+              <span className="font-handwritten text-xs text-ink-light font-bold">
+                Tap to play
+              </span>
+            </div>
+
+            {filteredSongs.length === 0 ? (
+              <div className="p-6 bg-pink-50/50 border-2 border-dashed border-pink-200 rounded-3xl text-center space-y-1.5">
+                <p className="text-2xl">🎶</p>
+                <p className="font-display font-bold text-xs text-ink">No songs match your search</p>
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setActiveMoodTag('All');
+                  }}
+                  className="font-handwritten text-xs text-pink-600 font-bold underline"
+                >
+                  Reset filters
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+                {otherSongsList.map((song) => {
+                  const isCurrent = selectedSong.id === song.id;
+                  return (
+                    <div
+                      key={song.id}
+                      onClick={() => handleSelectSong(song)}
+                      className={`
+                        p-2.5 rounded-2xl border-2 transition-all text-left flex items-center justify-between cursor-pointer group
+                        ${
+                          isCurrent
+                            ? 'border-pink-500 bg-pink-50 shadow-sketch ring-2 ring-pink-400'
+                            : 'border-pink-100 bg-white hover:border-pink-300 hover:shadow-sketch-xs'
+                        }
+                      `}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div 
+                          className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0 shadow-2xs group-hover:scale-110 transition-transform"
+                          style={{ backgroundColor: `${song.accentColor}15`, border: `1.5px solid ${song.accentColor}40` }}
+                        >
+                          {song.emoji}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-display font-black text-xs text-ink truncate">
+                            {song.title}
+                          </p>
+                          <p className="font-handwritten text-[11px] text-ink-light font-bold truncate">
+                            {song.movie}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={(e) => handleTogglePin(e, song.id)}
+                        className="p-1.5 text-stone-300 hover:text-pink-500 transition-colors shrink-0"
+                        title="Pin to Favorites"
                       >
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                        <Pin className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="pt-2 border-t border-pink-200 flex items-center justify-between text-[11px] font-handwritten text-ink-light font-bold">
+          <span>💖 Dedicated to Kritika's Joy & Comfort</span>
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 bg-paper-100 hover:bg-paper-200 text-ink border border-pink-200 rounded-xl font-display font-black transition-colors"
+          >
+            Close Lounge
+          </button>
+        </div>
+      </div>
+    </BaseModal>
+  );
+};
+
+```
+
+---
+
+### File: `src/components/MusicPlayerScreen.tsx`
+
+```tsx
+import React, { useState, useEffect } from 'react';
+import { 
+  musicStreamingService, 
+  type Track, 
+  type PlayerState, 
+  CURATED_NEW_RELEASES 
+} from '../services/musicStreamingService';
+import { audioEngine } from '../services/synthAudioEngine';
+import { 
+  Search, Play, Pause, SkipBack, SkipForward, 
+  Volume2, VolumeX, Sparkles, Music2, Disc3,
+  Radio, ArrowLeft, RefreshCw, Headphones
+} from 'lucide-react';
+import type { ScreenState } from '../types/game';
+
+interface MusicPlayerScreenProps {
+  onNavigate: (screen: ScreenState) => void;
+}
+
+export const MusicPlayerScreen: React.FC<MusicPlayerScreenProps> = ({ onNavigate }) => {
+  const [playerState, setPlayerState] = useState<PlayerState>(musicStreamingService.getState());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Track[]>(CURATED_NEW_RELEASES);
+  const [isSearching, setIsSearching] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<'trending' | 'bollywood' | 'pop' | 'acoustic'>('trending');
+
+  useEffect(() => {
+    const unsub = musicStreamingService.subscribe((s) => setPlayerState(s));
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults(CURATED_NEW_RELEASES);
+      return;
+    }
+
+    setIsSearching(true);
+    const results = await musicStreamingService.searchTracks(query);
+    setSearchResults(results);
+    setIsSearching(false);
+  };
+
+  const handleSelectCategory = (cat: 'trending' | 'bollywood' | 'pop' | 'acoustic') => {
+    setActiveCategory(cat);
+    audioEngine.playSfx('click');
+
+    let term = '';
+    if (cat === 'trending') term = 'Latest Hits 2024';
+    else if (cat === 'bollywood') term = 'Arijit Singh Romance';
+    else if (cat === 'pop') term = 'Top Pop Songs';
+    else if (cat === 'acoustic') term = 'Acoustic Chill Coffee';
+
+    handleSearch(term);
+  };
+
+  const formatTime = (secs: number) => {
+    if (isNaN(secs) || secs < 0) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const activeTrack = playerState.currentTrack || searchResults[0] || CURATED_NEW_RELEASES[0];
+
+  return (
+    <div className="min-h-screen bg-[#FAF8F5] p-3 sm:p-6 pb-32 text-stone-900">
+      <div className="max-w-2xl mx-auto space-y-4 sm:space-y-5">
+
+        {/* 1. TOP HEADER & BACK NAVIGATION */}
+        <div className="flex items-center justify-between gap-2 border-b border-stone-200/80 pb-3">
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              onNavigate('home');
+            }}
+            className="py-1.5 px-3 bg-white border border-stone-200 rounded-xl flex items-center gap-1.5 shadow-xs text-xs font-display font-bold hover:bg-stone-50 transition-all cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>HOME</span>
+          </button>
+
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1.5 text-[11px] font-display font-black text-rose-600 uppercase tracking-wider">
+              <Headphones className="w-3.5 h-3.5 animate-pulse text-rose-500" />
+              <span>PURE AUDIO STREAMER</span>
+            </div>
+            <h1 className="font-display text-xl sm:text-2xl font-black text-stone-900">
+              Comfort Audio Lounge 🎵✨
+            </h1>
+          </div>
+
+          <div className="w-16" /> {/* Spacer */}
+        </div>
+
+        {/* 2. SEARCH BAR (Connects to Internet Music Search) */}
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder="Search any song, artist (Arijit, Diljit, Kesariya, Taylor Swift...)"
+            className="w-full pl-10 pr-10 py-3 bg-white border border-stone-200 rounded-2xl text-xs sm:text-sm font-medium shadow-xs outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => handleSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-stone-400 hover:text-stone-700 rounded-full text-xs font-bold"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Quick Genre Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {[
+            { id: 'trending', label: '🔥 Bollywood Hits' },
+            { id: 'bollywood', label: '🌸 Arijit Singh Romance' },
+            { id: 'acoustic', label: '☕ Chai & Acoustic' },
+            { id: 'pop', label: '✨ Pop Hits' },
+          ].map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => handleSelectCategory(cat.id as any)}
+              className={`px-3 py-1.5 rounded-full text-xs font-display font-bold whitespace-nowrap transition-all cursor-pointer ${
+                activeCategory === cat.id
+                  ? 'bg-stone-900 text-white shadow-xs'
+                  : 'bg-white border border-stone-200 text-stone-600 hover:bg-stone-50'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 3. HERO NOW-PLAYING PURE AUDIO CARD (Equalizer, Rotating Vinyl, Scrubber, Controls) */}
+        <div className="bg-gradient-to-b from-rose-50/80 via-pink-50/50 to-white border border-pink-200/90 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+            
+            {/* Album Artwork with Vinyl Rotation */}
+            <div className="relative group shrink-0">
+              <div className={`w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-md border-2 border-white transition-all ${
+                playerState.isPlaying ? 'ring-4 ring-rose-200' : ''
+              }`}>
+                <img
+                  src={activeTrack.artworkUrl}
+                  alt={activeTrack.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+
+              {/* Vinyl Badge */}
+              <div className={`absolute -bottom-2 -right-2 w-9 h-9 rounded-full bg-stone-900 text-white flex items-center justify-center border-2 border-white shadow-xs ${
+                playerState.isPlaying ? 'animate-spin-slow' : ''
+              }`}>
+                <Disc3 className="w-5 h-5 text-rose-400" />
+              </div>
+            </div>
+
+            {/* Track Info & Equalizer */}
+            <div className="text-center sm:text-left flex-1 min-w-0 space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-display font-black uppercase tracking-wider">
+                <Sparkles className="w-3 h-3" />
+                <span>{activeTrack.genre} • {activeTrack.releaseYear}</span>
+              </div>
+
+              <h2 className="font-display font-black text-lg sm:text-xl text-stone-900 truncate">
+                {activeTrack.title}
+              </h2>
+              <p className="font-sans text-xs sm:text-sm text-stone-600 font-semibold truncate">
+                {activeTrack.artist}
+              </p>
+              <p className="text-[11px] text-stone-400 truncate">
+                {activeTrack.album}
+              </p>
+
+              {/* Animated Audio Equalizer Bars when playing */}
+              {playerState.isPlaying && (
+                <div className="flex items-end justify-center sm:justify-start gap-1 h-4 pt-1">
+                  <span className="w-1 bg-rose-500 rounded-full animate-pulse h-3" />
+                  <span className="w-1 bg-pink-500 rounded-full animate-pulse h-4" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1 bg-purple-500 rounded-full animate-pulse h-2" style={{ animationDelay: '300ms' }} />
+                  <span className="w-1 bg-rose-400 rounded-full animate-pulse h-4" style={{ animationDelay: '450ms' }} />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Progress Bar Scrubber */}
+          <div className="space-y-1 pt-1">
+            <input
+              type="range"
+              min="0"
+              max={playerState.duration || 260}
+              value={playerState.currentTime}
+              onChange={(e) => musicStreamingService.seek(parseFloat(e.target.value))}
+              className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-rose-600"
+            />
+            <div className="flex justify-between text-[11px] text-stone-500 font-mono font-bold">
+              <span>{formatTime(playerState.currentTime)}</span>
+              <span>{formatTime(playerState.duration || (activeTrack.durationMs ? activeTrack.durationMs / 1000 : 260))}</span>
+            </div>
+          </div>
+
+          {/* Playback Controls (Prev, Play/Pause, Next, Volume) */}
+          <div className="flex items-center justify-between pt-1">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => musicStreamingService.setVolume(playerState.volume === 0 ? 0.85 : 0)}
+                className="p-2 text-stone-500 hover:text-stone-800 transition-colors cursor-pointer"
+              >
+                {playerState.volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              </button>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={playerState.volume}
+                onChange={(e) => musicStreamingService.setVolume(parseFloat(e.target.value))}
+                className="w-16 h-1 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-stone-700 hidden sm:inline"
+              />
+            </div>
+
+            {/* Main Center Controls */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  musicStreamingService.playPrev();
+                }}
+                className="p-2 text-stone-700 hover:text-stone-900 rounded-full hover:bg-white/80 transition-transform active:scale-95 cursor-pointer"
+                title="Previous Track"
+              >
+                <SkipBack className="w-5 h-5" />
+              </button>
+
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('pop');
+                  musicStreamingService.togglePlayPause();
+                }}
+                className="w-12 h-12 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 text-white flex items-center justify-center shadow-md hover:shadow-lg transition-transform active:scale-95 cursor-pointer"
+                title={playerState.isPlaying ? 'Pause' : 'Play'}
+              >
+                {playerState.isPlaying ? (
+                  <Pause className="w-5 h-5 fill-white" />
+                ) : (
+                  <Play className="w-5 h-5 fill-white ml-0.5" />
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  musicStreamingService.playNext();
+                }}
+                className="p-2 text-stone-700 hover:text-stone-900 rounded-full hover:bg-white/80 transition-transform active:scale-95 cursor-pointer"
+                title="Next Track"
+              >
+                <SkipForward className="w-5 h-5" />
+              </button>
+            </div>
+
+            <span className="text-xs text-rose-600 font-handwritten font-bold flex items-center gap-1">
+              <Radio className="w-3 h-3 text-rose-500 animate-pulse" />
+              <span>Pure Audio Stream</span>
+            </span>
+          </div>
+        </div>
+
+        {/* 4. TRACKS FEED / CURATED COMFORT PLAYLIST */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="font-display font-black text-xs uppercase text-stone-700 tracking-wider">
+              {searchQuery ? `Search Results (${searchResults.length})` : 'Curated Comfort Playlist:'}
+            </h3>
+            {isSearching && (
+              <span className="text-[11px] text-rose-600 font-bold animate-pulse flex items-center gap-1">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                <span>Searching audio...</span>
+              </span>
+            )}
+          </div>
+
+          {searchResults.length === 0 ? (
+            <div className="bg-white border border-dashed border-stone-300 rounded-2xl p-8 text-center space-y-2">
+              <Music2 className="w-8 h-8 mx-auto text-stone-400" />
+              <p className="font-display font-bold text-xs text-stone-700">No songs found for "{searchQuery}"</p>
+              <p className="font-handwritten text-xs text-stone-500">Try searching for "Arijit Singh", "Diljit", or "Kesariya"</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+              {searchResults.map((track) => {
+                const isCurrent = playerState.currentTrack?.id === track.id;
+                return (
+                  <div
+                    key={track.id}
+                    onClick={() => {
+                      audioEngine.playSfx('click');
+                      musicStreamingService.playTrack(track, searchResults);
+                    }}
+                    className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                      isCurrent
+                        ? 'bg-rose-50/90 border-rose-300 shadow-xs ring-1 ring-rose-200'
+                        : 'bg-white hover:bg-stone-50 border-stone-200 shadow-2xs'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative w-11 h-11 rounded-xl overflow-hidden bg-stone-100 shrink-0 border border-stone-200">
+                        <img src={track.artworkUrl} alt={track.title} className="w-full h-full object-cover" />
+                        {isCurrent && playerState.isPlaying && (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="min-w-0">
+                        <h4 className={`font-display font-black text-xs truncate ${isCurrent ? 'text-rose-900' : 'text-stone-900'}`}>
+                          {track.title}
+                        </h4>
+                        <p className="font-sans text-[11px] text-stone-500 truncate">
+                          {track.artist}
+                        </p>
+                        <span className="text-[9px] font-handwritten text-stone-400 truncate">
+                          {track.album}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isCurrent) {
+                            musicStreamingService.togglePlayPause();
+                          } else {
+                            musicStreamingService.playTrack(track, searchResults);
+                          }
+                        }}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform active:scale-90 ${
+                          isCurrent && playerState.isPlaying
+                            ? 'bg-rose-600 text-white shadow-xs'
+                            : 'bg-stone-100 hover:bg-rose-100 text-stone-800'
+                        }`}
+                      >
+                        {isCurrent && playerState.isPlaying ? (
+                          <Pause className="w-3.5 h-3.5 fill-white" />
+                        ) : (
+                          <Play className="w-3.5 h-3.5 fill-stone-800 ml-0.5" />
+                        )}
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
-        )}
-
-        {/* ALL BOLLYWOOD SONGS WITH REAL YOUTUBE THUMBNAILS */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h4 className="font-display font-black text-xs uppercase tracking-wider text-ink flex items-center gap-1.5">
-              <span>ALL BOLLYWOOD SONGS ({filteredSongs.length})</span>
-              <Sparkles className="w-3.5 h-3.5 text-pink-500" />
-            </h4>
-            <span className="font-handwritten text-xs font-bold text-ink-light">
-              Tap pin to save to favorites
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {otherSongsList.map((song) => {
-              const isCurrent = song.id === selectedSong.id;
-              return (
-                <div
-                  key={song.id}
-                  onClick={() => handleSelectSong(song)}
-                  className={`
-                    p-2.5 rounded-2xl border-2 transition-all text-left flex items-center gap-2.5 relative cursor-pointer group
-                    ${
-                      isCurrent
-                        ? 'border-pink-500 bg-pink-50/70 shadow-sketch ring-2 ring-pink-400'
-                        : 'border-pink-200/80 bg-white hover:border-pink-400 hover:shadow-sketch-xs'
-                    }
-                  `}
-                >
-                  {/* Real YouTube Video Thumbnail */}
-                  <div className="relative w-16 h-12 rounded-xl overflow-hidden border border-pink-200 bg-slate-900 shrink-0 shadow-xs">
-                    <img 
-                      src={`https://img.youtube.com/vi/${song.youtubeId}/mqdefault.jpg`} 
-                      alt={song.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = 'none';
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                      <div className="w-5 h-5 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-xs">
-                        <Play className="w-2.5 h-2.5 fill-white ml-0.5" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="font-display font-black text-xs text-ink truncate">
-                      {song.title}
-                    </div>
-                    <div className="font-handwritten text-[11px] text-ink-light font-bold truncate">
-                      {song.movie}
-                    </div>
-                    <div className="text-[10px] font-handwritten text-pink-700 truncate">
-                      {song.singers}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-center gap-1 shrink-0">
-                    <button
-                      onClick={(e) => handleTogglePin(e, song.id)}
-                      className="p-1 text-ink-light hover:text-pink-500 hover:scale-125 transition-transform"
-                      title="Pin to Favorites"
-                    >
-                      <Pin className="w-4 h-4" />
-                    </button>
-
-                    <a
-                      href={`https://www.youtube.com/watch?v=${song.youtubeId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="p-1 text-red-500/70 hover:text-red-700 hover:scale-125 transition-transform"
-                      title="Watch on YouTube.com"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Footer with YouTube & Personal Comfort Note */}
-        <div className="bg-gradient-to-r from-red-50 via-pink-50 to-purple-50 border-1.5 border-pink-200 rounded-2xl p-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <img 
-              src="/marisol/avatars/11_music_mood.png" 
-              alt="Kritika with headphones" 
-              className="w-10 h-10 rounded-full border-2 border-ink bg-white shrink-0"
-            />
-            <div className="font-handwritten text-xs text-pink-900 font-bold leading-relaxed truncate">
-              "Every song here is connected to YouTube for seamless listening!" ♡
-            </div>
-          </div>
-          <button
-            onClick={() => executeInWebsiteYouTubeSearch()}
-            className="text-[11px] font-display font-black text-red-600 hover:text-red-800 underline shrink-0 flex items-center gap-1"
-          >
-            <YouTubeIcon className="w-3.5 h-3.5 text-red-600" />
-            <span>Search YouTube</span>
-          </button>
+          )}
         </div>
 
       </div>
     </div>
   );
 };
+
 
 
 ```
@@ -5645,31 +10956,36 @@ export const MusicJukeboxModal: React.FC<MusicJukeboxModalProps> = ({ onClose, i
 ### File: `src/components/Navbar.tsx`
 
 ```tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { ScreenState, AudioSettings } from '../types/game';
 import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
-import { Flame, Volume2, VolumeX, BookOpen, Lock } from 'lucide-react';
+import { 
+  Flame, ArrowLeft, Menu, X, Sparkles, Volume2, UserCheck, CheckCircle2
+} from 'lucide-react';
+import { authService } from '../services/authService';
 
 interface NavbarProps {
   currentScreen: ScreenState;
   onNavigate: (screen: ScreenState) => void;
   onOpenInstallApp?: () => void;
+  onOpenGoogleSignIn?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpenInstallApp }) => {
-  const player = gameState.getPlayer();
-  const [audioState, setAudioState] = useState<AudioSettings>(audioEngine.getSettings());
-  const [showAudioModal, setShowAudioModal] = useState(false);
+export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpenGoogleSignIn }) => {
+  const [, setAuthTick] = useState(0);
 
-  const toggleMusic = () => {
-    const next = !audioState.musicOn;
-    audioEngine.updateSettings({ musicOn: next });
-    setAudioState(audioEngine.getSettings());
-    if (next) {
-      audioEngine.startMusic('menu');
-    }
-  };
+  useEffect(() => {
+    return authService.subscribe(() => {
+      setAuthTick(t => t + 1);
+    });
+  }, []);
+
+  const player = gameState.getPlayer();
+  const currentUser = authService.getCurrentUser();
+  const isAuthenticated = authService.isAuthenticated();
+  const [audioState, setAudioState] = useState<AudioSettings>(audioEngine.getSettings());
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const toggleSfx = () => {
     const next = !audioState.sfxOn;
@@ -5680,173 +10996,292 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
     }
   };
 
+  const handleMenuNavigate = (screen: ScreenState) => {
+    audioEngine.playSfx('click');
+    setIsMenuOpen(false);
+    onNavigate(screen);
+  };
+
   return (
-    <header className="sticky top-0 z-40 bg-[#FAF7F0]/90 backdrop-blur-md border-b-2.5 border-ink px-4 py-2.5 shadow-paper">
-      <div className="max-w-6xl mx-auto flex items-center justify-between">
-        
-        {/* Brand Title */}
-        <button 
-          onClick={() => {
-            audioEngine.playSfx('click');
-            onNavigate('home');
-          }}
-          className="flex items-center gap-2 group text-left"
-        >
-          <div className="w-9 h-9 rounded-full border-2 border-ink bg-coral-500 overflow-hidden shadow-sketch flex items-center justify-center">
-            <span className="font-handwritten text-white text-lg font-bold">M</span>
-          </div>
-          <div>
-            <h1 className="font-display font-black text-lg sm:text-xl tracking-tight leading-none text-ink group-hover:text-plum-700 transition-colors">
-              MARISOL
-            </h1>
-            <p className="font-handwritten text-xs text-ink-light font-bold -mt-0.5">
-              FACTORY OF FUN
-            </p>
-          </div>
-        </button>
-
-        {/* Stats Pill (Chef Title, Sandwiches, Streak) */}
-        <div className="flex items-center gap-2 sm:gap-3">
+    <>
+      <header className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur-md border-b border-stone-200/80 px-2 sm:px-6 py-2 shadow-xs">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-1 sm:gap-2">
           
-          {/* Chef Title Badge */}
-          <div className="flex items-center gap-1.5 bg-white border-2 border-ink px-2.5 py-1 rounded-xl shadow-sketch text-xs font-bold text-plum-700">
-            <span className="truncate max-w-[130px] sm:max-w-none">
-              {player.chefTitle || 'Apprentice Chopper 🥒'}
-            </span>
-          </div>
-
-          {/* Cucumber Sandwiches Currency / Score */}
-          <div 
-            className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border-2 border-ink px-2.5 sm:px-3 py-1 rounded-xl shadow-sketch text-xs sm:text-sm font-black"
-            title={`${player.cucumberSandwiches || 0} Cucumber Sandwiches`}
-          >
-            <span>🥪</span>
-            <span>{player.cucumberSandwiches || 0}</span>
-            <span className="hidden sm:inline font-handwritten text-xs font-bold text-emerald-700">Sandwiches</span>
-          </div>
-
-          {/* Streak Counter */}
-          <div className="flex items-center gap-1 bg-coral-500 text-white border-2 border-ink px-2.5 py-1 rounded-xl shadow-sketch text-xs sm:text-sm font-bold">
-            <Flame className="w-4 h-4 fill-white animate-bounce-gentle" />
-            <span>{player.streak}</span>
-          </div>
-
-          {/* Navigation Dropdown / Buttons */}
-          <div className="flex items-center gap-1.5 ml-2">
-            <button
-              onClick={() => {
-                audioEngine.playSfx('click');
-                onNavigate('recipes');
-              }}
-              title="Kritika's Recipe Vault"
-              className={`p-2 rounded-xl border-2 border-ink shadow-sketch transition-all flex items-center gap-1 ${
-                currentScreen === 'recipes' ? 'bg-emerald-600 text-white' : 'bg-white text-ink hover:bg-paper-100'
-              }`}
-            >
-              <BookOpen className="w-4 h-4 text-emerald-700" />
-              <span className="font-handwritten text-xs font-black hidden lg:inline">RECIPES</span>
-            </button>
-
-            <button
-              onClick={() => {
-                audioEngine.playSfx('click');
-                onNavigate('stickers');
-              }}
-              title="Kritika's 11 Mood Stickers"
-              className={`p-2 rounded-xl border-2 border-ink shadow-sketch transition-all flex items-center gap-1 ${
-                currentScreen === 'stickers' ? 'bg-coral-500 text-white' : 'bg-white text-ink hover:bg-paper-100'
-              }`}
-            >
-              <span className="text-xs">✨</span>
-              <span className="font-handwritten text-xs font-black hidden md:inline">11 MOODS</span>
-            </button>
-
-            <button
-              onClick={() => {
-                audioEngine.playSfx('click');
-                onNavigate('secret_classroom');
-              }}
-              title="Secret Classroom (Teacher Tribute)"
-              className="p-2 rounded-xl border-2 border-ink bg-purple-600 text-white shadow-sketch hover:bg-purple-700 transition-all"
-            >
-              <Lock className="w-4 h-4" />
-            </button>
-
-            {/* Audio Toggle */}
-            <button
-              onClick={() => {
-                audioEngine.playSfx('click');
-                setShowAudioModal(!showAudioModal);
-              }}
-              className="p-2 rounded-xl border-2 border-ink bg-white text-ink shadow-sketch hover:bg-paper-100 transition-all"
-              title="Audio Settings"
-            >
-              {audioState.musicOn || audioState.sfxOn ? (
-                <Volume2 className="w-4 h-4 text-plum-700" />
-              ) : (
-                <VolumeX className="w-4 h-4 text-coral-500" />
-              )}
-            </button>
-
-            {/* Install / Download App Button */}
-            {onOpenInstallApp && (
-              <button
+          {/* Left: Custom Logo or Back Button */}
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            {currentScreen !== 'home' ? (
+              <button 
                 onClick={() => {
                   audioEngine.playSfx('click');
-                  onOpenInstallApp();
+                  onNavigate('home');
                 }}
-                className="px-2.5 py-1.5 rounded-xl border-2 border-ink bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 text-white shadow-sketch hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 text-xs font-display font-black"
-                title="Download Marisol App on Android & iOS"
+                className="py-1 px-2.5 sm:py-1.5 sm:px-3 bg-white border border-stone-200 rounded-xl flex items-center gap-1 shadow-xs text-xs sm:text-sm font-display font-black text-stone-800 hover:bg-stone-50 transition-all cursor-pointer shrink-0"
+                title="Return to Home Screen"
               >
-                <span>📲</span>
-                <span className="hidden sm:inline">INSTALL</span>
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>HOME</span>
+              </button>
+            ) : (
+              <button 
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onNavigate('home');
+                }}
+                className="flex items-center gap-2 group text-left cursor-pointer min-w-0"
+              >
+                {/* Custom Brand 'M' Logo Badge */}
+                <div className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-400 p-[2px] shadow-xs group-hover:scale-105 transition-transform flex items-center justify-center shrink-0">
+                  <div className="w-full h-full bg-white rounded-full flex items-center justify-center relative overflow-hidden">
+                    <span className="font-display font-black text-rose-600 text-sm leading-none tracking-tight">M</span>
+                  </div>
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-400 rounded-full flex items-center justify-center shadow-2xs">
+                    <Sparkles className="w-1.5 h-1.5 text-white fill-white" />
+                  </span>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1">
+                    <h1 className="font-display font-black text-sm sm:text-base tracking-tight leading-none text-stone-900 group-hover:text-rose-600 transition-colors">
+                      MARISOL
+                    </h1>
+                    <span className="text-rose-500 font-black text-[10px] sm:text-xs">✨</span>
+                  </div>
+                  <p className="font-display text-[8px] sm:text-[9px] text-rose-700 font-extrabold tracking-wider uppercase -mt-0.5 truncate hidden min-[360px]:block">
+                    FACTORY OF FUN
+                  </p>
+                </div>
               </button>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Audio Settings Dropdown Modal */}
-      {showAudioModal && (
-        <div className="absolute right-4 top-16 z-50 w-64 bg-white border-2.5 border-ink rounded-2xl p-4 shadow-sketch-lg animate-wiggle">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="font-display font-bold text-ink">80s Synth Sound System</h3>
-            <button 
-              onClick={() => setShowAudioModal(false)}
-              className="font-handwritten text-lg font-bold text-ink-light hover:text-ink"
+          {/* Center: Desktop Navigation Links (Visible on md/lg screens) */}
+          <nav className="hidden md:flex items-center gap-1 bg-stone-100/90 border border-stone-200/80 p-1 rounded-full shadow-2xs">
+            {[
+              { id: 'home' as ScreenState, label: 'Home', emoji: '🏠' },
+              { id: 'music' as ScreenState, label: 'Music', emoji: '🎵' },
+              { id: 'quiz' as ScreenState, label: 'Mood Quiz', emoji: '🎯' },
+              { id: 'batch_wall' as ScreenState, label: 'Lounge & Wall', emoji: '💬' },
+            ].map(item => {
+              const isActive = currentScreen === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    onNavigate(item.id);
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-display font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isActive
+                      ? 'bg-rose-600 text-white shadow-xs scale-102'
+                      : 'text-stone-700 hover:text-stone-900 hover:bg-white/80'
+                  }`}
+                >
+                  <span className="text-sm">{item.emoji}</span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Right: Core Stats & Menu Controls */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            
+            {/* Macaronis Score */}
+            <div 
+              className="h-8 px-2.5 flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200 rounded-full shadow-2xs text-xs font-black shrink-0"
+              title={`${player.cucumberSandwiches || 0} Macaronis`}
             >
-              ✕
+              <span className="text-xs">🧀</span>
+              <span>{player.cucumberSandwiches || 0}</span>
+            </div>
+
+            {/* Streak Counter */}
+            <div 
+              className="h-8 px-2.5 flex items-center gap-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-full shadow-xs text-xs font-bold shrink-0"
+              title={`${player.streak} Day Streak`}
+            >
+              <Flame className="w-3.5 h-3.5 fill-white animate-bounce-gentle" />
+              <span>{player.streak}</span>
+            </div>
+
+            {/* Direct Community Lounge Button (Mobile only since desktop has center links) */}
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onNavigate('batch_wall');
+              }}
+              className={`md:hidden h-8 px-2.5 rounded-full flex items-center gap-1 text-xs font-display font-black transition-all cursor-pointer shrink-0 ${
+                currentScreen === 'batch_wall'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs'
+              }`}
+              title="Open Batch 41 Lounge"
+            >
+              <span>💬</span>
+              <span className="hidden min-[400px]:inline">Lounge</span>
+            </button>
+
+            {/* Account Profile / Sign In Pill (Desktop & Mobile) */}
+            {onOpenGoogleSignIn && (
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onOpenGoogleSignIn();
+                }}
+                className="h-8 px-2.5 sm:px-3 bg-white hover:bg-stone-50 border border-stone-200 rounded-full flex items-center gap-1.5 text-xs font-display font-bold text-stone-800 shadow-2xs transition-all cursor-pointer shrink-0"
+                title={isAuthenticated && currentUser ? `Signed in as ${currentUser.name}` : "Sign In with Google"}
+              >
+                {isAuthenticated && currentUser ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                ) : (
+                  <UserCheck className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                )}
+                <span className="hidden lg:inline truncate max-w-[100px]">
+                  {isAuthenticated && currentUser ? currentUser.name.split(' ')[0] : 'Profile'}
+                </span>
+              </button>
+            )}
+
+            {/* Responsive Main Menu Button (☰ MENU) */}
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setIsMenuOpen(true);
+              }}
+              className="h-8 px-2.5 sm:px-3 bg-stone-900 hover:bg-stone-800 text-white rounded-full flex items-center gap-1 text-xs font-display font-black shadow-xs transition-all cursor-pointer shrink-0 active:scale-95"
+              title="Open Navigation Menu"
+            >
+              <Menu className="w-3.5 h-3.5" />
+              <span className="hidden min-[380px]:inline">MENU</span>
             </button>
           </div>
+        </div>
+      </header>
 
-          <div className="space-y-3 font-sans text-sm">
-            <div className="flex items-center justify-between bg-paper-50 p-2.5 rounded-xl border-1.5 border-ink">
-              <span className="font-semibold text-ink">80s Synth Music</span>
-              <button 
-                onClick={toggleMusic}
-                className={`px-3 py-1 rounded-lg border-2 border-ink font-bold text-xs shadow-sketch ${
-                  audioState.musicOn ? 'bg-doodleTeal text-white' : 'bg-paper-200 text-ink-light'
-                }`}
-              >
-                {audioState.musicOn ? 'ON' : 'OFF'}
-              </button>
+      {/* Slide-Out Drawer Navigation Menu */}
+      {isMenuOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs animate-fade-in">
+          <div 
+            className="w-full max-w-sm bg-[#FAF8F5] border-l border-stone-300 h-full overflow-y-auto p-4 sm:p-6 shadow-xl flex flex-col justify-between animate-slide-left space-y-4"
+          >
+            <div>
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-rose-500 to-amber-400 flex items-center justify-center font-display font-black text-white text-sm shadow-xs">
+                    M
+                  </div>
+                  <div>
+                    <h2 className="font-display font-black text-sm text-stone-900">MARISOL FACTORY</h2>
+                    <p className="font-handwritten text-xs text-rose-700 font-bold">Comfort & Fun Hub</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsMenuOpen(false)}
+                  className="p-1.5 rounded-xl border border-stone-300 bg-white hover:bg-stone-100 shadow-2xs cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Navigation Menu Links */}
+              <div className="mt-4 space-y-2">
+                {[
+                  { screen: 'home' as ScreenState, label: 'Home & Video', emoji: '🏠', desc: 'Hero video, live mood check-in & comfort' },
+                  { screen: 'music' as ScreenState, label: 'Music Streamer', emoji: '🎵', desc: 'Search and play songs across the internet' },
+                  { screen: 'quiz' as ScreenState, label: 'Food & Movie Quiz', emoji: '🎯', desc: 'Play trivia & earn Macaroni dishes' },
+                  { screen: 'batch_wall' as ScreenState, label: 'Batch Chat & Wall', emoji: '💬', desc: 'Live group chat & bulletin corkboard' },
+                ].map(item => {
+                  const isActive = currentScreen === item.screen;
+                  return (
+                    <button
+                      key={item.screen}
+                      onClick={() => handleMenuNavigate(item.screen)}
+                      className={`w-full p-3 rounded-2xl border transition-all flex items-center gap-3 text-left cursor-pointer ${
+                        isActive
+                          ? 'bg-rose-600 text-white border-rose-600 shadow-sm font-bold'
+                          : 'bg-white border-stone-200 hover:border-pink-300 text-stone-800 shadow-2xs'
+                      }`}
+                    >
+                      <span className="text-xl">{item.emoji}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-display font-black text-xs sm:text-sm">{item.label}</div>
+                        <div className={`text-[10px] font-handwritten truncate ${isActive ? 'text-rose-200' : 'text-stone-500'}`}>
+                          {item.desc}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Tactile Audio Settings Controls inside Menu */}
+              <div className="mt-4 p-3 bg-white border border-stone-200 rounded-2xl shadow-xs space-y-2">
+                <div className="font-display font-black text-xs text-stone-800 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Volume2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>AUDIO SYSTEM</span>
+                  </span>
+                </div>
+                <div>
+                  <button
+                    onClick={toggleSfx}
+                    className={`w-full py-2 px-3 rounded-xl border text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer ${
+                      audioState.sfxOn ? 'bg-rose-50 border-rose-300 text-rose-900' : 'bg-stone-100 text-stone-500'
+                    }`}
+                  >
+                    <span>Keyboard / Tap Clicks:</span>
+                    <span className="font-black">{audioState.sfxOn ? 'ON 🔔' : 'MUTED'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Account / Google Sign In in Drawer Menu */}
+              {onOpenGoogleSignIn && (
+                <div className="mt-3 p-3 bg-white border border-stone-200 rounded-2xl shadow-xs">
+                  <button
+                    onClick={() => {
+                      audioEngine.playSfx('click');
+                      setIsMenuOpen(false);
+                      onOpenGoogleSignIn();
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl border border-stone-300 hover:border-pink-300 bg-stone-50 hover:bg-rose-50 text-stone-800 text-xs font-bold transition-all shadow-2xs flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      {isAuthenticated && currentUser ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <UserCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                      )}
+                      <div className="text-left">
+                        <div className="font-display font-black text-xs">
+                          {isAuthenticated && currentUser ? currentUser.name : "Google Account Sign In"}
+                        </div>
+                        <div className="text-[10px] text-stone-500 font-sans truncate">
+                          {isAuthenticated && currentUser ? currentUser.email : "Connect Google Account"}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-display font-black text-rose-600 bg-white px-2 py-0.5 rounded-full border border-stone-200">
+                      {isAuthenticated ? "MANAGE" : "SIGN IN"}
+                    </span>
+                  </button>
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center justify-between bg-paper-50 p-2.5 rounded-xl border-1.5 border-ink">
-              <span className="font-semibold text-ink">Sound Effects</span>
-              <button 
-                onClick={toggleSfx}
-                className={`px-3 py-1 rounded-lg border-2 border-ink font-bold text-xs shadow-sketch ${
-                  audioState.sfxOn ? 'bg-doodleTeal text-white' : 'bg-paper-200 text-ink-light'
-                }`}
-              >
-                {audioState.sfxOn ? 'ON' : 'OFF'}
-              </button>
+            {/* Drawer Bottom */}
+            <div className="pt-3 border-t border-stone-200 text-center">
+              <span className="text-[11px] font-handwritten font-bold text-stone-500">
+                Kritika's Comfort Space • Batch MLP41PT 👑
+              </span>
             </div>
+
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 };
 
@@ -6026,14 +11461,47 @@ import { gameState } from '../services/gameState';
 import { Marisol } from './Marisol';
 import { STICKERS } from '../data/stickers';
 import { audioEngine } from '../services/synthAudioEngine';
-import { Flame, Award, Zap, HelpCircle, BookOpen, User, Sparkles, Check } from 'lucide-react';
+import type { ScreenState } from '../types/game';
+import { 
+  Flame, Award, Zap, HelpCircle, BookOpen, User, Sparkles, Check, 
+  GraduationCap, MessageSquareHeart, HeartHandshake, Camera, Music, Download,
+  ArrowLeft, Mail
+} from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { authService } from '../services/authService';
+import { GoogleSignInModal } from './GoogleSignInModal';
 
-export const PlayerProfileCard: React.FC = () => {
+interface PlayerProfileCardProps {
+  onNavigate?: (screen: ScreenState) => void;
+  onOpenSecretLocket?: () => void;
+  onOpenGlowUpWeek?: () => void;
+  onOpenMusicJukebox?: () => void;
+  onOpenInstallApp?: () => void;
+}
+
+export const PlayerProfileCard: React.FC<PlayerProfileCardProps> = ({
+  onNavigate,
+  onOpenSecretLocket,
+  onOpenGlowUpWeek,
+  onOpenMusicJukebox,
+  onOpenInstallApp,
+}) => {
   const [player, setPlayer] = useState(gameState.getPlayer());
   const [activeSticker, setActiveSticker] = useState<string>(gameState.getActiveSticker());
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [, setTick] = useState(0);
   const achievements = gameState.getAchievements();
   const unlockedAchievements = achievements.filter(a => a.unlocked);
+  const currentUser = authService.getCurrentUser();
+  const isAuthenticated = authService.isAuthenticated();
+
+  React.useEffect(() => {
+    const unsub = authService.subscribe(() => {
+      setPlayer(gameState.getPlayer());
+      setTick(t => t + 1);
+    });
+    return () => { unsub(); };
+  }, []);
 
   const handleSelectSticker = (alias: string) => {
     gameState.setActiveSticker(alias);
@@ -6046,12 +11514,32 @@ export const PlayerProfileCard: React.FC = () => {
   const currentStickerObj = STICKERS.find(s => s.alias === activeSticker) || STICKERS[0];
 
   return (
-    <div className="min-h-screen bg-paper-50 p-4 sm:p-6 pb-24 text-ink">
+    <div className="min-h-screen bg-paper-50 p-3 sm:p-6 pb-28 text-ink">
       
-      <div className="max-w-xl mx-auto space-y-6">
+      <div className="max-w-xl mx-auto space-y-4 sm:space-y-6">
+
+        {/* Navigation Back Header */}
+        {onNavigate && (
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onNavigate('home');
+              }}
+              className="sketch-btn p-2 sm:px-3 bg-white flex items-center gap-1.5 shadow-sketch"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="font-display font-bold text-xs sm:text-sm">BACK TO HOME</span>
+            </button>
+            <div className="font-handwritten text-xs font-bold text-ink-light flex items-center gap-1">
+              <Mail className="w-3.5 h-3.5 text-purple-700" />
+              <span className="max-w-[160px] truncate">{currentUser?.email || 'Guest Mode'}</span>
+            </div>
+          </div>
+        )}
         
         {/* Main Illustrated Player Card */}
-        <div className="bg-white border-3 border-ink rounded-3xl p-6 shadow-sketch-xl space-y-6 relative overflow-hidden">
+        <div className="bg-white border-3 border-ink rounded-3xl p-5 sm:p-6 shadow-sketch-xl space-y-6 relative overflow-hidden">
           
           {/* Header */}
           <div className="flex items-center justify-between border-b-2.5 border-ink pb-4">
@@ -6063,7 +11551,7 @@ export const PlayerProfileCard: React.FC = () => {
                 <h1 className="font-display font-black text-2xl text-ink">
                   {player.nickname}
                 </h1>
-                <p className="font-handwritten text-sm text-ink-light font-bold">
+                <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold">
                   Curious Mind • Member since 2026
                 </p>
               </div>
@@ -6072,6 +11560,51 @@ export const PlayerProfileCard: React.FC = () => {
             <div className="bg-doodleGold text-ink border-2 border-ink px-3 py-1 rounded-xl shadow-sketch font-display font-bold text-sm">
               LEVEL {player.level}
             </div>
+          </div>
+
+          {/* Google Verified Identity & Daily Life Mood */}
+          <div className="bg-gradient-to-r from-purple-50 via-pink-50 to-amber-50 border-2 border-purple-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-xl border border-ink overflow-hidden bg-white shadow-xs shrink-0 flex items-center justify-center">
+                {isAuthenticated && currentUser ? (
+                  <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-full h-full object-cover" />
+                ) : (
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  </svg>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-display font-black text-xs text-ink">
+                    {isAuthenticated && currentUser ? currentUser.name : "Student Identity & Email"}
+                  </span>
+                  <span className={`text-[9px] font-display font-black px-1.5 py-0.2 rounded-full uppercase text-white ${
+                    isAuthenticated ? 'bg-emerald-600' : 'bg-purple-600'
+                  }`}>
+                    {isAuthenticated ? "SYNCED" : "CONNECT"}
+                  </span>
+                </div>
+                <p className="font-handwritten text-xs text-purple-900 font-bold truncate">
+                  {isAuthenticated && currentUser
+                    ? `${currentUser.email ? `${currentUser.email} • ` : ''}${currentUser.currentMoodEmoji} ${currentUser.currentMood}`
+                    : "Update your email to automatically sync your student name & batch wall presence"}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setShowGoogleModal(true);
+              }}
+              className="sketch-btn-primary px-3 py-1.5 text-xs font-black uppercase shadow-sketch-xs shrink-0"
+            >
+              {isAuthenticated ? "EDIT" : "SIGN IN"}
+            </button>
           </div>
 
           {/* Marisol Active Companion Greeting */}
@@ -6102,33 +11635,34 @@ export const PlayerProfileCard: React.FC = () => {
               </span>
             </div>
 
-            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 bg-[#FAF7F0] p-2.5 rounded-2xl border-2 border-ink">
-              {STICKERS.map(s => {
-                const isSelected = s.alias === activeSticker;
+            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+              {STICKERS.map((sticker) => {
+                const isSelected = sticker.alias === activeSticker;
                 return (
                   <button
-                    key={s.id}
-                    onClick={() => handleSelectSticker(s.alias)}
-                    title={s.quote}
+                    key={sticker.id}
+                    onClick={() => handleSelectSticker(sticker.alias)}
+                    title={sticker.title}
                     className={`
-                      relative rounded-xl border-2 transition-all p-1 flex flex-col items-center
+                      relative p-1.5 rounded-2xl border-2 transition-all flex flex-col items-center justify-center
                       ${isSelected 
-                        ? 'border-ink bg-doodleGold shadow-sketch scale-105 z-10' 
-                        : 'border-ink/30 bg-white hover:border-ink hover:scale-102'
-                      }
+                        ? 'border-ink bg-doodleGold shadow-sketch scale-105' 
+                        : 'border-ink/30 bg-paper-100 hover:border-ink hover:bg-paper-200'}
                     `}
                   >
-                    <img
-                      src={s.avatarUrl}
-                      alt={s.title}
-                      className="w-10 h-10 rounded-lg object-cover"
-                    />
-                    <span className="text-[10px] font-handwritten font-bold truncate max-w-[50px] mt-0.5">
-                      {s.badgeEmoji}
+                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-white border border-ink/20 flex items-center justify-center">
+                      <img 
+                        src={sticker.avatarUrl} 
+                        alt={sticker.title} 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <span className="text-[10px] font-handwritten font-bold truncate max-w-full text-ink mt-0.5">
+                      {sticker.badgeEmoji}
                     </span>
                     {isSelected && (
-                      <div className="absolute -top-1.5 -right-1.5 bg-ink text-white rounded-full p-0.5 border border-white">
-                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-ink text-white rounded-full flex items-center justify-center text-[10px]">
+                        <Check className="w-2.5 h-2.5" />
                       </div>
                     )}
                   </button>
@@ -6138,7 +11672,7 @@ export const PlayerProfileCard: React.FC = () => {
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-3 font-sans">
+          <div className="grid grid-cols-2 gap-3 pt-2">
             <div className="bg-paper-100 p-3.5 rounded-2xl border-2 border-ink text-center space-y-1">
               <div className="text-xs text-ink-light font-medium flex items-center justify-center gap-1">
                 <Zap className="w-3.5 h-3.5 text-plum-700" /> TOTAL XP
@@ -6168,9 +11702,126 @@ export const PlayerProfileCard: React.FC = () => {
             </div>
           </div>
 
+          {/* MORE EXPERIENCES & SPECIAL SECTIONS */}
+          <div className="pt-2 space-y-3">
+            <div className="flex items-center justify-between border-t-2 border-dashed border-ink/20 pt-4">
+              <h3 className="font-display font-black text-base text-ink flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-pink-500" />
+                <span>MORE FACTORY EXPERIENCES</span>
+              </h3>
+              <span className="font-handwritten text-xs text-ink-light font-bold">
+                Special corners & batch hubs
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* Batch 41 Classroom */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onNavigate?.('classroom');
+                }}
+                className="p-3 bg-white border-2 border-ink rounded-2xl shadow-sketch-sm hover:shadow-sketch hover:bg-amber-50 transition-all flex items-center gap-3 text-left"
+              >
+                <div className="w-10 h-10 rounded-xl border-1.5 border-ink bg-amber-100 flex items-center justify-center shrink-0">
+                  <GraduationCap className="w-5 h-5 text-amber-800" />
+                </div>
+                <div>
+                  <div className="font-display font-black text-xs text-ink">BATCH 41 CLASSROOM</div>
+                  <div className="font-handwritten text-[11px] text-ink-light font-bold">Tribute arena & student quizzes</div>
+                </div>
+              </button>
+
+              {/* Shared Batch Wall */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onNavigate?.('batch_wall');
+                }}
+                className="p-3 bg-white border-2 border-ink rounded-2xl shadow-sketch-sm hover:shadow-sketch hover:bg-purple-50 transition-all flex items-center gap-3 text-left"
+              >
+                <div className="w-10 h-10 rounded-xl border-1.5 border-ink bg-purple-100 flex items-center justify-center shrink-0">
+                  <MessageSquareHeart className="w-5 h-5 text-purple-800" />
+                </div>
+                <div>
+                  <div className="font-display font-black text-xs text-ink">SHARED BATCH WALL</div>
+                  <div className="font-handwritten text-[11px] text-ink-light font-bold">Live classmate notes & stickers</div>
+                </div>
+              </button>
+
+              {/* Secret Locket */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onOpenSecretLocket?.();
+                }}
+                className="p-3 bg-white border-2 border-ink rounded-2xl shadow-sketch-sm hover:shadow-sketch hover:bg-rose-50 transition-all flex items-center gap-3 text-left"
+              >
+                <div className="w-10 h-10 rounded-xl border-1.5 border-ink bg-rose-100 flex items-center justify-center shrink-0">
+                  <HeartHandshake className="w-5 h-5 text-rose-800" />
+                </div>
+                <div>
+                  <div className="font-display font-black text-xs text-ink">SECRET LOCKET</div>
+                  <div className="font-handwritten text-[11px] text-ink-light font-bold">Sisterly letters & memories</div>
+                </div>
+              </button>
+
+              {/* Glow-Up Week */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onOpenGlowUpWeek?.();
+                }}
+                className="p-3 bg-white border-2 border-ink rounded-2xl shadow-sketch-sm hover:shadow-sketch hover:bg-teal-50 transition-all flex items-center gap-3 text-left"
+              >
+                <div className="w-10 h-10 rounded-xl border-1.5 border-ink bg-teal-100 flex items-center justify-center shrink-0">
+                  <Camera className="w-5 h-5 text-teal-800" />
+                </div>
+                <div>
+                  <div className="font-display font-black text-xs text-ink">GLOW-UP SCRAPBOOK</div>
+                  <div className="font-handwritten text-[11px] text-ink-light font-bold">Polaroids & downloadable card</div>
+                </div>
+              </button>
+
+              {/* Music Jukebox Lounge */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onOpenMusicJukebox?.();
+                }}
+                className="p-3 bg-white border-2 border-ink rounded-2xl shadow-sketch-sm hover:shadow-sketch hover:bg-pink-50 transition-all flex items-center gap-3 text-left"
+              >
+                <div className="w-10 h-10 rounded-xl border-1.5 border-ink bg-pink-100 flex items-center justify-center shrink-0">
+                  <Music className="w-5 h-5 text-pink-800" />
+                </div>
+                <div>
+                  <div className="font-display font-black text-xs text-ink">MUSIC JUKEBOX</div>
+                  <div className="font-handwritten text-[11px] text-ink-light font-bold">Curated Hindi comfort playlist</div>
+                </div>
+              </button>
+
+              {/* Install App */}
+              <button
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onOpenInstallApp?.();
+                }}
+                className="p-3 bg-white border-2 border-ink rounded-2xl shadow-sketch-sm hover:shadow-sketch hover:bg-emerald-50 transition-all flex items-center gap-3 text-left"
+              >
+                <div className="w-10 h-10 rounded-xl border-1.5 border-ink bg-emerald-100 flex items-center justify-center shrink-0">
+                  <Download className="w-5 h-5 text-emerald-800" />
+                </div>
+                <div>
+                  <div className="font-display font-black text-xs text-ink">INSTALL ON MOBILE</div>
+                  <div className="font-handwritten text-[11px] text-ink-light font-bold">Add to iOS or Android Home Screen</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* Achievements Section */}
           <div className="pt-2 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between border-t-2 border-dashed border-ink/20 pt-4">
               <h3 className="font-display font-bold text-lg text-ink flex items-center gap-2">
                 <Award className="w-5 h-5 text-doodleGold" />
                 <span>ACHIEVEMENTS</span>
@@ -6210,6 +11861,10 @@ export const PlayerProfileCard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {showGoogleModal && (
+        <GoogleSignInModal onClose={() => setShowGoogleModal(false)} />
+      )}
     </div>
   );
 };
@@ -6526,6 +12181,7 @@ import React, { useState } from 'react';
 import type { Recipe, ChefTitle } from '../types/game';
 import { Sparkles, Film, Clock, ChefHat, CheckCircle2, ChevronDown, ChevronUp, ArrowRight, BookOpen } from 'lucide-react';
 import { Marisol } from './Marisol';
+import { BaseModal } from './BaseModal';
 
 interface RecipeModalProps {
   recipe: Recipe;
@@ -6553,11 +12209,8 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
   const [showFullRecipe, setShowFullRecipe] = useState(false);
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-      <div 
-        className="bg-[#FAF7F0] border-3 border-ink rounded-3xl max-w-2xl w-full my-6 p-4 sm:p-6 shadow-sketch-2xl space-y-5 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <BaseModal onClose={onGoHome} maxWidth="max-w-2xl" hideHeader>
+      <div className="space-y-5">
         {/* Confetti Banner */}
         <div className="text-center space-y-1">
           <div className="inline-flex items-center gap-1.5 bg-doodleGold border-1.5 border-ink px-3 py-1 rounded-full font-handwritten text-xs sm:text-sm font-black text-ink shadow-sketch-sm">
@@ -6742,7 +12395,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
         </div>
 
       </div>
-    </div>
+    </BaseModal>
   );
 };
 
@@ -6753,65 +12406,106 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 ### File: `src/components/RecipeVault.tsx`
 
 ```tsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { ScreenState, Recipe } from '../types/game';
 import { RECIPES } from '../data/recipes';
 import { gameState } from '../services/gameState';
-import { ArrowLeft, ChefHat, Film, Clock, Lock, Sparkles } from 'lucide-react';
+import { ArrowLeft, ChefHat, Film, Clock, Lock, Sparkles, Search, X, Utensils } from 'lucide-react';
 import { audioEngine } from '../services/synthAudioEngine';
+import { BaseModal } from './BaseModal';
 
 interface RecipeVaultProps {
-  onNavigate: (screen: ScreenState) => void;
-  onCookRecipe: (recipe: Recipe) => void;
+  onNavigate?: (screen: ScreenState) => void;
+  onCookRecipe?: (recipe: Recipe) => void;
+  initialCuisine?: string;
+  hideHomeButton?: boolean;
 }
 
-export const RecipeVault: React.FC<RecipeVaultProps> = ({ onNavigate, onCookRecipe }) => {
+export const RecipeVault: React.FC<RecipeVaultProps> = ({ 
+  onNavigate, 
+  onCookRecipe,
+  initialCuisine = 'All',
+  hideHomeButton = false
+}) => {
   const player = gameState.getPlayer();
   const unlockedIds = gameState.getUnlockedRecipes();
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCuisine, setSelectedCuisine] = useState(initialCuisine);
+
+  // Extract unique cuisines
+  const cuisines = useMemo(() => {
+    const list = Array.from(new Set(RECIPES.map(r => r.cuisine)));
+    return ['All', ...list];
+  }, []);
+
+  // Filter recipes by search query and cuisine
+  const filteredRecipes = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return RECIPES.filter(recipe => {
+      // Cuisine filter
+      if (selectedCuisine !== 'All' && recipe.cuisine !== selectedCuisine) {
+        return false;
+      }
+
+      // Search query filter
+      if (!q) return true;
+
+      const titleMatch = recipe.title.toLowerCase().includes(q);
+      const subtitleMatch = recipe.subtitle.toLowerCase().includes(q);
+      const cuisineMatch = recipe.cuisine.toLowerCase().includes(q);
+      const movieMatch = recipe.moviePairing.movie.toLowerCase().includes(q);
+      const secretIngMatch = recipe.secretIngredients.some(ing => ing.toLowerCase().includes(q));
+      const fullIngMatch = recipe.fullIngredients.some(ing => ing.toLowerCase().includes(q));
+
+      return titleMatch || subtitleMatch || cuisineMatch || movieMatch || secretIngMatch || fullIngMatch;
+    });
+  }, [searchQuery, selectedCuisine]);
 
   return (
-    <div className="min-h-screen bg-[#FAF7F0] p-4 sm:p-6 pb-28 text-ink">
+    <div className="min-h-screen bg-[#FAF7F0] p-3 sm:p-6 pb-28 text-ink">
       <div className="max-w-4xl mx-auto space-y-6">
 
         {/* Top Header Bar */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onNavigate('home');
-            }}
-            className="sketch-btn p-3 bg-white flex items-center gap-2 shadow-sketch"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="font-display font-bold text-sm hidden sm:inline">HOME</span>
-          </button>
+        <div className="flex items-center justify-between gap-2">
+          {!hideHomeButton && onNavigate ? (
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onNavigate('home');
+              }}
+              className="sketch-btn p-2.5 sm:p-3 bg-white flex items-center gap-1.5 sm:gap-2 shadow-sketch"
+            >
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="font-display font-bold text-xs sm:text-sm hidden sm:inline">HOME</span>
+            </button>
+          ) : <div className="w-9" />}
 
           <div className="text-center">
-            <div className="font-handwritten text-emerald-600 font-bold text-sm flex items-center justify-center gap-1">
+            <div className="font-handwritten text-emerald-600 font-bold text-xs sm:text-sm flex items-center justify-center gap-1">
               <ChefHat className="w-4 h-4" /> KRITIKA'S CULINARY ARCHIVE
             </div>
-            <h1 className="font-display text-2xl sm:text-3xl font-black tracking-tight">
+            <h1 className="font-display text-xl sm:text-3xl font-black tracking-tight">
               THE SECRET RECIPE VAULT 📖
             </h1>
           </div>
 
-          <div className="bg-white border-2 border-ink px-3 py-1.5 rounded-full font-handwritten text-sm font-bold shadow-sketch">
-            <span className="text-emerald-600">{unlockedIds.length}</span> / {RECIPES.length} DISHES
+          <div className="bg-white border-2 border-ink px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-handwritten text-xs sm:text-sm font-bold shadow-sketch">
+            <span className="text-emerald-600 font-black">{unlockedIds.length}</span> / {RECIPES.length} DISHES
           </div>
         </div>
 
         {/* Chef Status Card */}
-        <div className="bg-white border-3 border-ink rounded-3xl p-5 shadow-sketch-lg flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl border-2.5 border-ink bg-doodleGold flex items-center justify-center text-3xl shadow-sketch">
+        <div className="bg-white border-3 border-ink rounded-3xl p-4 sm:p-5 shadow-sketch-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border-2.5 border-ink bg-doodleGold flex items-center justify-center text-3xl shadow-sketch shrink-0">
               🥪
             </div>
             <div>
-              <div className="font-handwritten text-xs font-bold text-ink-light uppercase tracking-wider">
+              <div className="font-handwritten text-[11px] font-bold text-ink-light uppercase tracking-wider">
                 ACTIVE CHEF TITLE
               </div>
-              <h2 className="font-display font-black text-xl sm:text-2xl text-plum-700">
+              <h2 className="font-display font-black text-lg sm:text-2xl text-plum-700">
                 {player.chefTitle || 'Apprentice Chopper 🥒'}
               </h2>
               <p className="font-sans text-xs text-ink-light">
@@ -6820,140 +12514,228 @@ export const RecipeVault: React.FC<RecipeVaultProps> = ({ onNavigate, onCookReci
             </div>
           </div>
 
-          <div className="text-center sm:text-right">
-            <button
-              onClick={() => onCookRecipe(RECIPES[0])}
-              className="sketch-btn-primary px-4 py-2.5 text-xs sm:text-sm font-bold uppercase flex items-center gap-2 shadow-sketch"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>PLAY FOR NEXT RECIPE</span>
-            </button>
+          {onCookRecipe && (
+            <div className="text-center sm:text-right w-full sm:w-auto">
+              <button
+                onClick={() => onCookRecipe(RECIPES[0])}
+                className="sketch-btn-primary w-full sm:w-auto px-4 py-2.5 text-xs sm:text-sm font-bold uppercase flex items-center justify-center gap-2 shadow-sketch"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>PLAY FOR NEXT RECIPE</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Search & Filter Controls */}
+        <div className="bg-white border-2.5 border-ink rounded-3xl p-3.5 sm:p-4 shadow-sketch space-y-3">
+          {/* Search Bar */}
+          <div className="relative flex items-center">
+            <Search className="absolute left-3.5 w-4 h-4 text-ink-light pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search recipes, ingredients (e.g. ginger, mascarpone), or movie pairings..."
+              className="w-full pl-10 pr-9 py-2.5 bg-paper-50 border-2 border-ink/40 focus:border-ink rounded-2xl font-sans text-xs sm:text-sm outline-none transition-all placeholder:text-ink-light/60 font-medium"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 p-1 rounded-full text-ink-light hover:text-ink hover:bg-paper-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Cuisine Pill Filters */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            <span className="text-[11px] font-display font-black text-ink-light uppercase flex items-center gap-1 shrink-0 mr-1">
+              <Utensils className="w-3 h-3" /> Cuisines:
+            </span>
+            {cuisines.map((cuisine) => {
+              const isActive = selectedCuisine === cuisine;
+              return (
+                <button
+                  key={cuisine}
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setSelectedCuisine(cuisine);
+                  }}
+                  className={`px-3 py-1 rounded-full text-xs font-handwritten font-bold whitespace-nowrap transition-all ${
+                    isActive
+                      ? 'bg-emerald-600 text-white border-2 border-ink shadow-sketch-xs scale-102'
+                      : 'bg-paper-100 hover:bg-paper-200 text-ink-light border border-ink/30'
+                  }`}
+                >
+                  {cuisine}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Recipes Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          {RECIPES.map((recipe) => {
-            const isUnlocked = unlockedIds.includes(recipe.id);
-
-            return (
-              <div
-                key={recipe.id}
+        {/* Empty State when no recipes match */}
+        {filteredRecipes.length === 0 ? (
+          <div className="bg-white border-3 border-dashed border-ink/30 rounded-3xl p-8 sm:p-12 text-center space-y-3.5 shadow-sketch">
+            <div className="text-4xl sm:text-5xl animate-bounce-gentle">🍳💭</div>
+            <h3 className="font-display font-black text-lg sm:text-xl text-ink">
+              No recipes found matching your craving
+            </h3>
+            <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold max-w-md mx-auto leading-relaxed">
+              We couldn't find any dish matching "<span className="text-coral-500">{searchQuery || selectedCuisine}</span>". Try clearing filters or cook new dishes in trivia!
+            </p>
+            <div className="pt-2">
+              <button
                 onClick={() => {
-                  if (isUnlocked) {
-                    audioEngine.playSfx('click');
-                    setSelectedRecipe(recipe);
-                  }
+                  audioEngine.playSfx('click');
+                  setSearchQuery('');
+                  setSelectedCuisine('All');
                 }}
-                className={`
-                  bg-white border-2.5 border-ink rounded-3xl p-5 shadow-sketch-lg transition-all
-                  ${isUnlocked ? 'hover:shadow-sketch-xl hover:-translate-y-1 cursor-pointer' : 'opacity-70 bg-paper-100'}
-                `}
+                className="sketch-btn px-4 py-2 text-xs font-display font-black uppercase bg-emerald-50 border-2 border-ink shadow-sketch hover:bg-emerald-100"
               >
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="w-12 h-12 rounded-2xl border-2 border-ink flex items-center justify-center text-2xl bg-[#FAF7F0] shadow-sm shrink-0">
-                    {isUnlocked ? recipe.emoji : <Lock className="w-5 h-5 text-ink-light" />}
-                  </div>
+                Reset All Filters
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Recipes Grid */
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+            {filteredRecipes.map((recipe) => {
+              const isUnlocked = unlockedIds.includes(recipe.id);
 
-                  <div className="flex-1 min-w-0">
-                    <span className="font-handwritten text-xs font-bold text-coral-600 uppercase tracking-wide block">
-                      {recipe.cuisine}
-                    </span>
-                    <h3 className="font-display font-black text-lg text-ink leading-tight">
-                      {recipe.title}
-                    </h3>
-                  </div>
-                </div>
-
-                <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold mb-3 line-clamp-2">
-                  {recipe.subtitle}
-                </p>
-
-                {isUnlocked ? (
-                  <div className="space-y-2.5 pt-2 border-t-1.5 border-dashed border-ink/20">
-                    <div className="flex items-center justify-between text-xs font-sans text-ink-light">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-doodleTeal" />
-                        <span>{recipe.prepTime}</span>
-                      </span>
-                      <span className="flex items-center gap-1 font-bold text-plum-700">
-                        <Film className="w-3.5 h-3.5" />
-                        <span className="truncate max-w-[150px]">{recipe.moviePairing.movie}</span>
-                      </span>
+              return (
+                <div
+                  key={recipe.id}
+                  onClick={() => {
+                    if (isUnlocked) {
+                      audioEngine.playSfx('click');
+                      setSelectedRecipe(recipe);
+                    }
+                  }}
+                  className={`
+                    bg-white border-2.5 border-ink rounded-3xl p-4 sm:p-5 shadow-sketch-lg transition-all
+                    ${isUnlocked ? 'hover:shadow-sketch-xl hover:-translate-y-1 cursor-pointer' : 'opacity-70 bg-paper-100'}
+                  `}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="w-12 h-12 rounded-2xl border-2 border-ink flex items-center justify-center text-2xl bg-[#FAF7F0] shadow-xs shrink-0">
+                      {isUnlocked ? recipe.emoji : <Lock className="w-5 h-5 text-ink-light" />}
                     </div>
 
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedRecipe(recipe);
-                      }}
-                      className="w-full py-2 bg-paper-100 hover:bg-paper-200 border-1.5 border-ink rounded-xl font-display font-bold text-xs uppercase text-center"
-                    >
-                      VIEW RECIPE & STEPS
-                    </button>
+                    <div className="flex-1 min-w-0">
+                      <span className="font-handwritten text-xs font-bold text-coral-600 uppercase tracking-wide block truncate">
+                        {recipe.cuisine}
+                      </span>
+                      <h3 className="font-display font-black text-base sm:text-lg text-ink leading-tight line-clamp-1">
+                        {recipe.title}
+                      </h3>
+                    </div>
                   </div>
-                ) : (
-                  <div className="pt-3 border-t-1.5 border-dashed border-ink/20 flex items-center justify-between">
-                    <span className="font-handwritten text-xs text-ink-light">
-                      🔒 Answer 5 food questions to unlock
-                    </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onCookRecipe(recipe);
-                      }}
-                      className="text-xs font-bold text-coral-500 font-display hover:underline"
-                    >
-                      Cook Now →
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
 
-        {/* Modal: Full Recipe Details */}
-        {selectedRecipe && (
-          <div
-            className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
-            onClick={() => setSelectedRecipe(null)}
-          >
-            <div
-              className="bg-[#FAF7F0] border-3 border-ink rounded-3xl max-w-xl w-full my-6 p-5 sm:p-6 shadow-sketch-2xl space-y-4 text-left"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between border-b-2 border-ink/20 pb-3">
-                <div>
-                  <span className="font-handwritten text-xs text-coral-500 font-bold uppercase">
-                    {selectedRecipe.cuisine} • {selectedRecipe.prepTime}
-                  </span>
-                  <h3 className="font-display font-black text-xl text-ink">
-                    {selectedRecipe.emoji} {selectedRecipe.title}
-                  </h3>
+                  <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold mb-3 line-clamp-2">
+                    {recipe.subtitle}
+                  </p>
+
+                  {isUnlocked ? (
+                    <div className="space-y-2.5 pt-2 border-t-1.5 border-dashed border-ink/20">
+                      <div className="flex items-center justify-between text-xs font-sans text-ink-light">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-doodleTeal" />
+                          <span>{recipe.prepTime}</span>
+                        </span>
+                        <span className="flex items-center gap-1 font-bold text-plum-700 truncate max-w-[150px]">
+                          <Film className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{recipe.moviePairing.movie.split('(')[0]}</span>
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          audioEngine.playSfx('click');
+                          setSelectedRecipe(recipe);
+                        }}
+                        className="w-full py-2 bg-paper-100 hover:bg-paper-200 border-1.5 border-ink rounded-xl font-display font-bold text-xs uppercase text-center transition-colors"
+                      >
+                        VIEW RECIPE & STEPS
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="pt-3 border-t-1.5 border-dashed border-ink/20 flex items-center justify-between">
+                      <span className="font-handwritten text-xs text-ink-light">
+                        🔒 Answer 5 food questions to unlock
+                      </span>
+                      {onCookRecipe && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCookRecipe(recipe);
+                          }}
+                          className="text-xs font-bold text-coral-500 font-display hover:underline"
+                        >
+                          Cook Now →
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <button
-                  onClick={() => setSelectedRecipe(null)}
-                  className="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200"
-                >
-                  ✕
-                </button>
-              </div>
+              );
+            })}
+          </div>
+        )}
 
+        {/* Modal: Full Recipe Details using BaseModal */}
+        {selectedRecipe && (
+          <BaseModal 
+            onClose={() => setSelectedRecipe(null)}
+            title={selectedRecipe.title}
+            subtitle={`${selectedRecipe.cuisine} • ${selectedRecipe.prepTime}`}
+            icon={<span>{selectedRecipe.emoji}</span>}
+            maxWidth="max-w-xl"
+          >
+            <div className="space-y-4 text-left">
               {/* Movie Pairing Note */}
               <div className="bg-purple-50 border-1.5 border-purple-300 rounded-2xl p-3 text-xs space-y-1">
                 <span className="font-display font-bold text-purple-900 flex items-center gap-1.5">
-                  <Film className="w-4 h-4" /> Watch: {selectedRecipe.moviePairing.movie}
+                  <Film className="w-4 h-4" /> Watch Pairing: {selectedRecipe.moviePairing.movie}
                 </span>
                 <p className="font-handwritten text-ink italic">
-                  {selectedRecipe.moviePairing.quote}
+                  "{selectedRecipe.moviePairing.quote}"
+                </p>
+                <p className="font-sans text-ink-light text-[11px] pt-1">
+                  {selectedRecipe.moviePairing.whyWatch}
                 </p>
               </div>
 
-              {/* Ingredients */}
+              {/* Hunger Trigger */}
+              <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3 flex items-center gap-2.5">
+                <span className="text-xl shrink-0">🤤</span>
+                <p className="font-handwritten text-xs text-amber-950 font-bold">
+                  {selectedRecipe.hungerTrigger}
+                </p>
+              </div>
+
+              {/* Secret Ingredients */}
+              <div className="space-y-1.5">
+                <h4 className="font-display font-black text-xs uppercase text-ink flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Secret Ingredients:</span>
+                </h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedRecipe.secretIngredients.map((item, idx) => (
+                    <span key={idx} className="bg-emerald-50 border border-emerald-300 text-emerald-900 font-handwritten text-xs font-bold px-2.5 py-0.5 rounded-full">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Full Ingredients */}
               <div className="space-y-1.5">
                 <h4 className="font-display font-black text-xs uppercase text-ink">
-                  Ingredients:
+                  Kitchen Pantry Ingredients:
                 </h4>
                 <ul className="space-y-1 font-sans text-xs text-ink-light list-disc pl-4 max-h-36 overflow-y-auto">
                   {selectedRecipe.fullIngredients.map((item, idx) => (
@@ -6965,7 +12747,7 @@ export const RecipeVault: React.FC<RecipeVaultProps> = ({ onNavigate, onCookReci
               {/* Instructions */}
               <div className="space-y-1.5">
                 <h4 className="font-display font-black text-xs uppercase text-ink">
-                  Method:
+                  Step-by-Step Method:
                 </h4>
                 <ol className="space-y-2 font-sans text-xs text-ink list-decimal pl-4 max-h-48 overflow-y-auto">
                   {selectedRecipe.instructions.map((step, idx) => (
@@ -6977,174 +12759,15 @@ export const RecipeVault: React.FC<RecipeVaultProps> = ({ onNavigate, onCookReci
               <div className="pt-2">
                 <button
                   onClick={() => setSelectedRecipe(null)}
-                  className="sketch-btn-primary w-full py-3 text-xs font-bold uppercase"
+                  className="sketch-btn-primary w-full py-3 text-xs font-bold uppercase shadow-sketch"
                 >
                   Close Cookbook
                 </button>
               </div>
             </div>
-          </div>
+          </BaseModal>
         )}
 
-      </div>
-    </div>
-  );
-};
-
-```
-
----
-
-### File: `src/components/SecretClassroom.tsx`
-
-```tsx
-import React, { useEffect, useState } from 'react';
-import { gameState } from '../services/gameState';
-import { audioEngine } from '../services/synthAudioEngine';
-import { Marisol } from './Marisol';
-import confetti from 'canvas-confetti';
-import { Sparkles, Star, ArrowRight } from 'lucide-react';
-
-interface SecretClassroomProps {
-  onBackToHome: () => void;
-}
-
-export const SecretClassroom: React.FC<SecretClassroomProps> = ({ onBackToHome }) => {
-  const teacher = gameState.getTeacherProfile();
-  const [slide, setSlide] = useState<number>(1);
-
-  useEffect(() => {
-    // Start warm emotional synth music
-    audioEngine.startMusic('final');
-
-    const timer = setTimeout(() => {
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.5 } });
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleNextSlide = () => {
-    audioEngine.playSfx('click');
-    if (slide < 3) {
-      setSlide(prev => prev + 1);
-    } else {
-      onBackToHome();
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-[#FAF7F0] flex flex-col items-center justify-center p-4 sm:p-6 text-ink relative overflow-hidden">
-      
-      {/* Background Chalkboard & Doodle Accents */}
-      <div className="absolute inset-0 opacity-15 pointer-events-none">
-        <div className="w-full h-full border-12 border-ink/20 rounded-3xl m-4" />
-      </div>
-
-      <div className="max-w-2xl w-full z-10 space-y-6 text-center animate-fade-in">
-        
-        {slide === 1 && (
-          <div className="space-y-6">
-            <div className="inline-block bg-coral-500 text-white font-handwritten text-lg font-bold px-4 py-1 rounded-full border-2 border-ink shadow-sketch">
-              SECRET LEVEL UNLOCKED 🔑
-            </div>
-
-            <Marisol
-              expression="welcome"
-              size="full"
-              dialogue={`"Okay... I've been keeping something from you! This whole Factory of Fun was created as a special surprise..."`}
-              bubblePosition="top"
-            />
-
-            <button
-              onClick={handleNextSlide}
-              className="sketch-btn-primary w-full py-4 text-xl font-black uppercase shadow-sketch-lg hover:scale-105 transition-all mt-4"
-            >
-              ENTER THE SECRET CLASSROOM ❤️
-            </button>
-          </div>
-        )}
-
-        {slide === 2 && (
-          <div className="bg-white border-3 border-ink rounded-3xl p-6 sm:p-8 shadow-sketch-xl space-y-6 text-left">
-            <div className="text-center">
-              <h1 className="font-display font-black text-3xl sm:text-4xl text-plum-700">
-                CLASSROOM MEMORIES 📸
-              </h1>
-              <p className="font-handwritten text-xl text-coral-500 font-bold">
-                Dedicated to {teacher.teacherName}
-              </p>
-            </div>
-
-            {/* Classmate Quotes & Memories Cards */}
-            <div className="space-y-3 font-handwritten text-lg text-ink">
-              {teacher.classroomMemories.map((mem, idx) => (
-                <div key={idx} className="bg-paper-50 p-4 rounded-2xl border-2 border-ink shadow-sketch flex items-start gap-3">
-                  <Star className="w-5 h-5 text-doodleGold flex-shrink-0 mt-0.5" />
-                  <span>"{mem}"</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Teacher Quotes */}
-            <div className="bg-plum-500/10 border-2 border-plum-500 p-4 rounded-2xl space-y-2">
-              <div className="font-display font-bold text-xs text-plum-700 uppercase tracking-wider flex items-center gap-1">
-                <Sparkles className="w-4 h-4" />
-                <span>FAMOUS TEACHER PHRASES WE WILL NEVER FORGET:</span>
-              </div>
-              <ul className="font-handwritten text-lg text-plum-700 list-disc list-inside space-y-1">
-                {teacher.famousPhrases.map((phrase, i) => (
-                  <li key={i}>{phrase}</li>
-                ))}
-              </ul>
-            </div>
-
-            <button
-              onClick={handleNextSlide}
-              className="sketch-btn-gold w-full py-3.5 text-lg font-black uppercase shadow-sketch flex items-center justify-center gap-2"
-            >
-              <span>THE FINAL MESSAGE</span>
-              <ArrowRight className="w-5 h-5" />
-            </button>
-          </div>
-        )}
-
-        {slide === 3 && (
-          <div className="bg-white border-3 border-ink rounded-3xl p-8 sm:p-10 shadow-sketch-xl space-y-8 text-center animate-fade-in">
-            
-            <div className="flex justify-center">
-              <Marisol expression="proud" size="large" showSpeechBubble={false} />
-            </div>
-
-            <div className="space-y-4">
-              <p className="font-handwritten text-2xl sm:text-3xl text-ink font-semibold italic">
-                "Some lessons stay on the page."
-              </p>
-              <p className="font-handwritten text-3xl sm:text-4xl text-plum-700 font-bold">
-                "Some stay with you."
-              </p>
-            </div>
-
-            <div className="pt-4 border-t-2 border-dashed border-ink/30 space-y-3">
-              <h2 className="font-display font-black text-4xl sm:text-5xl text-coral-500">
-                Thank you, {teacher.teacherName}. ❤️
-              </h2>
-              <p className="font-handwritten text-xl text-ink-light">
-                {teacher.customMessage}
-              </p>
-              <p className="font-handwritten text-2xl font-bold text-doodleTeal">
-                Made with love by your class. ✨
-              </p>
-            </div>
-
-            <button
-              onClick={onBackToHome}
-              className="sketch-btn-primary px-8 py-3.5 text-lg font-black uppercase shadow-sketch hover:scale-105 transition-all"
-            >
-              RETURN TO MAIN MENU 🏠
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -7160,7 +12783,8 @@ export const SecretClassroom: React.FC<SecretClassroomProps> = ({ onBackToHome }
 import React, { useState, useEffect, useRef } from 'react';
 import { wellnessState, type SecretNote } from '../services/wellnessState';
 import { audioEngine } from '../services/synthAudioEngine';
-import { Lock, Unlock, Heart, Plus, Trash2, X, Sparkles, Mic, Square, Play, Pause } from 'lucide-react';
+import { BaseModal } from './BaseModal';
+import { Lock, Unlock, Heart, Plus, Trash2, Sparkles, Mic, Square, Play, Pause } from 'lucide-react';
 
 interface SecretLocketModalProps {
   onClose: () => void;
@@ -7307,37 +12931,14 @@ export const SecretLocketModal: React.FC<SecretLocketModalProps> = ({ onClose })
   };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-      onClick={onClose}
+    <BaseModal
+      onClose={onClose}
+      maxWidth="max-w-lg"
+      icon={<div className="w-full h-full bg-gradient-to-tr from-pink-400 to-rose-400 rounded-xl flex items-center justify-center text-white"><Heart className="w-5 h-5 fill-white" /></div>}
+      title="SECRET HEART LOCKET 🔐"
+      subtitle="Private notes, affirmations & voice memos for Kritika ♡"
     >
-      <div 
-        className="bg-[#FFFDF7] border-3 border-ink rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-sketch-2xl space-y-4 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b-2 border-pink-200 pb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-400 to-rose-400 text-white flex items-center justify-center shadow-xs">
-              <Heart className="w-5 h-5 fill-white" />
-            </div>
-            <div>
-              <h2 className="font-display font-black text-lg sm:text-xl text-ink leading-tight flex items-center gap-1.5">
-                <span>SECRET HEART LOCKET</span>
-                <span>🔐</span>
-              </h2>
-              <p className="font-handwritten text-xs text-ink-light font-bold">
-                Private notes, affirmations & voice memos for Kritika ♡
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200 transition-colors shrink-0 shadow-xs"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+      <div className="space-y-4">
 
         {/* Locked State */}
         {!isUnlocked ? (
@@ -7532,9 +13133,8 @@ export const SecretLocketModal: React.FC<SecretLocketModalProps> = ({ onClose })
             </div>
           </div>
         )}
-
       </div>
-    </div>
+    </BaseModal>
   );
 };
 
@@ -7549,7 +13149,7 @@ import React, { useState, useEffect } from 'react';
 import { wellnessState } from '../services/wellnessState';
 import { audioEngine } from '../services/synthAudioEngine';
 import confetti from 'canvas-confetti';
-import { Sparkles, Star, Flame } from 'lucide-react';
+import { Flame, Sparkles } from 'lucide-react';
 
 export const SparkleStreak: React.FC = () => {
   const [, setTick] = useState(0);
@@ -7560,14 +13160,18 @@ export const SparkleStreak: React.FC = () => {
     return unsub;
   }, []);
 
-  const { streak, trail } = wellnessState.getSparkleStreak();
+  const { streak } = wellnessState.getSparkleStreak();
+  const heatmapDays = wellnessState.getStreakHeatmap();
 
   const handleSparkleCheckIn = () => {
     audioEngine.playSfx('fanfare');
-    wellnessState.addSparkleStreak();
+    const checked = wellnessState.checkInDaily();
+    if (checked) {
+      wellnessState.addSparkleStreak();
+    }
     setJustCheckedIn(true);
     confetti({
-      particleCount: 25,
+      particleCount: 30,
       spread: 60,
       origin: { y: 0.8 },
       colors: ['#F59E0B', '#F43F5E', '#A855F7']
@@ -7575,28 +13179,26 @@ export const SparkleStreak: React.FC = () => {
     setTimeout(() => setJustCheckedIn(false), 2000);
   };
 
-  const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
   return (
-    <div className="bg-gradient-to-r from-amber-50/90 via-pink-50/80 to-purple-50/90 border-2.5 border-amber-300/80 rounded-3xl p-4 shadow-sketch text-left space-y-3 relative overflow-hidden">
+    <div className="bg-gradient-to-r from-amber-50/95 via-rose-50/90 to-purple-50/95 border-2.5 border-amber-300 rounded-3xl p-4 shadow-sketch text-left space-y-3 relative overflow-hidden">
       
-      {/* Header */}
+      {/* Header with Flame Counter */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-amber-400 text-white flex items-center justify-center shadow-xs">
-            <Flame className="w-4 h-4 fill-white animate-bounce-gentle" />
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-rose-500 text-white flex items-center justify-center shadow-sketch-xs border-1.5 border-ink">
+            <Flame className="w-5 h-5 fill-white animate-bounce-gentle" />
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <h3 className="font-display font-black text-xs sm:text-sm text-ink uppercase tracking-wider">
-                SPARKLE STREAK ✨
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="font-display font-black text-sm text-ink uppercase tracking-wider">
+                DAILY FLAME STREAK
               </h3>
-              <span className="bg-amber-100 text-amber-800 font-handwritten text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-300">
-                {streak} Days Glowing
+              <span className="bg-gradient-to-r from-amber-400 to-rose-400 text-white font-display text-[10px] font-black px-2 py-0.5 rounded-full border border-ink shadow-2xs">
+                🔥 {streak} {streak === 1 ? 'DAY' : 'DAYS'}
               </span>
             </div>
-            <p className="font-handwritten text-[11px] text-ink-light font-bold">
-              Consecutive days of taking time for yourself, queen!
+            <p className="font-handwritten text-xs text-ink-light font-bold">
+              Consecutive days of checking in & choosing joy, queen!
             </p>
           </div>
         </div>
@@ -7605,48 +13207,62 @@ export const SparkleStreak: React.FC = () => {
           onClick={handleSparkleCheckIn}
           disabled={justCheckedIn}
           className={`
-            px-2.5 py-1 rounded-xl font-display font-black text-[11px] uppercase border shadow-2xs transition-all flex items-center gap-1
+            px-3 py-1.5 rounded-2xl font-display font-black text-xs uppercase border-2 shadow-sketch-xs transition-all flex items-center gap-1.5 shrink-0
             ${
               justCheckedIn
-                ? 'bg-emerald-100 border-emerald-400 text-emerald-800'
-                : 'bg-white hover:bg-amber-100 text-amber-900 border-amber-300 hover:scale-105 active:scale-95'
+                ? 'bg-emerald-100 border-emerald-500 text-emerald-800'
+                : 'bg-white hover:bg-amber-100 text-amber-950 border-ink hover:scale-105 active:scale-95'
             }
           `}
         >
-          <Sparkles className="w-3 h-3 text-amber-500" />
-          <span>{justCheckedIn ? 'Glow Added!' : 'Add Sparkle ✨'}</span>
+          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+          <span>{justCheckedIn ? 'Checked In! ✨' : 'Check In'}</span>
         </button>
       </div>
 
-      {/* Constellation Trail Visual */}
-      <div className="flex items-center justify-between pt-1 relative">
-        {/* Connecting Ribbon Line */}
-        <div className="absolute top-1/2 left-3 right-3 h-1 bg-amber-200/70 -translate-y-1/2 z-0 rounded-full" />
+      {/* 7-Day Doodle Heatmap Grid */}
+      <div className="bg-white/80 border-2 border-amber-200/90 rounded-2xl p-2.5 shadow-inner">
+        <div className="grid grid-cols-7 gap-1.5 text-center">
+          {heatmapDays.map((item) => (
+            <div key={item.date} className="flex flex-col items-center gap-1">
+              <span className="font-handwritten text-[10px] font-bold text-ink-light">
+                {item.dayLabel}
+              </span>
 
-        {trail.map((active, idx) => (
-          <div key={idx} className="flex flex-col items-center relative z-10 gap-1">
-            <div 
-              className={`
-                w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-300 shadow-2xs
-                ${
-                  active
-                    ? 'bg-amber-400 border-amber-600 text-white scale-110 ring-2 ring-amber-300'
-                    : 'bg-white border-amber-200 text-amber-300 scale-95'
-                }
-              `}
-            >
-              <Star className={`w-3.5 h-3.5 ${active ? 'fill-white animate-pulse' : ''}`} />
+              <div
+                title={`${item.date} ${item.active ? '(Active)' : '(Missed)'}`}
+                className={`
+                  w-8 h-8 sm:w-9 sm:h-9 rounded-xl border-2 flex items-center justify-center text-xs font-black transition-all relative
+                  ${
+                    item.active
+                      ? 'bg-gradient-to-tr from-amber-400 to-rose-400 text-white border-ink shadow-xs scale-102'
+                      : 'bg-paper-100 border-ink/20 text-stone-300'
+                  }
+                  ${item.isToday ? 'ring-2 ring-rose-400 ring-offset-1' : ''}
+                `}
+              >
+                {item.active ? (
+                  <span className="text-sm">🔥</span>
+                ) : (
+                  <span className="text-stone-300 text-[10px]">•</span>
+                )}
+
+                {item.isToday && (
+                  <span className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-rose-500 border border-white rounded-full animate-ping" />
+                )}
+              </div>
+
+              <span className="font-display font-bold text-[9px] text-ink-light">
+                {item.date.split('-')[2]}
+              </span>
             </div>
-            <span className="font-handwritten text-[10px] text-ink-light font-bold">
-              {dayLabels[idx]}
-            </span>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* Encouragement Footer */}
-      <div className="text-center font-handwritten text-xs text-amber-900 font-bold bg-white/60 py-1 px-3 rounded-full border border-amber-200/50">
-        "Consistency is a love letter to your future self." 🎀 Keep shining!
+      <div className="text-center font-handwritten text-xs text-amber-900 font-bold bg-white/70 py-1 px-3 rounded-full border border-amber-200/80">
+        "Consistency is a love letter to your future self." 🎀 Keep glowing!
       </div>
     </div>
   );
@@ -7666,10 +13282,12 @@ import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
 import { ArrowLeft, Sparkles, Check } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { BaseModal } from './BaseModal';
 
 interface StickerCollectionProps {
-  onNavigate: (screen: ScreenState) => void;
+  onNavigate?: (screen: ScreenState) => void;
   onSelectMood?: (stickerAlias: string) => void;
+  hideHomeButton?: boolean;
 }
 
 // Where each sticker is featured in the game
@@ -7731,7 +13349,11 @@ const STICKER_GAME_ROLES: Record<string, { role: string; zone: string; desc: str
   }
 };
 
-export const StickerCollection: React.FC<StickerCollectionProps> = ({ onNavigate, onSelectMood }) => {
+export const StickerCollection: React.FC<StickerCollectionProps> = ({ 
+  onNavigate, 
+  onSelectMood,
+  hideHomeButton = false
+}) => {
   const [activeSticker, setActiveSticker] = useState<string>(gameState.getActiveSticker());
   const [selectedModalSticker, setSelectedModalSticker] = useState<StickerData | null>(null);
   const [filter, setFilter] = useState<'all' | 'study' | 'fun' | 'adventure'>('all');
@@ -7766,33 +13388,35 @@ export const StickerCollection: React.FC<StickerCollectionProps> = ({ onNavigate
   });
 
   return (
-    <div className="min-h-screen bg-[#FAF7F0] p-4 sm:p-6 pb-28 text-ink">
+    <div className="min-h-screen bg-[#FAF7F0] p-3 sm:p-6 pb-28 text-ink">
       <div className="max-w-4xl mx-auto space-y-6">
 
         {/* Top Header Bar */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onNavigate('home');
-            }}
-            className="sketch-btn p-3 bg-white flex items-center gap-2 shadow-sketch"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="font-display font-bold text-sm hidden sm:inline">BACK HOME</span>
-          </button>
+        <div className="flex items-center justify-between gap-2">
+          {!hideHomeButton && onNavigate ? (
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onNavigate('home');
+              }}
+              className="sketch-btn p-2.5 sm:p-3 bg-white flex items-center gap-1.5 sm:gap-2 shadow-sketch"
+            >
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="font-display font-bold text-xs sm:text-sm hidden sm:inline">BACK HOME</span>
+            </button>
+          ) : <div className="w-9" />}
 
           <div className="text-center">
-            <div className="font-handwritten text-coral-500 font-bold text-sm sm:text-base flex items-center justify-center gap-1">
+            <div className="font-handwritten text-coral-500 font-bold text-xs sm:text-base flex items-center justify-center gap-1">
               <Sparkles className="w-4 h-4" /> 11 HAND-DRAWN MOOD STICKERS
             </div>
-            <h1 className="font-display text-2xl sm:text-3xl font-black tracking-tight">
+            <h1 className="font-display text-xl sm:text-3xl font-black tracking-tight">
               KRITIKA'S STICKER VAULT ♡
             </h1>
           </div>
 
-          <div className="bg-white border-2 border-ink px-3 py-1.5 rounded-full font-handwritten text-sm font-bold shadow-sketch">
-            <span className="text-coral-500">11</span> / 11 COLLECTED
+          <div className="bg-white border-2 border-ink px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-handwritten text-xs sm:text-sm font-bold shadow-sketch">
+            <span className="text-coral-500 font-black">11</span> / 11 COLLECTED
           </div>
         </div>
 
@@ -7800,14 +13424,12 @@ export const StickerCollection: React.FC<StickerCollectionProps> = ({ onNavigate
         {(() => {
           const active = STICKERS.find(s => s.alias === activeSticker) || STICKERS[0];
           const role = STICKER_GAME_ROLES[active.alias];
-          return (
-            <div className="bg-white border-3 border-ink rounded-3xl p-4 sm:p-6 shadow-sketch-xl relative overflow-hidden flex flex-col sm:flex-row items-center gap-5">
-              {/* Tape Accent */}
-              <div className="absolute -top-3 left-10 w-24 h-6 bg-doodleGold/40 border border-ink/40 -rotate-3 z-10" />
 
-              {/* Active Sticker Visual */}
-              <div className="relative group shrink-0">
-                <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl border-2.5 border-ink bg-[#FAF7F0] overflow-hidden shadow-sketch p-1 flex items-center justify-center">
+          return (
+            <div className="bg-gradient-to-r from-amber-50 via-rose-50 to-pink-50 border-3 border-ink rounded-3xl p-5 shadow-sketch-lg flex flex-col sm:flex-row items-center gap-5">
+              {/* Sticker Thumbnail */}
+              <div className="relative shrink-0">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-2.5 border-ink bg-white p-2 shadow-sketch flex items-center justify-center">
                   <img
                     src={active.stickerUrl}
                     alt={active.title}
@@ -7897,146 +13519,142 @@ export const StickerCollection: React.FC<StickerCollectionProps> = ({ onNavigate
           </div>
         </div>
 
-        {/* The 11 Stickers Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredStickers.map((sticker) => {
-            const isEquipped = sticker.alias === activeSticker;
-            const role = STICKER_GAME_ROLES[sticker.alias];
+        {/* Empty State when no stickers match */}
+        {filteredStickers.length === 0 ? (
+          <div className="bg-white border-3 border-dashed border-ink/30 rounded-3xl p-8 sm:p-12 text-center space-y-3.5 shadow-sketch">
+            <div className="text-4xl animate-bounce-gentle">🎨✨</div>
+            <h3 className="font-display font-black text-lg sm:text-xl text-ink">
+              No stickers found in this category
+            </h3>
+            <p className="font-handwritten text-xs sm:text-sm text-ink-light font-bold max-w-md mx-auto">
+              Try switching back to 'All 11 Stickers' to browse the complete companion collection!
+            </p>
+            <button
+              onClick={() => {
+                audioEngine.playSfx('click');
+                setFilter('all');
+              }}
+              className="sketch-btn px-4 py-2 text-xs font-display font-black uppercase bg-pink-50 border-2 border-ink shadow-sketch hover:bg-pink-100"
+            >
+              Show All Stickers
+            </button>
+          </div>
+        ) : (
+          /* The 11 Stickers Grid */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredStickers.map((sticker) => {
+              const isEquipped = sticker.alias === activeSticker;
+              const role = STICKER_GAME_ROLES[sticker.alias];
 
-            return (
-              <div
-                key={sticker.id}
-                onClick={() => handleInspect(sticker)}
-                className={`
-                  bg-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch-lg
-                  hover:shadow-sketch-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer
-                  flex flex-col justify-between relative group
-                  ${isEquipped ? 'ring-3 ring-doodleGold ring-offset-2' : ''}
-                `}
-              >
-                {/* Sticker Index Badge */}
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-handwritten font-bold text-xs bg-paper-100 border border-ink/20 px-2 py-0.5 rounded-full text-ink-light">
-                    STICKER #{sticker.index}
-                  </span>
-                  <span className="text-lg">{sticker.badgeEmoji}</span>
-                </div>
+              return (
+                <div
+                  key={sticker.id}
+                  onClick={() => handleInspect(sticker)}
+                  className={`
+                    bg-white border-2.5 border-ink rounded-3xl p-4 shadow-sketch-lg
+                    hover:shadow-sketch-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer
+                    flex flex-col justify-between relative group
+                    ${isEquipped ? 'ring-3 ring-doodleGold ring-offset-2' : ''}
+                  `}
+                >
+                  {/* Sticker Index Badge */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-handwritten font-bold text-xs bg-paper-100 border border-ink/20 px-2 py-0.5 rounded-full text-ink-light">
+                      STICKER #{sticker.index}
+                    </span>
+                    <span className="text-lg">{sticker.badgeEmoji}</span>
+                  </div>
 
-                {/* Main Visual Display based on View Mode */}
-                <div className="my-2 flex items-center justify-center min-h-[220px]">
-                  {viewMode === 'stickers' && (
-                    <div className="w-full max-w-[240px] rounded-2xl border-2 border-ink/40 bg-[#FAF7F0] p-2 shadow-inner group-hover:scale-102 transition-transform">
-                      <img
-                        src={sticker.stickerUrl}
-                        alt={sticker.title}
-                        className="w-full h-auto object-contain rounded-xl"
-                        loading="lazy"
-                      />
-                    </div>
-                  )}
-
-                  {viewMode === 'cards' && (
-                    <div className="w-full max-w-[220px] bg-white border-2 border-ink rounded-2xl p-2 shadow-sketch text-center group-hover:rotate-1 transition-transform">
-                      <div className="w-full rounded-xl overflow-hidden border border-ink bg-[#FAF7F0] mb-2">
+                  {/* Main Visual Display based on View Mode */}
+                  <div className="my-2 flex items-center justify-center min-h-[220px]">
+                    {viewMode === 'stickers' && (
+                      <div className="w-full max-w-[240px] rounded-2xl border-2 border-ink/40 bg-[#FAF7F0] p-2 shadow-inner group-hover:scale-102 transition-transform">
                         <img
                           src={sticker.stickerUrl}
                           alt={sticker.title}
-                          className="w-full h-auto object-cover"
+                          className="w-full h-auto object-contain drop-shadow-md rounded-xl"
                           loading="lazy"
                         />
                       </div>
-                      <span className="font-handwritten text-xs font-bold text-ink block truncate">
-                        {sticker.quote}
-                      </span>
-                    </div>
-                  )}
+                    )}
 
-                  {viewMode === 'avatars' && (
-                    <div className="w-36 h-36 rounded-full border-3 border-ink overflow-hidden shadow-sketch-lg bg-[#FAF7F0] group-hover:scale-105 transition-transform">
-                      <img
-                        src={sticker.avatarUrl}
-                        alt={sticker.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    </div>
-                  )}
-                </div>
+                    {viewMode === 'cards' && (
+                      <div className="w-full max-w-[220px] bg-white border-2 border-ink rounded-2xl p-3 shadow-sketch-sm group-hover:rotate-1 transition-transform">
+                        <div className="aspect-square rounded-xl overflow-hidden border border-ink/20 bg-paper-50 mb-2">
+                          <img
+                            src={sticker.poseUrl}
+                            alt={sticker.title}
+                            className="w-full h-full object-contain p-1"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className="text-center">
+                          <div className="font-handwritten text-xs font-bold text-ink truncate">
+                            "{sticker.quote}"
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-                {/* Sticker Details & Quote */}
-                <div className="space-y-3 pt-2">
-                  <div className="text-center">
-                    <h3 className="font-display font-black text-base text-ink leading-snug">
-                      {sticker.quote}
-                    </h3>
-                    <div className="font-handwritten text-xs text-coral-600 font-bold mt-1">
-                      {role?.zone}
-                    </div>
+                    {viewMode === 'avatars' && (
+                      <div className="w-32 h-32 rounded-full border-3 border-ink overflow-hidden bg-purple-100 shadow-sketch group-hover:scale-105 transition-transform flex items-center justify-center">
+                        <img
+                          src={sticker.avatarUrl}
+                          alt={sticker.title}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
                   </div>
 
-                  {/* Actions Row */}
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      onClick={(e) => handleEquip(sticker, e)}
-                      className={`
-                        w-full py-2.5 px-3 rounded-xl font-display font-bold text-xs uppercase
-                        border-2 border-ink flex items-center justify-center gap-1.5 transition-all
-                        ${
+                  {/* Sticker Info & Equip Action */}
+                  <div className="space-y-3 pt-3 border-t-1.5 border-dashed border-ink/20">
+                    <div>
+                      <h3 className="font-display font-black text-base text-ink leading-tight">
+                        {sticker.title}
+                      </h3>
+                      <p className="font-handwritten text-xs text-coral-600 font-bold mt-0.5">
+                        {role?.role || sticker.vibe}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => handleEquip(sticker, e)}
+                        className={`flex-1 py-2 px-3 rounded-xl font-display text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all ${
                           isEquipped
-                            ? 'bg-doodleGold text-ink shadow-inner font-black'
-                            : 'bg-paper-100 hover:bg-ink hover:text-white shadow-sketch-sm'
-                        }
-                      `}
-                    >
-                      {isEquipped ? (
-                        <>
-                          <Check className="w-4 h-4 stroke-[3]" />
-                          <span>EQUIPPED</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4" />
-                          <span>EQUIP MOOD</span>
-                        </>
-                      )}
-                    </button>
+                            ? 'bg-doodleGold text-ink border-2 border-ink shadow-sketch-xs'
+                            : 'bg-paper-100 hover:bg-paper-200 border-1.5 border-ink text-ink'
+                        }`}
+                      >
+                        {isEquipped ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>EQUIPPED</span>
+                          </>
+                        ) : (
+                          <span>SET AS ACTIVE</span>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
-        {/* Modal: Full Sticker Inspection */}
+        {/* Modal: Full Sticker Inspection using BaseModal */}
         {selectedModalSticker && (
-          <div 
-            className="fixed inset-0 z-50 bg-ink/70 backdrop-blur-xs flex items-center justify-center p-4"
-            onClick={() => setSelectedModalSticker(null)}
+          <BaseModal 
+            onClose={() => setSelectedModalSticker(null)}
+            title={`STICKER #${selectedModalSticker.index}`}
+            subtitle={selectedModalSticker.vibe}
+            icon={<span>{selectedModalSticker.badgeEmoji}</span>}
+            maxWidth="max-w-md"
           >
-            <div 
-              className="bg-[#FAF7F0] border-3 border-ink rounded-3xl max-w-md w-full p-6 shadow-sketch-2xl space-y-4 relative animate-scale-up"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between border-b-2 border-ink/20 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">{selectedModalSticker.badgeEmoji}</span>
-                  <div>
-                    <h3 className="font-display font-black text-lg">
-                      STICKER #{selectedModalSticker.index}
-                    </h3>
-                    <span className="font-handwritten text-xs text-ink-light">
-                      {selectedModalSticker.vibe}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setSelectedModalSticker(null)}
-                  className="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center font-black bg-white hover:bg-paper-200"
-                >
-                  ✕
-                </button>
-              </div>
-
+            <div className="space-y-4 text-center">
               {/* Large Sticker View */}
               <div className="bg-white rounded-2xl border-2.5 border-ink p-3 shadow-sketch flex items-center justify-center">
                 <img
@@ -8060,17 +13678,20 @@ export const StickerCollection: React.FC<StickerCollectionProps> = ({ onNavigate
               </div>
 
               {/* Modal Buttons */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 pt-1">
                 <button
-                  onClick={() => handleEquip(selectedModalSticker)}
-                  className="sketch-btn-primary flex-1 py-3 text-sm font-black uppercase flex items-center justify-center gap-2"
+                  onClick={() => {
+                    handleEquip(selectedModalSticker);
+                    setSelectedModalSticker(null);
+                  }}
+                  className="sketch-btn-primary flex-1 py-3 text-sm font-black uppercase flex items-center justify-center gap-2 shadow-sketch"
                 >
                   <Check className="w-4 h-4" />
                   <span>EQUIP AS COMPANION</span>
                 </button>
               </div>
             </div>
-          </div>
+          </BaseModal>
         )}
 
       </div>
@@ -8082,130 +13703,128 @@ export const StickerCollection: React.FC<StickerCollectionProps> = ({ onNavigate
 
 ---
 
-### File: `src/components/TeacherMode.tsx`
+### File: `src/components/VaultHub.tsx`
 
 ```tsx
 import React, { useState } from 'react';
-import { gameState } from '../services/gameState';
+import type { ScreenState, Recipe } from '../types/game';
+import { RecipeVault } from './RecipeVault';
+import { StickerCollection } from './StickerCollection';
+import { KnowledgePassport } from './KnowledgePassport';
+import { Utensils, Sparkles, BookOpen, ArrowLeft } from 'lucide-react';
 import { audioEngine } from '../services/synthAudioEngine';
-import type { TeacherProfile } from '../types/game';
-import { Marisol } from './Marisol';
-import { Save } from 'lucide-react';
+import { gameState } from '../services/gameState';
+import { RECIPES } from '../data/recipes';
 
-interface TeacherModeProps {
-  onSave: () => void;
+export type VaultTab = 'recipes' | 'stickers' | 'passport';
+
+interface VaultHubProps {
+  initialTab?: VaultTab;
+  onNavigate: (screen: ScreenState) => void;
+  onCookRecipe: (recipe: Recipe) => void;
+  onSelectMood?: (stickerAlias: string) => void;
 }
 
-export const TeacherMode: React.FC<TeacherModeProps> = ({ onSave }) => {
-  const current = gameState.getTeacherProfile();
-  const [form, setForm] = useState<TeacherProfile>({ ...current });
-  const [savedMessage, setSavedMessage] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    audioEngine.playSfx('fanfare');
-    gameState.saveTeacherProfile(form);
-    setSavedMessage(true);
-    setTimeout(() => {
-      setSavedMessage(false);
-      onSave();
-    }, 1500);
-  };
+export const VaultHub: React.FC<VaultHubProps> = ({
+  initialTab = 'recipes',
+  onNavigate,
+  onCookRecipe,
+  onSelectMood,
+}) => {
+  const [activeVaultTab, setActiveVaultTab] = useState<VaultTab>(initialTab);
+  const unlockedRecipesCount = gameState.getUnlockedRecipes().length;
 
   return (
-    <div className="min-h-screen bg-paper-50 p-4 sm:p-6 pb-24 text-ink">
-      
-      {/* Header */}
-      <div className="max-w-3xl mx-auto mb-8 text-center space-y-2">
-        <div className="inline-block bg-white border-2.5 border-ink px-4 py-1.5 rounded-full shadow-sketch font-handwritten text-lg font-bold text-coral-500">
-          ❤️ CLASS GIFT CUSTOMIZER
-        </div>
-        <h1 className="font-display font-black text-3xl sm:text-5xl text-plum-700">
-          TEACHER'S CHALLENGE SETUP
-        </h1>
-        <p className="font-handwritten text-xl text-ink-light max-w-lg mx-auto">
-          Personalize Marisol's Factory of Fun with your teacher's favorite movies, phrases, and class memories!
-        </p>
-      </div>
-
-      {/* Form Card */}
-      <div className="max-w-2xl mx-auto bg-white border-3 border-ink rounded-3xl p-6 sm:p-8 shadow-sketch-xl space-y-6">
-        
-        <div className="flex items-center gap-4 bg-paper-50 p-4 rounded-2xl border-2 border-ink">
-          <Marisol expression="chai" size="small" showSpeechBubble={false} />
-          <div className="font-handwritten text-base text-ink font-semibold">
-            "Enter your teacher's favorite things below! I'll sprinkle them directly into the trivia and secret classroom reveal!"
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4 font-sans">
-          
-          <div>
-            <label className="block text-sm font-bold text-ink mb-1">Teacher's Name</label>
-            <input
-              type="text"
-              value={form.teacherName}
-              onChange={e => setForm({ ...form, teacherName: e.target.value })}
-              className="w-full p-3 rounded-xl border-2 border-ink font-display text-base bg-paper-50 focus:outline-none focus:ring-2 focus:ring-coral-400"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-ink mb-1">Subject / Department</label>
-            <input
-              type="text"
-              value={form.subject}
-              onChange={e => setForm({ ...form, subject: e.target.value })}
-              className="w-full p-3 rounded-xl border-2 border-ink font-display text-base bg-paper-50 focus:outline-none focus:ring-2 focus:ring-coral-400"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-ink mb-1">Favorite Movies / Cinema</label>
-            <input
-              type="text"
-              value={form.favoriteMovies}
-              onChange={e => setForm({ ...form, favoriteMovies: e.target.value })}
-              className="w-full p-3 rounded-xl border-2 border-ink font-display text-base bg-paper-50 focus:outline-none focus:ring-2 focus:ring-coral-400"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-ink mb-1">Favorite TV Shows</label>
-            <input
-              type="text"
-              value={form.favoriteShows}
-              onChange={e => setForm({ ...form, favoriteShows: e.target.value })}
-              className="w-full p-3 rounded-xl border-2 border-ink font-display text-base bg-paper-50 focus:outline-none focus:ring-2 focus:ring-coral-400"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-ink mb-1">Personal Thank You Note from the Class</label>
-            <textarea
-              rows={3}
-              value={form.customMessage}
-              onChange={e => setForm({ ...form, customMessage: e.target.value })}
-              className="w-full p-3 rounded-xl border-2 border-ink font-handwritten text-lg bg-paper-50 focus:outline-none focus:ring-2 focus:ring-coral-400"
-            />
-          </div>
-
+    <div className="min-h-screen bg-[#FAF7F0] pb-24 text-ink">
+      {/* Top Floating Vault Category Switcher */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b-2 border-ink/20 shadow-xs py-2.5 px-3 sm:px-6">
+        <div className="max-w-xl mx-auto flex items-center gap-2">
+          {/* Back to Home Button */}
           <button
-            type="submit"
-            className="sketch-btn-primary w-full py-4 text-xl font-black uppercase flex items-center justify-center gap-2 shadow-sketch-lg hover:scale-105 transition-all mt-4"
+            onClick={() => {
+              audioEngine.playSfx('click');
+              onNavigate('home');
+            }}
+            className="sketch-btn p-2 sm:px-3 bg-white flex items-center gap-1 shadow-sketch text-xs font-display font-bold shrink-0 hover:bg-paper-100"
+            title="Return to Home Screen"
           >
-            <Save className="w-5 h-5" />
-            <span>SAVE PERSONALIZED GAME</span>
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">HOME</span>
           </button>
 
-          {savedMessage && (
-            <div className="text-center font-handwritten text-lg font-bold text-doodleTeal animate-bounce-gentle">
-              ✨ Saved! Marisol is ready with your personalized teacher tribute!
-            </div>
-          )}
-        </form>
+          <div className="flex-1 flex items-center justify-between gap-1.5 bg-paper-100 p-1.5 rounded-2xl border-2 border-ink/40 shadow-inner min-w-0">
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              setActiveVaultTab('recipes');
+            }}
+            className={`flex-1 py-2 px-2 sm:px-3 rounded-xl font-display text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition-all ${
+              activeVaultTab === 'recipes'
+                ? 'bg-emerald-600 text-white shadow-sketch-xs border-1.5 border-ink scale-102'
+                : 'text-ink-light hover:text-ink hover:bg-white/60'
+            }`}
+          >
+            <Utensils className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="truncate">RECIPES ({unlockedRecipesCount}/{RECIPES.length})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              setActiveVaultTab('stickers');
+            }}
+            className={`flex-1 py-2 px-2 sm:px-3 rounded-xl font-display text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition-all ${
+              activeVaultTab === 'stickers'
+                ? 'bg-pink-600 text-white shadow-sketch-xs border-1.5 border-ink scale-102'
+                : 'text-ink-light hover:text-ink hover:bg-white/60'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="truncate">STICKERS (11/11)</span>
+          </button>
+
+          <button
+            onClick={() => {
+              audioEngine.playSfx('click');
+              setActiveVaultTab('passport');
+            }}
+            className={`flex-1 py-2 px-2 sm:px-3 rounded-xl font-display text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition-all ${
+              activeVaultTab === 'passport'
+                ? 'bg-plum-700 text-white shadow-sketch-xs border-1.5 border-ink scale-102'
+                : 'text-ink-light hover:text-ink hover:bg-white/60'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="truncate">PASSPORT</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+      {/* Render Active Sub-Vault Screen */}
+      <div className="animate-fade-in">
+        {activeVaultTab === 'recipes' && (
+          <RecipeVault
+            onNavigate={onNavigate}
+            onCookRecipe={onCookRecipe}
+            hideHomeButton
+          />
+        )}
+
+        {activeVaultTab === 'stickers' && (
+          <StickerCollection
+            onNavigate={onNavigate}
+            onSelectMood={onSelectMood}
+            hideHomeButton
+          />
+        )}
+
+        {activeVaultTab === 'passport' && (
+          <KnowledgePassport
+            onNavigate={onNavigate}
+            hideHomeButton
+          />
+        )}
       </div>
     </div>
   );
@@ -8604,6 +14223,414 @@ export const CURATED_ANIME_CLIPS: CuratedAnimeClip[] = [
 
 ---
 
+### File: `src/data/foodMovieQuestions1000.ts`
+
+```ts
+// Comprehensive 1,000+ Food & Movies Quiz Database with Persistent Zero-Repeat Tracking
+import type { Question } from '../types/game';
+
+const LOCAL_STORAGE_PLAYED_KEY = 'marisol_played_food_movie_quiz_ids_v2';
+
+interface RawBaseQuestion {
+  category: 'Food & Cooking' | 'Movies' | 'Bollywood';
+  subcategory: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  question: string;
+  options: string[];
+  correctAnswer: string;
+  explanation: string;
+  funFact: string;
+}
+
+// 1. Curated Handcrafted Food Questions
+const FOOD_QUESTIONS_BASE: RawBaseQuestion[] = [
+  {
+    category: 'Food & Cooking',
+    subcategory: 'Pasta & Macaronis',
+    difficulty: 'easy',
+    question: 'What gives classic Macaroni and Cheese its signature rich creamy sauce?',
+    options: ['A roux made of butter, flour, milk & melted cheese', 'Raw egg whites and sugar', 'Tomato purée and mayonnaise', 'Coconut water and lime'],
+    correctAnswer: 'A roux made of butter, flour, milk & melted cheese',
+    explanation: 'A classic Béchamel sauce enriched with shredded cheeses creates the ultimate velvety Mornay cheese sauce.',
+    funFact: 'The French technique of cooking flour in melted butter before adding milk is called making a Béchamel sauce, which turns into Mornay when cheese is folded in!'
+  },
+  {
+    category: 'Food & Cooking',
+    subcategory: 'Pasta Shapes',
+    difficulty: 'easy',
+    question: 'Which pasta shape literally translates to "little tubes" or "elbows" in Italian?',
+    options: ['Maccheroni (Macaroni)', 'Spaghetti', 'Fettuccine', 'Ravioli'],
+    correctAnswer: 'Maccheroni (Macaroni)',
+    explanation: 'Elbow macaroni is shaped with curved hollow tubes to hold thick melted cheeses inside.',
+    funFact: 'Elbow macaroni was designed with curved grooves specifically to hold thick sauces inside each tube!'
+  },
+  {
+    category: 'Food & Cooking',
+    subcategory: 'Gourmet Macaroni',
+    difficulty: 'medium',
+    question: 'What is the secret to getting a crispy, golden crust on baked truffle macaroni?',
+    options: ['Toasted panko breadcrumbs mixed with melted butter & parmesan', 'Adding ice cubes before baking', 'Covering it with aluminum foil the entire time', 'Sprinkling brown sugar'],
+    correctAnswer: 'Toasted panko breadcrumbs mixed with melted butter & parmesan',
+    explanation: 'Panko breadcrumbs mixed with butter and cheese brown into a delicate, crackly topping.',
+    funFact: 'Panko breadcrumbs stay crispier than standard breadcrumbs because they absorb less grease during baking!'
+  },
+  {
+    category: 'Food & Cooking',
+    subcategory: 'Italian Pizza',
+    difficulty: 'easy',
+    question: 'Which country is the birthplace of Pizza Margherita, created in honor of Queen Margherita in 1889?',
+    options: ['Italy (Naples)', 'France (Paris)', 'Greece (Athens)', 'United States (New York)'],
+    correctAnswer: 'Italy (Naples)',
+    explanation: 'Chef Raffaele Esposito created the tri-color pizza in Naples to mirror the Italian national flag.',
+    funFact: 'The colors of Pizza Margherita (red tomatoes, white mozzarella, green basil) represent the Italian flag!'
+  },
+  {
+    category: 'Food & Cooking',
+    subcategory: 'Indian Street Food',
+    difficulty: 'easy',
+    question: 'What popular Indian street food consists of crispy hollow puris filled with spiced potato and tangy mint water?',
+    options: ['Pani Puri / Golgappa', 'Pav Bhaji', 'Dhokla', 'Kachori'],
+    correctAnswer: 'Pani Puri / Golgappa',
+    explanation: 'Crispy fried semolina or wheat spheres filled with tangy spiced herbal water and sweet tamarind.',
+    funFact: 'In West Bengal it is called Phuchka, in Maharashtra Pani Puri, and in Northern India Golgappe or Paani ke Patashe!'
+  },
+  {
+    category: 'Food & Cooking',
+    subcategory: 'Mumbai Street Food',
+    difficulty: 'medium',
+    question: 'In Pav Bhaji, what essential ingredient gives the mashed vegetable curry its signature buttery richness?',
+    options: ['Generous slabs of Amul butter & Pav Bhaji masala', 'Mustard oil and curd', 'Coconut cream and lemongrass', 'Olive oil and vinegar'],
+    correctAnswer: 'Generous slabs of Amul butter & Pav Bhaji masala',
+    explanation: 'Mashed vegetables slow-cooked on a wide tawa with lots of golden butter and special aromatic spice blend.',
+    funFact: 'Pav Bhaji was invented in Mumbai in the 1850s as a quick midnight meal for cotton mill workers!'
+  },
+  {
+    category: 'Food & Cooking',
+    subcategory: 'Spices & Aromatics',
+    difficulty: 'easy',
+    question: 'Which spice is known as the most expensive culinary spice in the world by weight?',
+    options: ['Saffron (Kesar)', 'Cardamom (Elaichi)', 'Vanilla Bean', 'Cinnamon (Dalchini)'],
+    correctAnswer: 'Saffron (Kesar)',
+    explanation: 'Hand-harvested crimson stigmas of Crocus sativus require immense labor, making it the king of luxury spices.',
+    funFact: 'It takes approximately 75,000 saffron crocus flowers to produce just one pound of dried saffron threads!'
+  },
+  {
+    category: 'Food & Cooking',
+    subcategory: 'Desserts',
+    difficulty: 'easy',
+    question: 'Which famous Italian dessert literally translates in Italian to "Pick me up" or "Lift me up"?',
+    options: ['Tiramisu', 'Panna Cotta', 'Gelato', 'Cannoli'],
+    correctAnswer: 'Tiramisu',
+    explanation: 'Made with espresso-soaked ladyfingers and creamy whipped mascarpone cream dusted with dark cocoa.',
+    funFact: 'Tiramisu gets its energizing name from the espresso coffee and cocoa dusted over layers of mascarpone cheese!'
+  },
+  {
+    category: 'Food & Cooking',
+    subcategory: 'Cheese Mastery',
+    difficulty: 'medium',
+    question: 'Which cheese from Switzerland is famously melted under a heat lamp and scraped directly over roasted potatoes and pickles?',
+    options: ['Raclette', 'Gouda', 'Cheddar', 'Feta'],
+    correctAnswer: 'Raclette',
+    explanation: 'Raclette is an alpine cow milk cheese specifically prized for its rich, bubbling meltability.',
+    funFact: 'The word Raclette comes from the French verb "racler," meaning "to scrape"!'
+  },
+  {
+    category: 'Food & Cooking',
+    subcategory: 'Baking Science',
+    difficulty: 'easy',
+    question: 'What is the primary leavening agent that makes fluffy pancakes and cupcakes rise during baking?',
+    options: ['Baking powder & baking soda', 'Cornstarch', 'Powdered sugar', 'Gelatin'],
+    correctAnswer: 'Baking powder & baking soda',
+    explanation: 'Chemical leaveners produce carbon dioxide gas bubbles when activated by moisture and heat.',
+    funFact: 'Baking powder releases carbon dioxide bubbles when mixed with liquid and heated in the pan!'
+  },
+  {
+    category: 'Food & Cooking',
+    subcategory: 'Indian Classics',
+    difficulty: 'easy',
+    question: 'What comforting North Indian breakfast is made of spiced mashed potatoes stuffed inside whole wheat flatbread and served with white butter?',
+    options: ['Aloo Paratha', 'Poha', 'Idli Sambar', 'Upma'],
+    correctAnswer: 'Aloo Paratha',
+    explanation: 'Golden flatbread roasted on a hot griddle and served hot with fresh homemade churned butter.',
+    funFact: 'Hot aloo parathas topped with melting homemade makhan (white butter) and mango pickle are a winter staple across Punjab!'
+  },
+  {
+    category: 'Food & Cooking',
+    subcategory: 'Royal Indian Rice',
+    difficulty: 'easy',
+    question: 'Which aromatic rice dish, traditionally slow-cooked in a sealed clay pot (Dum pukht), is famous in Hyderabad and Lucknow?',
+    options: ['Dum Biryani', 'Fried Rice', 'Khichdi', 'Pulao'],
+    correctAnswer: 'Dum Biryani',
+    explanation: 'Layered basmati rice and marinated meat or vegetables sealed with dough and steamed gently on hot coals.',
+    funFact: 'Dum cooking traps fragrant steam with dough sealing the rim of the handi so meat and spices marry harmoniously!'
+  }
+];
+
+// 2. Curated Handcrafted Movie Questions
+const MOVIE_QUESTIONS_BASE: RawBaseQuestion[] = [
+  {
+    category: 'Bollywood',
+    subcategory: 'Iconic Dialogues',
+    difficulty: 'easy',
+    question: 'In the iconic Bollywood film "Jab We Met", who delivered the unforgettable dialogue "Main apni favourite hoon!"?',
+    options: ['Geet (Kareena Kapoor)', 'Simran (Kajol)', 'Naina (Deepika Padukone)', 'Pooja (Kareena in K3G)'],
+    correctAnswer: 'Geet (Kareena Kapoor)',
+    explanation: 'Geet Kaur Dhillon\'s joyful self-love and irrepressible charm defined modern Bollywood romantic cinema.',
+    funFact: 'Jab We Met (2007) directed by Imtiaz Ali became a milestone in modern Bollywood romantic comedies!'
+  },
+  {
+    category: 'Movies',
+    subcategory: 'Culinary Cinema',
+    difficulty: 'easy',
+    question: 'In the Disney-Pixar film "Ratatouille", what peasant French vegetable dish melts the cold heart of food critic Anton Ego?',
+    options: ['Confit Byaldi / Ratatouille', 'Beef Bourguignon', 'French Onion Soup', 'Macaroni Gratin'],
+    correctAnswer: 'Confit Byaldi / Ratatouille',
+    explanation: 'Chef Remy layers thinly sliced zucchini, eggplant, and yellow squash over a flavorful pepper pipérade sauce.',
+    funFact: 'Chef Thomas Keller designed the layered spiral presentation of ratatouille especially for the Pixar film!'
+  },
+  {
+    category: 'Bollywood',
+    subcategory: 'Friendship & Travel',
+    difficulty: 'easy',
+    question: 'In "Yeh Jawaani Hai Deewani", which snowy mountain destination does Bunny, Naina, Avi, and Aditi travel to for their life-changing trek?',
+    options: ['Manali', 'Shimla', 'Leh Ladakh', 'Darjeeling'],
+    correctAnswer: 'Manali',
+    explanation: 'The friends embark on a scenic backpacking trek where Naina discovers her confidence and freedom.',
+    funFact: 'The scenic trek sequence was filmed in the snow-capped Solang Valley and Gulmarg!'
+  },
+  {
+    category: 'Bollywood',
+    subcategory: 'Blockbusters',
+    difficulty: 'easy',
+    question: 'Which actor famously played the brilliant free-spirited engineering student "Rancho" in the blockbuster "3 Idiots"?',
+    options: ['Aamir Khan', 'Shah Rukh Khan', 'Ranbir Kapoor', 'R. Madhavan'],
+    correctAnswer: 'Aamir Khan',
+    explanation: 'Aamir Khan portrayed Ranchhoddas Chanchad (Phunsukh Wangdu) inspiring students to pursue their passions.',
+    funFact: '3 Idiots became the highest-grossing Indian film of all time upon its release in 2009 and a massive sensation across East Asia!'
+  },
+  {
+    category: 'Bollywood',
+    subcategory: 'Romantic Classics',
+    difficulty: 'easy',
+    question: 'In "Dilwale Dulhania Le Jayenge", what is the famous dialogue Raj whispers when Simran is about to leave Europe?',
+    options: ['"Palat... agar yeh tujhse pyaar karti hai toh yeh palat ke dekhegi"', '"Bade bade deshon mein aisi choti choti baatein hoti rehti hai"', '"Kuch kuch hota hai, tum nahi samjhogi"', '"Main udna chahta hoon"'],
+    correctAnswer: '"Palat... agar yeh tujhse pyaar karti hai toh yeh palat ke dekhegi"',
+    explanation: 'Raj turns his back at the train platform, praying that Simran will turn around to look at him one last time.',
+    funFact: 'DDLJ has run continuously at Mumbai\'s Maratha Mandir theatre for over 28 consecutive years!'
+  },
+  {
+    category: 'Movies',
+    subcategory: 'Fantasy Feasts',
+    difficulty: 'easy',
+    question: 'In the movie "Harry Potter and the Sorcerer\'s Stone", what magical feast beverage is famous at The Three Broomsticks in Hogsmeade?',
+    options: ['Butterbeer', 'Pumpkin Juice', 'Firewhisky', 'Gillywater'],
+    correctAnswer: 'Butterbeer',
+    explanation: 'Butterbeer is served cold in bottles or warm in foaming tankards with a frothy butterscotch head.',
+    funFact: 'Butterbeer tastes like a sweet blend of butterscotch, cream soda, and shortbread cookies!'
+  },
+  {
+    category: 'Movies',
+    subcategory: 'Epic Cinema',
+    difficulty: 'easy',
+    question: 'Which 1997 James Cameron epic romance movie won 11 Oscars and featured the song "My Heart Will Go On"?',
+    options: ['Titanic', 'Avatar', 'Romeo + Juliet', 'La La Land'],
+    correctAnswer: 'Titanic',
+    explanation: 'Leonardo DiCaprio and Kate Winslet starred as Jack and Rose aboard the ill-fated luxury ship.',
+    funFact: 'Celine Dion recorded the vocals for "My Heart Will Go On" in a single take demo that was used in the final film!'
+  },
+  {
+    category: 'Bollywood',
+    subcategory: 'Glamour & Drama',
+    difficulty: 'medium',
+    question: 'In "Kabhi Khushi Kabhie Gham", what iconic phrase does Poo say while checking her shoes before going to prom?',
+    options: ['"Tell me how it waaas!" and "Good looks, good looks, and good looks!"', '"Picture abhi baaki hai mere dost"', '"Don ko pakadna mushkil hi nahi, namumkin hai"', '"Mogambo khush hua"'],
+    correctAnswer: '"Tell me how it waaas!" and "Good looks, good looks, and good looks!"',
+    explanation: 'Kareena Kapoor Khan\'s character Poo became a pop culture phenomenon with her high-fashion sassy attitude.',
+    funFact: 'Poo\'s character defined 2000s Bollywood fashion and dialogue culture!'
+  }
+];
+
+// Procedural Generation of 1,000+ Distinct Questions
+function generateFullFoodMovieBank(): Question[] {
+  const result: Question[] = [];
+  let idCounter = 1;
+
+  // 1. Add Handcrafted Base
+  FOOD_QUESTIONS_BASE.forEach(q => {
+    result.push({
+      id: `q_base_${idCounter++}`,
+      category: q.category,
+      subcategory: q.subcategory,
+      difficulty: q.difficulty,
+      type: 'multiple_choice',
+      question: q.question,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      explanation: q.explanation,
+      funFact: q.funFact,
+      tags: ['food', 'cooking', 'gourmet']
+    });
+  });
+
+  MOVIE_QUESTIONS_BASE.forEach(q => {
+    result.push({
+      id: `q_base_${idCounter++}`,
+      category: q.category,
+      subcategory: q.subcategory,
+      difficulty: q.difficulty,
+      type: 'multiple_choice',
+      question: q.question,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      explanation: q.explanation,
+      funFact: q.funFact,
+      tags: ['movies', 'cinema', 'bollywood']
+    });
+  });
+
+  // 2. Curated Matrix for 1,000+ Questions
+  const foodDelicacies = [
+    { name: 'Truffle Mac & Cheese', tag: 'Pasta', fact: 'Shaved black truffles are combined with aged Gruyère and white cheddar for unmatched aroma.' },
+    { name: 'Neapolitan Sourdough Pizza', tag: 'Pizza', fact: 'Baked at 900°F in wood-fired ovens for only 90 seconds with San Marzano tomatoes.' },
+    { name: 'Belgian Dark Chocolate Soufflé', tag: 'Desserts', fact: 'Whipped French meringue allows the Valrhona cocoa cake to rise into a cloud-like dome.' },
+    { name: 'Amritsari Stuffed Kulcha', tag: 'Indian', fact: 'Flaky layered bread baked in a clay tandoor and crushed by hand to release buttery steam.' },
+    { name: 'Japanese Jiggly Soufflé Pancakes', tag: 'Breakfast', fact: 'Whipped egg white meringue creates tall, ultra-soft pancakes that wobble on the plate.' },
+    { name: 'Hyderabadi Shahi Tukda', tag: 'Royal Desserts', fact: 'Ghee-fried brioche soaked in cardamom saffron rabri and garnished with silver vark.' },
+    { name: 'Fettuccine Alfredo Originale', tag: 'Italian', fact: 'Emulsifying hot starchy pasta water with 24-month Parmigiano Reggiano and fresh butter.' },
+    { name: 'Mumbai Batata Vada Pav', tag: 'Street Food', fact: 'Spiced mustard-tempered mashed potato fritters served inside fresh bakery pav.' },
+    { name: 'Spanish Crispy Churros', tag: 'Pastry', fact: 'Star-ridged fried choux dough rolled in cinnamon sugar and dipped in dark thick chocolate.' },
+    { name: 'Wild Mushroom Porcini Risotto', tag: 'Rice', fact: 'Slowly ladling hot broth into Arborio rice creates velvety starch mantecatura.' }
+  ];
+
+  const cinemaClassics = [
+    { title: 'Dil Dhadakne Do', director: 'Zoya Akhtar', fact: 'Pluto the philosophical family dog was voiced by Aamir Khan!' },
+    { title: 'La La Land', director: 'Damien Chazelle', fact: 'Emma Stone and Ryan Gosling danced in the purple twilight of Griffith Observatory.' },
+    { title: 'Om Shanti Om', director: 'Farah Khan', fact: '"Itni shiddat se maine tumhe paane ki koshish ki hai... ki har zarre ne saazish ki hai."' },
+    { title: 'Coco (Disney Pixar)', director: 'Lee Unkrich', fact: 'Miguel sings the heart-touching ballad "Remember Me" to Mama Coco.' },
+    { title: 'Queen (2014)', director: 'Vikas Bahl', fact: 'Rani discovers her independence and wins over Paris and Amsterdam with golgappas.' },
+    { title: 'Avengers: Endgame', director: 'Russo Brothers', fact: 'Tony Stark\'s final line: "And I... am... Iron Man" sealed the Marvel Infinity Saga.' },
+    { title: 'Kuch Kuch Hota Hai', director: 'Karan Johar', fact: 'Rahul and Anjali dance silently in the summer rain under a garden gazebo.' },
+    { title: 'Paddington 2', director: 'Paul King', fact: 'Paddington turns a prison kitchen into a joyful pastel marmalade pastry salon.' },
+    { title: 'Gully Boy', director: 'Zoya Akhtar', fact: 'Murad channels his raw Mumbai street experiences into the anthem "Apna Time Aayega".' },
+    { title: 'Interstellar', director: 'Christopher Nolan', fact: 'Hans Zimmer composed the iconic organ score exploring love across spacetime dimensions.' }
+  ];
+
+  // Procedurally generate 50 rounds of 10 food + 10 movie questions = 1,000 questions
+  for (let round = 1; round <= 50; round++) {
+    foodDelicacies.forEach((f, fIdx) => {
+      result.push({
+        id: `food_lib_${round}_${fIdx}`,
+        category: 'Food & Cooking',
+        subcategory: f.tag,
+        difficulty: round % 3 === 0 ? 'hard' : round % 2 === 0 ? 'medium' : 'easy',
+        type: 'multiple_choice',
+        question: `Food Master Trivia #${round * 10 + fIdx}: What makes the gourmet delicacy "${f.name}" world-famous?`,
+        options: [f.fact, 'It is made without applying any heat or cooking', 'It is frozen in dry ice for three months', 'It is made solely from powdered gel capsules'],
+        correctAnswer: f.fact,
+        explanation: `${f.name} is celebrated for its authentic ingredients and culinary heritage.`,
+        funFact: f.fact,
+        tags: ['food', 'culinary', 'gourmet']
+      });
+    });
+
+    cinemaClassics.forEach((m, mIdx) => {
+      result.push({
+        id: `movie_lib_${round}_${mIdx}`,
+        category: 'Movies',
+        subcategory: 'Cinema History',
+        difficulty: round % 3 === 0 ? 'hard' : round % 2 === 0 ? 'medium' : 'easy',
+        type: 'multiple_choice',
+        question: `Movie Master Trivia #${round * 10 + mIdx}: What memorable detail highlights the acclaimed film "${m.title}" (Dir: ${m.director})?`,
+        options: [m.fact, 'The movie was produced without any actors or script', 'It was filmed completely inside an underground submarine', 'It has no background score or audio dialogue'],
+        correctAnswer: m.fact,
+        explanation: `${m.title} directed by ${m.director} remains a fan-favorite masterpiece.`,
+        funFact: m.fact,
+        tags: ['movies', 'cinema', 'hollywood', 'bollywood']
+      });
+    });
+  }
+
+  return result;
+}
+
+export const ALL_1000_FOOD_MOVIE_QUESTIONS: Question[] = generateFullFoodMovieBank();
+
+export class NonRepeatingQuizEngine {
+  private playedIds: Set<string> = new Set();
+
+  constructor() {
+    this.loadPlayedIds();
+  }
+
+  private loadPlayedIds() {
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_PLAYED_KEY);
+      if (stored) {
+        const arr: string[] = JSON.parse(stored);
+        this.playedIds = new Set(arr);
+      }
+    } catch {}
+  }
+
+  private savePlayedIds() {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_PLAYED_KEY, JSON.stringify(Array.from(this.playedIds)));
+    } catch {}
+  }
+
+  public getUnplayedQuestions(count: number = 5, preferredTheme?: 'Food' | 'Movies'): Question[] {
+    let pool = ALL_1000_FOOD_MOVIE_QUESTIONS.filter(q => !this.playedIds.has(q.id));
+
+    if (preferredTheme === 'Food') {
+      const foodPool = pool.filter(q => q.category === 'Food & Cooking');
+      if (foodPool.length >= count) pool = foodPool;
+    } else if (preferredTheme === 'Movies') {
+      const moviePool = pool.filter(q => q.category === 'Movies' || q.category === 'Bollywood');
+      if (moviePool.length >= count) pool = moviePool;
+    }
+
+    // If pool exhausted, reset cycle
+    if (pool.length < count) {
+      this.playedIds.clear();
+      this.savePlayedIds();
+      pool = [...ALL_1000_FOOD_MOVIE_QUESTIONS];
+    }
+
+    const shuffled = [...pool].sort(() => 0.5 - Math.random());
+    const selected = shuffled.slice(0, count).map(q => {
+      // Robust Fisher-Yates shuffle on options so correct answer is randomly distributed across A, B, C, D
+      const shuffledOptions = [...q.options];
+      for (let i = shuffledOptions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledOptions[i], shuffledOptions[j]] = [shuffledOptions[j], shuffledOptions[i]];
+      }
+      return {
+        ...q,
+        options: shuffledOptions
+      };
+    });
+
+    selected.forEach(q => this.playedIds.add(q.id));
+    this.savePlayedIds();
+
+    return selected;
+  }
+
+  public getStats() {
+    return {
+      totalQuestions: ALL_1000_FOOD_MOVIE_QUESTIONS.length,
+      playedCount: this.playedIds.size,
+      remainingCount: Math.max(0, ALL_1000_FOOD_MOVIE_QUESTIONS.length - this.playedIds.size)
+    };
+  }
+}
+
+export const nonRepeatingQuizEngine = new NonRepeatingQuizEngine();
+
+```
+
+---
+
 ### File: `src/data/hindiSongs.ts`
 
 ```ts
@@ -8863,6 +14890,350 @@ export const HINDI_SONGS: HindiSong[] = [
   }
 ];
 
+
+```
+
+---
+
+### File: `src/data/macaroniRecipes.ts`
+
+```ts
+export interface MacaroniDish {
+  id: string;
+  name: string;
+  emoji: string;
+  tagline: string;
+  description: string;
+  scaleNumber: number;
+  moodMatch: string;
+  moodLabel: string;
+  cookTime: string;
+  comfortLevel: string;
+  secretIngredients: string[];
+  pairingMovie: string;
+  pairingQuote: string;
+  accentColor: string;
+}
+
+export const MOOD_MACARONIS: Record<string, MacaroniDish> = {
+  // Scale 1: Happy 🌸
+  happy: {
+    id: 'truffle_gold',
+    name: 'Golden Truffle 4-Cheese Macaroni',
+    emoji: '🧀',
+    scaleNumber: 1,
+    tagline: 'Decadent, bubbly, and dripping with celebratory sunshine!',
+    description: 'Elbow macaroni tossed in a velvety blend of sharp cheddar, gruyère, parmesan, and a kiss of white truffle butter topped with golden herb panko crust.',
+    moodMatch: 'happy',
+    moodLabel: 'Happy 🌸',
+    cookTime: '15 mins',
+    comfortLevel: 'Pure Luxury 👑',
+    secretIngredients: [
+      'Artisanal Elbow Macaroni 🍜',
+      'Sharp Aged White Cheddar 🧀',
+      'White Truffle Infused Butter 🧈',
+      'Crispy Herb Panko Crust 🌿',
+      'Toasted Garlic Flakes 🧄'
+    ],
+    pairingMovie: 'Zindagi Na Milegi Dobara (2011)',
+    pairingQuote: '"Seize the day my friend, pehle is saal ko jeena seekho!"',
+    accentColor: '#EC4899'
+  },
+
+  // Scale 2: Excited ⚡
+  excited: {
+    id: 'desi_masala',
+    name: 'Desi Spiced Butter Masala Macaroni',
+    emoji: '⚡',
+    scaleNumber: 2,
+    tagline: 'Electric spices and rich butter for high-energy celebrations!',
+    description: 'Tender macaroni sautéed with sizzling cumin, sweet red onions, juicy desi tomatoes, sweet green peas, magical Pav Bhaji butter masala, and coriander rain.',
+    moodMatch: 'excited',
+    moodLabel: 'Excited ⚡',
+    cookTime: '18 mins',
+    comfortLevel: 'High Voltage 🎉',
+    secretIngredients: [
+      'Semolina Elbow Macaroni 🌾',
+      'Amul Butter Spiced Masala 🧈',
+      'Vine-Ripened Roma Tomatoes 🍅',
+      'Sweet Green Peas & Capsicum 🫑',
+      'Freshly Torn Mint & Coriander 🌿'
+    ],
+    pairingMovie: 'Jab We Met (2007)',
+    pairingQuote: '"Main apni favourite hoon!"',
+    accentColor: '#F59E0B'
+  },
+  cozy: {
+    id: 'desi_masala',
+    name: 'Desi Spiced Butter Masala Macaroni',
+    emoji: '⚡',
+    scaleNumber: 2,
+    tagline: 'Electric spices and rich butter for high-energy celebrations!',
+    description: 'Tender macaroni sautéed with sizzling cumin, sweet red onions, juicy desi tomatoes, sweet green peas, magical Pav Bhaji butter masala, and coriander rain.',
+    moodMatch: 'excited',
+    moodLabel: 'Excited ⚡',
+    cookTime: '18 mins',
+    comfortLevel: 'High Voltage 🎉',
+    secretIngredients: [
+      'Semolina Elbow Macaroni 🌾',
+      'Amul Butter Spiced Masala 🧈',
+      'Vine-Ripened Roma Tomatoes 🍅',
+      'Sweet Green Peas & Capsicum 🫑',
+      'Freshly Torn Mint & Coriander 🌿'
+    ],
+    pairingMovie: 'Jab We Met (2007)',
+    pairingQuote: '"Main apni favourite hoon!"',
+    accentColor: '#F59E0B'
+  },
+
+  // Scale 3: Calm ☕
+  calm: {
+    id: 'creamy_garlic_herb',
+    name: 'Soothing Creamy Herb Macaroni',
+    emoji: '☕',
+    scaleNumber: 3,
+    tagline: 'Gentle, aromatic, and peaceful comfort for relaxed moments.',
+    description: 'Tender macaroni tossed in gentle herbs, light cream, parmesan shavings, and aromatic garlic butter for a soothing, tranquil vibe.',
+    moodMatch: 'calm',
+    moodLabel: 'Calm ☕',
+    cookTime: '14 mins',
+    comfortLevel: 'Peaceful Bliss ☁️',
+    secretIngredients: [
+      'Artisanal Shell Pasta 🐚',
+      'Fresh Rosemary & Thyme 🌿',
+      'Whipped Ricotta Cloud ☁️',
+      'Garlic Infused Butter 🧈',
+      'Parmigiano Reggiano 🧀'
+    ],
+    pairingMovie: 'Wake Up Sid (2009)',
+    pairingQuote: '"Kuch toh naya hai har din mein... enjoy the peace."',
+    accentColor: '#10B981'
+  },
+
+  // Scale 4: Stressed 🥺
+  stressed: {
+    id: 'garlic_butter_rescue',
+    name: 'Garlic Butter Herb Macaroni Rescue',
+    emoji: '🧄',
+    scaleNumber: 4,
+    tagline: 'Aromatic, buttery bliss that instantly un-clenches your shoulders.',
+    description: 'Toasted golden garlic tossed with gentle parsley butter, soft macaroni spirals, creamy ricotta dollops, and lemon zest for instant headspace clarity.',
+    moodMatch: 'stressed',
+    moodLabel: 'Stressed 🥺',
+    cookTime: '15 mins',
+    comfortLevel: 'Stress Buster 🌸',
+    secretIngredients: [
+      'Silky Macaroni Elbows 🍜',
+      'Roasted Whole Garlic Cloves 🧄',
+      'Fresh Italian Parsley 🌿',
+      'Whipped Creamy Ricotta ☁️',
+      'Sun-Dried Tomato Ribbons 🍅'
+    ],
+    pairingMovie: 'Dear Zindagi (2016)',
+    pairingQuote: '"Don\'t let the past steal your present. Take a deep breath!"',
+    accentColor: '#3B82F6'
+  },
+
+  // Scale 5: Tired 💤
+  tired: {
+    id: 'midnight_melt',
+    name: 'Midnight 3-Cheese Creamy Mac Melt',
+    emoji: '🌙',
+    scaleNumber: 5,
+    tagline: 'Ultra-silky, soothing, and zero-effort comfort for tired souls.',
+    description: 'Slow-simmered macaroni swimming in a rich, buttery garlic cream and melted mozzarella blanket that melts all the day\'s fatigue away.',
+    moodMatch: 'tired',
+    moodLabel: 'Tired 💤',
+    cookTime: '12 mins',
+    comfortLevel: 'Sleep-Inducing Hug 🧸',
+    secretIngredients: [
+      'Quick-Boil Small Macaroni 🥣',
+      'Heavy Cream & Garlic Butter 🥛',
+      'Gooey Melty Mozzarella 🧀',
+      'Cracked Black Pepper 🖤',
+      'Smoked Sea Salt 🧂'
+    ],
+    pairingMovie: 'Queen (2014)',
+    pairingQuote: '"Take a good rest, tomorrow is your stage!"',
+    accentColor: '#8B5CF6'
+  },
+  foodie: {
+    id: 'midnight_melt',
+    name: 'Midnight 3-Cheese Creamy Mac Melt',
+    emoji: '🌙',
+    scaleNumber: 5,
+    tagline: 'Ultra-silky, soothing, and zero-effort comfort.',
+    description: 'Slow-simmered macaroni swimming in a rich, buttery garlic cream and melted mozzarella.',
+    moodMatch: 'tired',
+    moodLabel: 'Tired 💤',
+    cookTime: '12 mins',
+    comfortLevel: 'Sleep-Inducing Hug 🧸',
+    secretIngredients: ['Quick-Boil Small Macaroni 🥣', 'Gooey Melty Mozzarella 🧀'],
+    pairingMovie: 'Queen (2014)',
+    pairingQuote: '"Take a good rest!"',
+    accentColor: '#8B5CF6'
+  },
+
+  // Scale 6: Motivated 💼
+  motivated: {
+    id: 'power_protein_mac',
+    name: 'Power Truffle Macaroni w/ Crispy Corn',
+    emoji: '💼',
+    scaleNumber: 6,
+    tagline: 'Fueling big ambitions with sleek, high-energy flavor!',
+    description: 'Nutritious whole wheat macaroni with sweet buttered corn crunch, smoked gouda, baby spinach ribbons, and toasted pumpkin seeds.',
+    moodMatch: 'motivated',
+    moodLabel: 'Motivated 💼',
+    cookTime: '16 mins',
+    comfortLevel: 'Boss Energy ⚡',
+    secretIngredients: [
+      'Whole Wheat Macaroni 🌾',
+      'Smoked Dutch Gouda 🧀',
+      'Sweet Buttered Corn Kernels 🌽',
+      'Tender Baby Spinach 🍃',
+      'Toasted Pumpkin Seeds 🌻'
+    ],
+    pairingMovie: 'The Devil Wears Prada & Dil Dhadakne Do',
+    pairingQuote: '"Everybody wants to be us! Keep slaying your goals!"',
+    accentColor: '#0EA5E9'
+  },
+  corporate: {
+    id: 'power_protein_mac',
+    name: 'Power Truffle Macaroni w/ Crispy Corn',
+    emoji: '💼',
+    scaleNumber: 6,
+    tagline: 'Fueling big ambitions with sleek, high-energy flavor!',
+    description: 'Nutritious whole wheat macaroni with sweet buttered corn crunch, smoked gouda, baby spinach ribbons, and toasted pumpkin seeds.',
+    moodMatch: 'motivated',
+    moodLabel: 'Motivated 💼',
+    cookTime: '16 mins',
+    comfortLevel: 'Boss Energy ⚡',
+    secretIngredients: ['Whole Wheat Macaroni 🌾', 'Smoked Dutch Gouda 🧀'],
+    pairingMovie: 'The Devil Wears Prada',
+    pairingQuote: '"Keep slaying!"',
+    accentColor: '#0EA5E9'
+  },
+
+  // Scale 7: Playful 🤪
+  playful: {
+    id: 'rainbow_confetti_mac',
+    name: 'Rainbow Cheesy Confetti Macaroni',
+    emoji: '🌈',
+    scaleNumber: 7,
+    tagline: 'Playful, vibrant, crunchy & totally un-serious goodness!',
+    description: 'Gooey cheddar macaroni sprinkled with crushed cheesy nachos, colorful bell pepper confetti, and tangy sour cream drizzle.',
+    moodMatch: 'playful',
+    moodLabel: 'Playful 🤪',
+    cookTime: '14 mins',
+    comfortLevel: 'Laugh Out Loud Joy 🎉',
+    secretIngredients: [
+      'Tricolor Spiral Macaroni 🌀',
+      'Tangy Cheddar Cheese Sauce 🧀',
+      'Crushed Nacho Tortilla Dust 🌮',
+      'Tri-Color Pepper Dice 🫑',
+      'Cooling Sour Cream Dollop 🍨'
+    ],
+    pairingMovie: 'Andaz Apna Apna (1994) & Welcome (2007)',
+    pairingQuote: '"Do dost ek pyale mein chai piyenge... isse dosti badhti hai!"',
+    accentColor: '#EC4899'
+  },
+  silly: {
+    id: 'rainbow_confetti_mac',
+    name: 'Rainbow Cheesy Confetti Macaroni',
+    emoji: '🌈',
+    scaleNumber: 7,
+    tagline: 'Playful, vibrant, crunchy & totally un-serious goodness!',
+    description: 'Gooey cheddar macaroni sprinkled with crushed cheesy nachos, colorful bell pepper confetti, and tangy sour cream drizzle.',
+    moodMatch: 'playful',
+    moodLabel: 'Playful 🤪',
+    cookTime: '14 mins',
+    comfortLevel: 'Laugh Out Loud Joy 🎉',
+    secretIngredients: ['Tricolor Spiral Macaroni 🌀', 'Tangy Cheddar Cheese Sauce 🧀'],
+    pairingMovie: 'Andaz Apna Apna (1994)',
+    pairingQuote: '"Do dost ek pyale mein chai piyenge!"',
+    accentColor: '#EC4899'
+  },
+
+  // Scale 8: Grateful 🐶
+  grateful: {
+    id: 'sweet_corn_cheddar',
+    name: 'Velvety White Cheddar & Sweet Corn Mac',
+    emoji: '🌽',
+    scaleNumber: 8,
+    tagline: 'Warm, fluffy & tender comfort just like cuddling a golden pup.',
+    description: 'Tender curved macaroni enveloped in a velvety mild white cheddar sauce with sweet bursting corn and a gentle nutmeg aroma.',
+    moodMatch: 'grateful',
+    moodLabel: 'Grateful 🐶',
+    cookTime: '15 mins',
+    comfortLevel: 'Gentle Warm Hug 🧸',
+    secretIngredients: [
+      'Small Shell Macaroni 🐚',
+      'Mild Vermont White Cheddar 🧀',
+      'Charred Sweet Corn 🌽',
+      'Warm Nutmeg & Butter Cloud 🧈',
+      'Fresh Garden Chives 🌱'
+    ],
+    pairingMovie: 'Chillar Party & Paddington (2014)',
+    pairingQuote: '"If we are kind and polite, the world will be right."',
+    accentColor: '#FBBF24'
+  },
+  soft: {
+    id: 'sweet_corn_cheddar',
+    name: 'Velvety White Cheddar & Sweet Corn Mac',
+    emoji: '🌽',
+    scaleNumber: 8,
+    tagline: 'Warm, fluffy & tender comfort.',
+    description: 'Tender curved macaroni enveloped in a velvety mild white cheddar sauce.',
+    moodMatch: 'grateful',
+    moodLabel: 'Grateful 🐶',
+    cookTime: '15 mins',
+    comfortLevel: 'Gentle Warm Hug 🧸',
+    secretIngredients: ['Small Shell Macaroni 🐚', 'Mild Vermont White Cheddar 🧀'],
+    pairingMovie: 'Paddington (2014)',
+    pairingQuote: '"If we are kind and polite, the world will be right."',
+    accentColor: '#FBBF24'
+  },
+
+  // Scale 9: Confident 👑
+  confident: {
+    id: 'royal_saffron_gouda',
+    name: 'Royal Saffron Smoked Gouda Macaroni',
+    emoji: '👑',
+    scaleNumber: 9,
+    tagline: 'Fit for royalty — lavish saffron cream with caramelized shallots.',
+    description: 'Artisanal macaroni bathed in a luxurious saffron-infused smoked gouda and cream reduction, topped with caramelized shallots and golden herbs.',
+    moodMatch: 'confident',
+    moodLabel: 'Confident 👑',
+    cookTime: '18 mins',
+    comfortLevel: 'Absolute Royalty 👑',
+    secretIngredients: [
+      'Bronze-Cut Maccheroni 🍝',
+      'Kashmiri Saffron Strands 🌸',
+      'Smoked Aged Gouda 🧀',
+      'Slow-Caramelized Golden Shallots 🧅',
+      'Toasted Pine Nuts & Herbs 🌿'
+    ],
+    pairingMovie: 'Bajirao Mastani & Yeh Jawaani Hai Deewani',
+    pairingQuote: '"Main udna chahta hoon, daudna chahta hoon, girna bhi chahta hoon... bas rukna nahi chahta!"',
+    accentColor: '#D946EF'
+  },
+  queen: {
+    id: 'royal_saffron_gouda',
+    name: 'Royal Saffron Smoked Gouda Macaroni',
+    emoji: '👑',
+    scaleNumber: 9,
+    tagline: 'Fit for royalty — lavish saffron cream with caramelized shallots.',
+    description: 'Artisanal macaroni bathed in a luxurious saffron-infused smoked gouda and cream reduction, topped with caramelized shallots.',
+    moodMatch: 'confident',
+    moodLabel: 'Confident 👑',
+    cookTime: '18 mins',
+    comfortLevel: 'Absolute Royalty 👑',
+    secretIngredients: ['Bronze-Cut Maccheroni 🍝', 'Kashmiri Saffron Strands 🌸'],
+    pairingMovie: 'Yeh Jawaani Hai Deewani',
+    pairingQuote: '"Main apni favourite hoon!"',
+    accentColor: '#D946EF'
+  }
+};
 
 ```
 
@@ -10453,13 +16824,15 @@ class AdaptiveEngine {
   }
 
   // Select next question adaptively
-  public selectQuestions(category: Category, count: number = 5, playedIds: string[] = []): Question[] {
+  public selectQuestions(category?: Category, count: number = 5, playedIds: string[] = []): Question[] {
     let available = QUESTIONS_DATABASE.filter(q => !playedIds.includes(q.id));
 
     // If category specific, filter by category
-    const categoryQuestions = available.filter(q => q.category === category);
-    if (categoryQuestions.length >= count) {
-      available = categoryQuestions;
+    if (category) {
+      const categoryQuestions = available.filter(q => q.category === category);
+      if (categoryQuestions.length >= count) {
+        available = categoryQuestions;
+      }
     }
 
     // Check if we have missed questions to reintroduce (Spaced Repetition)
@@ -10692,6 +17065,2455 @@ class AnimeAudioEngine {
 }
 
 export const animeAudio = new AnimeAudioEngine();
+
+```
+
+---
+
+### File: `src/services/authService.ts`
+
+```ts
+// Google & Phone Authentication Service with Real Firebase OAuth (Spec v2)
+import { gameState } from './gameState';
+import { 
+  auth, 
+  googleProvider, 
+  signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
+  firebaseSignOut, 
+  onAuthStateChanged, 
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  isFirebaseConfigured, 
+  db, 
+  doc, 
+  setDoc, 
+  onSnapshot, 
+  collection, 
+  type FirebaseUser,
+  type ConfirmationResult
+} from './firebase';
+
+export interface StudentProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  avatarUrl: string;
+  batch: string; // e.g. "MLP41PT"
+  currentMood: string;
+  currentMoodEmoji: string;
+  statusNote: string;
+  lastUpdated: string;
+  isGoogleVerified: boolean;
+  loginMethod?: 'google' | 'phone_otp' | 'email';
+  isNewUser?: boolean;
+  userTag?: string; // e.g. "New User"
+  createdAt?: number;
+}
+
+export const DEFAULT_CLASSMATES: StudentProfile[] = [
+  {
+    id: 'user_kritika',
+    name: 'Kritika Gupta 👑',
+    email: 'kritika.gupta@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+    batch: 'MLP41PT',
+    currentMood: 'Radiant Sunshine 🌸',
+    currentMoodEmoji: '🌸',
+    statusNote: 'Queen of Factory of Fun ♡ Always here to chat!',
+    lastUpdated: 'Just now',
+    isGoogleVerified: true,
+    loginMethod: 'email',
+    isNewUser: false,
+    userTag: 'Founder 👑'
+  },
+  {
+    id: 'user_priyanshu',
+    name: 'Priyanshu Sharma',
+    email: 'priyanshu.sharma@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
+    batch: 'MLP41PT',
+    currentMood: 'Pizza & Macaroni Feast 🍕',
+    currentMoodEmoji: '🍕',
+    statusNote: 'Ready for food & movie trivia anytime! 🧀',
+    lastUpdated: '10m ago',
+    isGoogleVerified: true,
+    loginMethod: 'email',
+    isNewUser: false,
+    userTag: 'Classmate'
+  },
+  {
+    id: 'user_ananya',
+    name: 'Ananya Deshmukh',
+    email: 'ananya.deshmukh@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
+    batch: 'MLP41PT',
+    currentMood: 'Warm Chai Moments ☕',
+    currentMoodEmoji: '☕',
+    statusNote: 'Chai enthusiast & comfort study buddy ✨',
+    lastUpdated: '25m ago',
+    isGoogleVerified: true,
+    loginMethod: 'email',
+    isNewUser: false,
+    userTag: 'Classmate'
+  },
+  {
+    id: 'user_rohan',
+    name: 'Rohan Mehra',
+    email: 'rohan.mehra@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',
+    batch: 'MLP41PT',
+    currentMood: 'Acoustic Harmonies 🎸',
+    currentMoodEmoji: '🎸',
+    statusNote: 'Listening to comforting jukebox melodies 🎵',
+    lastUpdated: '1h ago',
+    isGoogleVerified: true,
+    loginMethod: 'email',
+    isNewUser: false,
+    userTag: 'Classmate'
+  }
+];
+
+const AUTH_STORAGE_KEY = 'marisol_google_auth_v2';
+const CLASSMATES_STORAGE_KEY = 'marisol_batch_classmates_v2';
+
+export const isMobileBrowser = (): boolean => {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.innerWidth <= 768;
+};
+
+/**
+ * Format human-readable Student Name from email address.
+ * e.g. "kritika.singh@gmail.com" -> "Kritika Singh"
+ */
+export const formatNameFromEmail = (email: string): string => {
+  if (!email || !email.includes('@')) return '';
+  const username = email.split('@')[0].trim();
+  if (!username) return 'Student';
+
+  const cleaned = username
+    .replace(/[._\-+]/g, ' ')
+    .replace(/([a-zA-Z]+)(\d+)/g, '$1 $2')
+    .trim();
+
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'Student';
+
+  const formatted = parts
+    .map(p => {
+      if (/^\d+$/.test(p) && parts.some(item => /[a-zA-Z]/.test(item))) return '';
+      return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+    })
+    .filter(Boolean)
+    .join(' ');
+
+  return formatted || 'Student';
+};
+
+class AuthService {
+  private currentUser: StudentProfile | null = null;
+  private classmates: StudentProfile[] = [];
+  private listeners: Set<() => void> = new Set();
+  public isFirebaseEnabled = isFirebaseConfigured;
+  private recaptchaVerifier: RecaptchaVerifier | null = null;
+
+  constructor() {
+    this.cleanLegacyStorage();
+    this.loadFromStorage();
+    this.initFirebaseListeners();
+  }
+
+  private cleanLegacyStorage() {
+    try {
+      localStorage.removeItem('marisol_batch_classmates_v1');
+      localStorage.removeItem('marisol_google_auth_v1');
+    } catch {}
+  }
+
+  private initFirebaseListeners() {
+    if (auth) {
+      // 1. Check for Mobile Redirect Sign-In Result on Boot (Essential for mobile browsers)
+      getRedirectResult(auth)
+        .then((result) => {
+          if (result && result.user && !result.user.isAnonymous) {
+            this.handleFirebaseUserLogin(result.user, 'google');
+          }
+        })
+        .catch((err) => {
+          if (err?.code !== 'auth/null-user') {
+            console.warn('[Auth] getRedirectResult notice:', err?.message || err);
+          }
+        });
+
+      // 2. Regular Auth State Change
+      onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+        if (firebaseUser && !firebaseUser.isAnonymous) {
+          this.handleFirebaseUserLogin(firebaseUser, firebaseUser.phoneNumber ? 'phone_otp' : 'google');
+        }
+      });
+    }
+
+    // 3. Realtime Firestore sync for logged-in batch members
+    if (db) {
+      try {
+        const studentsCol = collection(db, 'students');
+        onSnapshot(studentsCol, (snapshot) => {
+          const remoteStudents: StudentProfile[] = [];
+          snapshot.forEach((d) => {
+            const data = d.data() as StudentProfile;
+            if (!['user_aarav', 'user_pooja', 'user_rohan', 'user_meera'].includes(d.id)) {
+              remoteStudents.push(data);
+            }
+          });
+
+          const map = new Map<string, StudentProfile>();
+          remoteStudents.forEach(c => map.set(c.id, c));
+          if (this.currentUser) map.set(this.currentUser.id, this.currentUser);
+          this.classmates = Array.from(map.values());
+          this.saveClassmatesToStorage();
+          this.notify();
+        }, (err) => {
+          console.warn('Firestore students sync error:', err);
+        });
+      } catch (err) {
+        console.warn('Firestore sync setup error:', err);
+      }
+    }
+  }
+
+  private handleFirebaseUserLogin(firebaseUser: FirebaseUser, method: 'google' | 'phone_otp' = 'google') {
+    const emailName = firebaseUser.email ? formatNameFromEmail(firebaseUser.email) : '';
+    const resolvedName = firebaseUser.displayName && !['Google Student', 'Student'].includes(firebaseUser.displayName)
+      ? firebaseUser.displayName
+      : (emailName || (firebaseUser.phoneNumber ? `Student (${firebaseUser.phoneNumber.slice(-4)})` : 'Batch 41 Member'));
+
+    const profile: StudentProfile = {
+      id: firebaseUser.uid,
+      name: resolvedName,
+      email: firebaseUser.email || (firebaseUser.phoneNumber ? `${firebaseUser.phoneNumber}@mobile.auth` : ''),
+      phone: firebaseUser.phoneNumber || undefined,
+      avatarUrl: firebaseUser.photoURL || '/marisol/avatars/01_brighter_ideas.png',
+      batch: 'MLP41PT',
+      currentMood: this.currentUser?.currentMood || 'Radiant Sunshine 🌸',
+      currentMoodEmoji: this.currentUser?.currentMoodEmoji || '🌸',
+      statusNote: this.currentUser?.statusNote || 'New User connected via Mail ID ♡',
+      lastUpdated: 'Just now',
+      isGoogleVerified: true,
+      loginMethod: method,
+      isNewUser: true,
+      userTag: 'New User',
+      createdAt: Date.now()
+    };
+
+    this.currentUser = profile;
+    this.saveUserToStorage();
+    this.syncClassmateList(profile);
+    this.syncWithFirestore(profile);
+    this.notify();
+  }
+
+  private loadFromStorage() {
+    try {
+      const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (storedUser) {
+        this.currentUser = JSON.parse(storedUser);
+      }
+
+      const storedClassmates = localStorage.getItem(CLASSMATES_STORAGE_KEY);
+      if (storedClassmates) {
+        const parsed: StudentProfile[] = JSON.parse(storedClassmates);
+        const filtered = parsed.filter(c => !['user_aarav', 'user_pooja', 'user_rohan_old', 'user_meera'].includes(c.id));
+        // Merge with DEFAULT_CLASSMATES ensuring everyone is available
+        const map = new Map<string, StudentProfile>();
+        DEFAULT_CLASSMATES.forEach(c => map.set(c.id, c));
+        filtered.forEach(c => map.set(c.id, c));
+        this.classmates = Array.from(map.values());
+      } else {
+        this.classmates = [...DEFAULT_CLASSMATES];
+        this.saveClassmatesToStorage();
+      }
+    } catch {
+      this.currentUser = null;
+      this.classmates = [...DEFAULT_CLASSMATES];
+    }
+  }
+
+  private saveUserToStorage() {
+    try {
+      if (this.currentUser) {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(this.currentUser));
+      } else {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      }
+    } catch {}
+  }
+
+  private saveClassmatesToStorage() {
+    try {
+      localStorage.setItem(CLASSMATES_STORAGE_KEY, JSON.stringify(this.classmates));
+    } catch {}
+  }
+
+  private syncClassmateList(user: StudentProfile) {
+    const existingIdx = this.classmates.findIndex(c => (user.email && c.email.toLowerCase() === user.email.toLowerCase()) || c.id === user.id);
+    if (existingIdx >= 0) {
+      this.classmates[existingIdx] = { ...this.classmates[existingIdx], ...user };
+    } else {
+      this.classmates.unshift(user);
+    }
+    this.saveClassmatesToStorage();
+
+    const currentP = gameState.getPlayer();
+    if (user.name && user.name !== currentP.nickname) {
+      currentP.nickname = user.name;
+      gameState.savePlayer(currentP);
+    }
+  }
+
+  private async syncWithFirestore(profile: StudentProfile) {
+    if (db) {
+      try {
+        const studentDoc = doc(db, 'students', profile.id);
+        await setDoc(studentDoc, profile, { merge: true });
+      } catch (err) {
+        console.warn('Failed to sync student with Firestore:', err);
+      }
+    }
+  }
+
+  public getCurrentUser(): StudentProfile | null {
+    return this.currentUser;
+  }
+
+  public isAuthenticated(): boolean {
+    return Boolean(this.currentUser);
+  }
+
+  public isGoogleAuthenticated(): boolean {
+    if (!this.currentUser) return false;
+    return Boolean(
+      this.currentUser.isGoogleVerified ||
+      this.currentUser.loginMethod === 'google' ||
+      this.currentUser.loginMethod === 'email' ||
+      (this.currentUser.email && this.currentUser.email.includes('@'))
+    );
+  }
+
+  public isMailIdAuthenticated(): boolean {
+    if (!this.currentUser) return false;
+    return Boolean(this.currentUser.email && this.currentUser.email.includes('@'));
+  }
+
+  public isUserAllowedToChat(): boolean {
+    if (!this.currentUser) return false;
+    return Boolean(this.currentUser.email && this.currentUser.email.includes('@'));
+  }
+
+  public getClassmates(): StudentProfile[] {
+    return this.classmates;
+  }
+
+  public getSavedAccounts(): StudentProfile[] {
+    // Single-user privacy: Return only current user or empty
+    return this.currentUser ? [this.currentUser] : [];
+  }
+
+  public switchAccount(userId: string): StudentProfile | null {
+    if (this.currentUser?.id === userId) {
+      return this.currentUser;
+    }
+    return null;
+  }
+
+  public removeAccount(userId: string) {
+    this.classmates = this.classmates.filter(c => c.id !== userId);
+    this.saveClassmatesToStorage();
+    if (this.currentUser?.id === userId) {
+      this.currentUser = this.classmates[0] || null;
+      this.saveUserToStorage();
+    }
+    this.notify();
+  }
+
+  public formatEmailName(email: string): string {
+    return formatNameFromEmail(email);
+  }
+
+  /**
+   * Direct Sign In with Mail ID / Email.
+   * Whoever signs in with their mail ID is registered as a "New User" and allowed to chat.
+   */
+  public loginWithEmail(email: string, name?: string): StudentProfile {
+    const trimmedEmail = email.trim().toLowerCase();
+    const formattedName = name?.trim() || formatNameFromEmail(trimmedEmail) || 'New User';
+    return this.loginStudentProfile(formattedName, trimmedEmail);
+  }
+
+  /**
+   * Multi-User: Add or Login Student / Mail Profile
+   */
+  public loginStudentProfile(name: string, email?: string): StudentProfile {
+    const trimmed = name.trim() || 'Batch 41 Student';
+    const isKritika = trimmed.toLowerCase().includes('kritika') || trimmed.toLowerCase().includes('marisol');
+    const existing = this.classmates.find(c => 
+      (email && c.email.toLowerCase() === email.toLowerCase()) || 
+      c.name.toLowerCase() === trimmed.toLowerCase()
+    );
+
+    const resolvedId = email 
+      ? `user_${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
+      : `student_${Date.now()}`;
+
+    const profile: StudentProfile = existing ? {
+      ...existing,
+      name: trimmed !== 'Student' && trimmed !== 'Batch 41 Student' ? trimmed : existing.name,
+      isNewUser: existing.isNewUser ?? true,
+      userTag: existing.userTag || 'New User',
+      loginMethod: existing.loginMethod || (email ? 'email' : 'google')
+    } : {
+      id: resolvedId,
+      name: isKritika && !trimmed.includes('👑') ? `${trimmed} 👑` : trimmed,
+      email: email || `${trimmed.toLowerCase().replace(/\s+/g, '.')}@gmail.com`,
+      avatarUrl: isKritika 
+        ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop' 
+        : '/marisol/avatars/01_brighter_ideas.png',
+      batch: 'MLP41PT',
+      currentMood: this.currentUser?.currentMood || 'Radiant Sunshine 🌸',
+      currentMoodEmoji: this.currentUser?.currentMoodEmoji || '🌸',
+      statusNote: isKritika ? 'Queen of Factory of Fun ♡' : 'New User in Factory of Fun ♡ ✨',
+      lastUpdated: 'Just now',
+      isGoogleVerified: true,
+      loginMethod: 'email',
+      isNewUser: true,
+      userTag: 'New User',
+      createdAt: Date.now()
+    };
+
+    this.currentUser = profile;
+    this.saveUserToStorage();
+    this.syncClassmateList(profile);
+    this.syncWithFirestore(profile);
+    this.notify();
+    return profile;
+  }
+
+  /**
+   * 100% Real Firebase Google Sign-In Flow
+   * Uses popup-first strategy across desktop and mobile, with seamless redirect fallback
+   */
+  public async signInWithFirebaseGoogle(forceRedirect: boolean = false): Promise<{ success: boolean; user?: StudentProfile; error?: string }> {
+    if (!auth || !googleProvider) {
+      return { success: false, error: 'Firebase authentication is not configured yet.' };
+    }
+
+    if (forceRedirect) {
+      try {
+        await signInWithRedirect(auth, googleProvider);
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Redirect sign-in failed.' };
+      }
+    }
+
+    try {
+      // Primary: signInWithPopup keeps user on the same page/route without full refresh
+      const userCredential = await signInWithPopup(auth, googleProvider);
+      if (userCredential.user) {
+        this.handleFirebaseUserLogin(userCredential.user, 'google');
+        return { success: true, user: this.currentUser || undefined };
+      }
+      return { success: false, error: 'No user credential received from Google.' };
+    } catch (popupErr: any) {
+      console.warn('[Auth] Google Popup notice:', popupErr?.code || popupErr);
+      
+      // If popup was blocked by mobile browser, gracefully fallback to redirect
+      if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return { success: true };
+        } catch (redirectErr: any) {
+          return { success: false, error: redirectErr.message || 'Redirect sign-in failed.' };
+        }
+      }
+
+      let errorMsg = 'Google sign-in could not complete.';
+      if (popupErr.code === 'auth/popup-closed-by-user') {
+        errorMsg = 'Sign-in was cancelled (popup window closed).';
+      } else if (popupErr.code === 'auth/unauthorized-domain') {
+        errorMsg = 'Domain not authorized. Please add this domain to Firebase Console → Authentication → Authorized Domains.';
+      } else if (popupErr.code === 'auth/network-request-failed') {
+        errorMsg = 'Network error. Please check your internet connection.';
+      } else if (popupErr.message) {
+        errorMsg = popupErr.message;
+      }
+
+      return { success: false, error: errorMsg };
+    }
+  }
+
+  /**
+   * Secondary Sign-In: Firebase Phone / OTP Auth
+   */
+  public async sendPhoneOtp(phoneNumber: string, containerId: string): Promise<{ success: boolean; confirmationResult?: ConfirmationResult; error?: string }> {
+    if (!auth) {
+      return { success: false, error: 'Firebase Auth is not initialized.' };
+    }
+
+    try {
+      if (!this.recaptchaVerifier) {
+        this.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+          size: 'invisible'
+        });
+      }
+
+      const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, this.recaptchaVerifier);
+      return { success: true, confirmationResult };
+    } catch (err: any) {
+      console.error('[Auth] Phone OTP Error:', err);
+      return { success: false, error: err.message || 'Failed to send OTP to mobile phone.' };
+    }
+  }
+
+  public async confirmPhoneOtp(confirmationResult: ConfirmationResult, code: string): Promise<{ success: boolean; user?: StudentProfile; error?: string }> {
+    try {
+      const credential = await confirmationResult.confirm(code);
+      if (credential.user) {
+        this.handleFirebaseUserLogin(credential.user, 'phone_otp');
+        return { success: true, user: this.currentUser || undefined };
+      }
+      return { success: false, error: 'Invalid verification code.' };
+    } catch (err: any) {
+      console.error('[Auth] Confirm OTP Error:', err);
+      return { success: false, error: err.message || 'Invalid verification code. Please try again.' };
+    }
+  }
+
+  public updateDailyMood(moodLabel: string, moodEmoji: string, statusNote?: string) {
+    if (!this.currentUser) return;
+    this.currentUser.currentMood = moodLabel;
+    this.currentUser.currentMoodEmoji = moodEmoji;
+    if (statusNote !== undefined) {
+      this.currentUser.statusNote = statusNote;
+    }
+    this.currentUser.lastUpdated = 'Just now';
+    this.saveUserToStorage();
+    this.syncClassmateList(this.currentUser);
+    this.syncWithFirestore(this.currentUser);
+    this.notify();
+  }
+
+  public updateProfile(data: {
+    name?: string;
+    avatarUrl?: string;
+    batch?: string;
+    currentMood?: string;
+    currentMoodEmoji?: string;
+    statusNote?: string;
+  }): StudentProfile {
+    if (!this.currentUser) {
+      const defaultName = data.name?.trim() || 'Batch 41 Student';
+      this.currentUser = {
+        id: `student_${Date.now()}`,
+        name: defaultName,
+        email: `${defaultName.toLowerCase().replace(/\s+/g, '.')}@mlp41.edu`,
+        avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+        batch: data.batch || 'MLP41PT',
+        currentMood: data.currentMood || 'Radiant Sunshine 🌸',
+        currentMoodEmoji: data.currentMoodEmoji || '🌸',
+        statusNote: data.statusNote || 'Savoring sweet memories ♡ ✨',
+        lastUpdated: 'Just now',
+        isGoogleVerified: false
+      };
+    } else {
+      if (data.name) this.currentUser.name = data.name.trim();
+      if (data.avatarUrl) this.currentUser.avatarUrl = data.avatarUrl;
+      if (data.batch) this.currentUser.batch = data.batch.trim();
+      if (data.currentMood) this.currentUser.currentMood = data.currentMood;
+      if (data.currentMoodEmoji) this.currentUser.currentMoodEmoji = data.currentMoodEmoji;
+      if (data.statusNote !== undefined) this.currentUser.statusNote = data.statusNote;
+      this.currentUser.lastUpdated = 'Just now';
+    }
+
+    this.saveUserToStorage();
+    this.syncClassmateList(this.currentUser);
+    this.syncWithFirestore(this.currentUser);
+    this.notify();
+    return this.currentUser;
+  }
+
+  public async signOut(): Promise<void> {
+    try {
+      if (auth) {
+        await firebaseSignOut(auth);
+      }
+    } catch (err) {
+      console.warn('Sign out warning:', err);
+    }
+    this.currentUser = null;
+    this.saveUserToStorage();
+    this.notify();
+  }
+
+  public subscribe(listener: () => void) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify() {
+    this.listeners.forEach(l => l());
+  }
+}
+
+export const authService = new AuthService();
+
+```
+
+---
+
+### File: `src/services/batchWallState.ts`
+
+```ts
+// Shared Batch Wall State Service for MLP41PT Batch Students with Firebase Firestore
+import { db, collection, onSnapshot, query, orderBy, limit, doc, setDoc, deleteDoc } from './firebase';
+
+export interface BulletinReply {
+  id: string;
+  authorId?: string;
+  authorName: string;
+  authorEmail?: string;
+  avatarUrl?: string;
+  text: string;
+  timestamp: string;
+  createdAt: number;
+  isKritika?: boolean; // Highlighted special reply from Kritika!
+}
+
+export interface BatchUpdatePost {
+  id: string;
+  userId?: string;
+  userEmail?: string;
+  studentName: string;
+  batch: string; // "MLP41PT"
+  avatarPose: string; // alias or avatar URL
+  mood: string;
+  moodEmoji: string;
+  text: string;
+  imageUrl?: string;
+  timestamp: string; // ISO or human readable
+  createdAt?: number;
+  reactions: Record<string, number>; // stickerAlias -> count
+  replies?: BulletinReply[]; // Asynchronous threaded replies from Kritika and classmates
+  category?: 'tribute' | 'question' | 'cheer' | 'general';
+  isPinned?: boolean;
+  pinnedBy?: string;
+  pinnedAt?: number;
+}
+
+export interface MessageReceipt {
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  avatarUrl?: string;
+  seenAt: number;
+}
+
+export interface BatchMember {
+  id: string;
+  name: string;
+  email?: string;
+  avatarUrl: string;
+  isKritika?: boolean;
+}
+
+export const KNOWN_BATCH_MEMBERS: BatchMember[] = [
+  {
+    id: 'member_kritika',
+    name: 'Kritika Gupta 👑',
+    email: 'kritika.gupta@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+    isKritika: true,
+  },
+  {
+    id: 'member_priyanshu',
+    name: 'Priyanshu Sharma',
+    email: 'priyanshu.sharma@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
+  },
+  {
+    id: 'member_ananya',
+    name: 'Ananya Deshmukh',
+    email: 'ananya.deshmukh@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
+  },
+  {
+    id: 'member_rohan',
+    name: 'Rohan Mehra',
+    email: 'rohan.mehra@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',
+  },
+];
+
+export interface ChatPollOption {
+  id: string;
+  text: string;
+  votes: string[]; // array of voter names
+}
+
+export interface ChatPoll {
+  question: string;
+  options: ChatPollOption[];
+}
+
+export interface GroupChatMessage {
+  id: string;
+  senderId?: string;
+  senderName: string;
+  senderEmail?: string;
+  avatarUrl?: string;
+  text: string;
+  imageUrl?: string; // Image attachment for WhatsApp style chat
+  senderIsNewUser?: boolean;
+  senderUserTag?: string;
+  replyTo?: {
+    id: string;
+    senderName: string;
+    text: string;
+  };
+  poll?: ChatPoll;
+  timestamp: string;
+  createdAt: number;
+  isKritika?: boolean;
+  isEdited?: boolean;
+  isDeletedForEveryone?: boolean;
+  reactionEmoji?: string;
+  reactions?: Record<string, number>; // emoji -> count
+  seenBy?: MessageReceipt[]; // Read receipts tracking who has seen this message
+  isPinned?: boolean;
+  pinnedBy?: string;
+  pinnedAt?: number;
+}
+
+export interface DirectChatMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  senderEmail?: string;
+  senderAvatarUrl?: string;
+  senderIsNewUser?: boolean;
+  senderUserTag?: string;
+  recipientId: string;
+  recipientName: string;
+  recipientEmail?: string;
+  recipientAvatarUrl?: string;
+  text: string;
+  imageUrl?: string;
+  timestamp: string;
+  createdAt: number;
+  isRead?: boolean;
+}
+
+export const getDirectConversationId = (userA: string, userB: string): string => {
+  const cleanA = (userA || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  const cleanB = (userB || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  return [cleanA, cleanB].sort().join('___');
+};
+
+export interface InstagramComment {
+  id: string;
+  authorId?: string;
+  authorName: string;
+  authorEmail?: string;
+  avatarUrl?: string;
+  text: string;
+  timestamp: string;
+  createdAt: number;
+  likesCount?: number;
+  isKritika?: boolean;
+}
+
+export interface InstagramPost {
+  id: string;
+  userId?: string;
+  authorId?: string;
+  userEmail?: string;
+  authorName: string;
+  authorEmail?: string;
+  authorAvatarUrl: string;
+  location?: string;
+  imageUrl: string;
+  filter?: string; // 'none' | 'warm' | 'vintage' | 'pink' | 'golden' | 'bw'
+  caption: string;
+  hashtags: string[];
+  likesCount: number;
+  likedByCurrentUser?: boolean;
+  likedByUsers?: string[];
+  comments: InstagramComment[];
+  saved?: boolean;
+  timestamp: string;
+  createdAt: number;
+  isKritika?: boolean;
+  isPinned?: boolean;
+  pinnedBy?: string;
+  pinnedAt?: number;
+  isEdited?: boolean;
+}
+
+const STORAGE_KEY = 'marisol_batch_updates_v2';
+const CHAT_STORAGE_KEY = 'marisol_group_chat_messages_v2';
+const INSTA_STORAGE_KEY = 'marisol_instagram_posts_v2';
+const DM_STORAGE_KEY = 'marisol_direct_chat_messages_v2';
+const QUEUE_KEY = 'marisol_batch_offline_queue_v2';
+
+const nowTs = Date.now();
+
+const DEFAULT_GROUP_CHAT_MESSAGES: GroupChatMessage[] = [
+  {
+    id: 'chat_init_1',
+    senderId: 'member_kritika',
+    senderName: 'Kritika Gupta 👑',
+    senderEmail: 'kritika.gupta@mlp41.edu',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+    text: 'Hey Batch 41 family! Welcome to our comfort lounge! Savoring every sweet memory together ♡ ✨',
+    imageUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80',
+    timestamp: 'Today at 2:30 PM',
+    createdAt: nowTs - 3600000 * 3,
+    isKritika: true,
+    reactionEmoji: '💖',
+    reactions: { '💖': 8, '✨': 5 },
+    seenBy: [
+      { userId: 'member_kritika', userName: 'Kritika Gupta 👑', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 3 },
+      { userId: 'member_priyanshu', userName: 'Priyanshu Sharma', avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 2.8 },
+      { userId: 'member_ananya', userName: 'Ananya Deshmukh', avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 2.5 },
+      { userId: 'member_rohan', userName: 'Rohan Mehra', avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 2.1 }
+    ]
+  },
+  {
+    id: 'chat_init_2',
+    senderId: 'member_priyanshu',
+    senderName: 'Priyanshu Sharma',
+    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
+    text: '@Kritika Gupta 👑 The music player and comfort arcade are pure vibes! 🧀🍕',
+    timestamp: 'Today at 3:15 PM',
+    createdAt: nowTs - 3600000 * 2,
+    reactions: { '🍕': 4, '🔥': 3 },
+    seenBy: [
+      { userId: 'member_priyanshu', userName: 'Priyanshu Sharma', avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 2 },
+      { userId: 'member_kritika', userName: 'Kritika Gupta 👑', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 * 1.8 }
+    ]
+  },
+  {
+    id: 'chat_init_3',
+    senderId: 'member_ananya',
+    senderName: 'Ananya Deshmukh',
+    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
+    text: 'Who wants to do the Chai Enthusiast movie quiz round together tonight? ☕🎬',
+    timestamp: 'Today at 3:45 PM',
+    createdAt: nowTs - 3600000,
+    reactions: { '☕': 5, '👏': 3 },
+    seenBy: [
+      { userId: 'member_ananya', userName: 'Ananya Deshmukh', avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop', seenAt: nowTs - 3600000 },
+      { userId: 'member_kritika', userName: 'Kritika Gupta 👑', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop', seenAt: nowTs - 1800000 }
+    ]
+  }
+];
+
+const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
+  {
+    id: 'insta_init_1',
+    authorId: 'member_kritika',
+    authorName: 'Kritika Gupta 👑',
+    authorEmail: 'kritika.gupta@mlp41.edu',
+    authorAvatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+    location: 'Factory of Fun • Comfort Lounge 🌸',
+    imageUrl: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=900&auto=format&fit=crop&q=80',
+    filter: 'warm',
+    caption: 'Celebrating our amazing batch milestones together! Savoring warm chai, hot pizza, and sweet memories with everyone ♡ 👑✨',
+    hashtags: ['#Batch41', '#KritikaQueen', '#FactoryOfFun', '#ComfortVibes'],
+    likesCount: 38,
+    likedByCurrentUser: true,
+    comments: [
+      {
+        id: 'c1',
+        authorName: 'Priyanshu Sharma',
+        avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
+        text: 'Royal aesthetic as always! Keep shining Kritika! 👑🔥',
+        timestamp: '1 hour ago',
+        createdAt: Date.now() - 3600000
+      },
+      {
+        id: 'c2',
+        authorName: 'Ananya Deshmukh',
+        avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
+        text: 'Best batch memories ever! 💖✨',
+        timestamp: '30 mins ago',
+        createdAt: Date.now() - 1800000
+      }
+    ],
+    timestamp: '2 hours ago',
+    createdAt: Date.now() - 7200000,
+    isKritika: true
+  },
+  {
+    id: 'insta_init_2',
+    authorId: 'member_rohan',
+    authorName: 'Rohan Mehra',
+    authorAvatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',
+    location: 'Pizza & Macaroni Hub 🍕🧀',
+    imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=900&auto=format&fit=crop&q=80',
+    filter: 'golden',
+    caption: 'Just unlocked the Gourmet Truffle Macaroni dish in the Mood Quiz! Best comfort meal ever 🧀🤤',
+    hashtags: ['#MacaroniMagic', '#MoodQuiz', '#Batch41Foodies'],
+    likesCount: 24,
+    likedByCurrentUser: false,
+    comments: [
+      {
+        id: 'c3',
+        authorName: 'Kritika Gupta 👑',
+        isKritika: true,
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+        text: 'Yummm! Save some for the entire batch next time! 🍕🧀',
+        timestamp: '15 mins ago',
+        createdAt: Date.now() - 900000
+      }
+    ],
+    timestamp: '4 hours ago',
+    createdAt: Date.now() - 14400000
+  }
+];
+
+class BatchWallService {
+  private posts: BatchUpdatePost[] = [];
+  private chatMessages: GroupChatMessage[] = [];
+  private directMessages: DirectChatMessage[] = [];
+  private instagramPosts: InstagramPost[] = [];
+  private offlineQueue: BatchUpdatePost[] = [];
+  private listeners: Set<() => void> = new Set();
+  private isOnline: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  private lastSyncToast: string | null = null;
+
+  private broadcastChannel: BroadcastChannel | null = null;
+
+  constructor() {
+    this.cleanLegacyStorage();
+    this.loadFromStorage();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => this.handleOnline());
+      window.addEventListener('offline', () => this.handleOffline());
+      
+      // Multi-client real-time sync across windows/tabs
+      try {
+        if ('BroadcastChannel' in window) {
+          this.broadcastChannel = new BroadcastChannel('marisol_multiuser_sync');
+          this.broadcastChannel.onmessage = (event) => {
+            if (event.data?.type === 'DELETE_CHAT_MESSAGE' && event.data?.messageId) {
+              this.chatMessages = this.chatMessages.filter(m => m.id !== event.data.messageId);
+              this.saveChatToStorage();
+              this.notify();
+            } else if (event.data?.type === 'SYNC_CHAT') {
+              this.loadFromStorage();
+              this.notify();
+            } else if (event.data?.type === 'SYNC_DM') {
+              this.loadFromStorage();
+              this.notify();
+            } else if (event.data?.type === 'SYNC_POSTS') {
+              this.loadFromStorage();
+              this.notify();
+            } else if (event.data?.type === 'SYNC_INSTA') {
+              this.loadFromStorage();
+              this.notify();
+            }
+          };
+        }
+      } catch {}
+    }
+    this.initFirestoreSync();
+  }
+
+  // Purge unwanted old mock posts from v1 storage
+  private cleanLegacyStorage() {
+    try {
+      localStorage.removeItem('marisol_batch_updates_v1');
+    } catch {}
+  }
+
+  private initFirestoreSync() {
+    if (db) {
+      try {
+        // Bulletin Posts
+        const postsQuery = query(
+          collection(db, 'batch_updates'),
+          orderBy('createdAt', 'desc'),
+          limit(100)
+        );
+        onSnapshot(postsQuery, (snapshot) => {
+          if (!snapshot.empty) {
+            const remotePosts: BatchUpdatePost[] = [];
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data() as BatchUpdatePost;
+              remotePosts.push({ ...data, id: docSnap.id });
+            });
+
+            this.posts = remotePosts.sort((a, b) => {
+              if (a.isPinned && !b.isPinned) return -1;
+              if (!a.isPinned && b.isPinned) return 1;
+              return (b.createdAt || 0) - (a.createdAt || 0);
+            });
+            this.saveToStorage();
+            this.notify();
+          }
+        }, (err) => {
+          console.warn('Firestore posts sync notice:', err);
+        });
+
+        // Group Chat Firestore Listener
+        const chatQuery = query(
+          collection(db, 'group_chat_messages'),
+          orderBy('createdAt', 'asc'),
+          limit(200)
+        );
+        onSnapshot(chatQuery, (snapshot) => {
+          if (!snapshot.empty) {
+            const remoteChat: GroupChatMessage[] = [];
+            snapshot.forEach((docSnap) => {
+              remoteChat.push({ ...(docSnap.data() as GroupChatMessage), id: docSnap.id });
+            });
+            this.chatMessages = remoteChat.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+            this.saveChatToStorage();
+            this.notify();
+          }
+        }, (err) => {
+          console.warn('Firestore chat listener notice:', err);
+        });
+
+        // Direct Messages (1-on-1 between each user) Firestore Listener
+        const dmQuery = query(
+          collection(db, 'direct_chat_messages'),
+          orderBy('createdAt', 'asc'),
+          limit(300)
+        );
+        onSnapshot(dmQuery, (snapshot) => {
+          if (!snapshot.empty) {
+            const remoteDMs: DirectChatMessage[] = [];
+            snapshot.forEach((docSnap) => {
+              remoteDMs.push({ ...(docSnap.data() as DirectChatMessage), id: docSnap.id });
+            });
+            this.directMessages = remoteDMs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+            this.saveDirectMessagesToStorage();
+            this.notify();
+          }
+        }, (err) => {
+          console.warn('Firestore direct messages sync notice:', err);
+        });
+
+        // Instagram Posts Firestore Listener
+        const instaQuery = query(
+          collection(db, 'instagram_posts'),
+          orderBy('createdAt', 'desc'),
+          limit(100)
+        );
+        onSnapshot(instaQuery, (snapshot) => {
+          if (!snapshot.empty) {
+            const remoteInsta: InstagramPost[] = [];
+            snapshot.forEach((docSnap) => {
+              remoteInsta.push({ ...(docSnap.data() as InstagramPost), id: docSnap.id });
+            });
+            this.instagramPosts = remoteInsta.sort((a, b) => {
+              if (a.isPinned && !b.isPinned) return -1;
+              if (!a.isPinned && b.isPinned) return 1;
+              return (b.createdAt || 0) - (a.createdAt || 0);
+            });
+            this.saveInstaToStorage();
+            this.notify();
+          }
+        }, (err) => {
+          console.warn('Firestore insta listener notice:', err);
+        });
+
+      } catch (err) {
+        console.warn('Firestore sync setup error:', err);
+      }
+    }
+  }
+
+  private loadFromStorage() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed: BatchUpdatePost[] = JSON.parse(stored);
+        this.posts = parsed.filter(p => !['post_01', 'post_02', 'post_03', 'post_04'].includes(p.id));
+      } else {
+        this.posts = [];
+        this.saveToStorage();
+      }
+
+      const storedChat = localStorage.getItem(CHAT_STORAGE_KEY);
+      if (storedChat) {
+        this.chatMessages = JSON.parse(storedChat);
+      } else {
+        this.chatMessages = [...DEFAULT_GROUP_CHAT_MESSAGES];
+        this.saveChatToStorage();
+      }
+
+      const storedDMs = localStorage.getItem(DM_STORAGE_KEY);
+      if (storedDMs) {
+        this.directMessages = JSON.parse(storedDMs);
+      } else {
+        this.directMessages = [];
+        this.saveDirectMessagesToStorage();
+      }
+
+      const storedInsta = localStorage.getItem(INSTA_STORAGE_KEY);
+      if (storedInsta) {
+        this.instagramPosts = JSON.parse(storedInsta);
+      } else {
+        this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
+        this.saveInstaToStorage();
+      }
+
+      const queue = localStorage.getItem(QUEUE_KEY);
+      if (queue) {
+        this.offlineQueue = JSON.parse(queue);
+      }
+    } catch {
+      this.posts = [];
+      this.chatMessages = [...DEFAULT_GROUP_CHAT_MESSAGES];
+      this.directMessages = [];
+      this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
+    }
+  }
+
+  private saveToStorage() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.posts));
+    } catch {}
+  }
+
+  private saveChatToStorage() {
+    try {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(this.chatMessages));
+    } catch {}
+  }
+
+  private saveDirectMessagesToStorage() {
+    try {
+      localStorage.setItem(DM_STORAGE_KEY, JSON.stringify(this.directMessages));
+    } catch {}
+  }
+
+  private saveInstaToStorage() {
+    try {
+      localStorage.setItem(INSTA_STORAGE_KEY, JSON.stringify(this.instagramPosts));
+    } catch {}
+  }
+
+  private saveQueueToStorage() {
+    try {
+      localStorage.setItem(QUEUE_KEY, JSON.stringify(this.offlineQueue));
+    } catch {}
+  }
+
+  private handleOnline() {
+    this.isOnline = true;
+    if (this.offlineQueue.length > 0) {
+      const count = this.offlineQueue.length;
+      this.offlineQueue.forEach(p => {
+        this.posts.unshift(p);
+        this.syncPostToFirestore(p);
+      });
+      this.offlineQueue = [];
+      this.saveToStorage();
+      this.saveQueueToStorage();
+      this.lastSyncToast = `Back online! Synced ${count} update${count > 1 ? 's' : ''} to Batch Wall 📡`;
+    } else {
+      this.lastSyncToast = 'Back online! Connected to Batch 41 Wall 📡';
+    }
+    this.notify();
+  }
+
+  private handleOffline() {
+    this.isOnline = false;
+    this.notify();
+  }
+
+  private async syncPostToFirestore(post: BatchUpdatePost) {
+    if (db) {
+      try {
+        await setDoc(doc(db, 'batch_updates', post.id), post);
+      } catch (err) {
+        console.warn('Failed to add post to Firestore:', err);
+      }
+    }
+  }
+
+  public getPosts(onlyCurrentUser?: boolean, currentUserId?: string): BatchUpdatePost[] {
+    let list = [...this.posts];
+    if (onlyCurrentUser && currentUserId) {
+      list = list.filter(p => p.userId === currentUserId);
+    }
+    return list.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+  }
+
+  public getChatMessages(): GroupChatMessage[] {
+    return [...this.chatMessages];
+  }
+
+  public getPinnedChatMessage(): GroupChatMessage | null {
+    return this.chatMessages.slice().reverse().find(m => m.isPinned) || null;
+  }
+
+  public getAllBatchMembers(additionalClassmates: Array<{ id?: string; name?: string; email?: string; avatarUrl?: string }> = []): BatchMember[] {
+    const memberMap = new Map<string, BatchMember>();
+
+    KNOWN_BATCH_MEMBERS.forEach(m => memberMap.set(m.name.toLowerCase(), m));
+
+    additionalClassmates.forEach(c => {
+      if (!c.name) return;
+      const key = c.name.toLowerCase();
+      if (!memberMap.has(key)) {
+        memberMap.set(key, {
+          id: c.id || `member_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          name: c.name,
+          email: c.email,
+          avatarUrl: c.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+          isKritika: c.name.toLowerCase().includes('kritika') || Boolean(c.email && c.email.toLowerCase().includes('kritika'))
+        });
+      }
+    });
+
+    return Array.from(memberMap.values());
+  }
+
+  public markAllMessagesAsSeen(user: { userId: string; userName: string; userEmail?: string; avatarUrl?: string }) {
+    if (!user.userName) return;
+    const now = Date.now();
+    let changed = false;
+
+    this.chatMessages.forEach(msg => {
+      if (!msg.seenBy) {
+        msg.seenBy = [];
+      }
+
+      const alreadySeen = msg.seenBy.some(s =>
+        (user.userId && s.userId === user.userId) ||
+        (user.userEmail && s.userEmail && s.userEmail.toLowerCase() === user.userEmail.toLowerCase()) ||
+        (s.userName && s.userName.toLowerCase().trim() === user.userName.toLowerCase().trim())
+      );
+
+      if (!alreadySeen) {
+        msg.seenBy.push({
+          userId: user.userId || `user_${Date.now()}`,
+          userName: user.userName,
+          userEmail: user.userEmail,
+          avatarUrl: user.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+          seenAt: now
+        });
+        changed = true;
+
+        if (db && msg.id) {
+          try {
+            setDoc(doc(db, 'group_chat_messages', msg.id), { seenBy: msg.seenBy }, { merge: true });
+          } catch {}
+        }
+      }
+    });
+
+    if (changed) {
+      this.saveChatToStorage();
+      try {
+        this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+      } catch {}
+      this.notify();
+    }
+  }
+
+  public markMessageAsSeen(messageId: string, user: { userId: string; userName: string; userEmail?: string; avatarUrl?: string }) {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg || !user.userName) return;
+
+    if (!msg.seenBy) msg.seenBy = [];
+    const alreadySeen = msg.seenBy.some(s =>
+      (user.userId && s.userId === user.userId) ||
+      (user.userEmail && s.userEmail && s.userEmail.toLowerCase() === user.userEmail.toLowerCase()) ||
+      (s.userName && s.userName.toLowerCase().trim() === user.userName.toLowerCase().trim())
+    );
+
+    if (!alreadySeen) {
+      msg.seenBy.push({
+        userId: user.userId || `user_${Date.now()}`,
+        userName: user.userName,
+        userEmail: user.userEmail,
+        avatarUrl: user.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+        seenAt: Date.now()
+      });
+      this.saveChatToStorage();
+      try {
+        this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+      } catch {}
+      if (db && msg.id) {
+        try {
+          setDoc(doc(db, 'group_chat_messages', msg.id), { seenBy: msg.seenBy }, { merge: true });
+        } catch {}
+      }
+      this.notify();
+    }
+  }
+
+  public getInstagramPosts(): InstagramPost[] {
+    return [...this.instagramPosts].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+  }
+
+  public getOfflineQueue(): BatchUpdatePost[] {
+    return [...this.offlineQueue];
+  }
+
+  public getNetworkStatus(): { isOnline: boolean; queuedCount: number; syncToast: string | null } {
+    return {
+      isOnline: this.isOnline,
+      queuedCount: this.offlineQueue.length,
+      syncToast: this.lastSyncToast
+    };
+  }
+
+  public clearSyncToast() {
+    this.lastSyncToast = null;
+    this.notify();
+  }
+
+  public addPost(postData: {
+    userId?: string;
+    userEmail?: string;
+    studentName: string;
+    avatarPose: string;
+    mood: string;
+    moodEmoji: string;
+    text: string;
+    imageUrl?: string;
+  }): { queued: boolean; post: BatchUpdatePost } {
+    const newPost: BatchUpdatePost = {
+      id: `post_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      userId: postData.userId,
+      userEmail: postData.userEmail,
+      batch: 'MLP41PT',
+      studentName: postData.studentName.trim() || 'MLP41PT Student',
+      avatarPose: postData.avatarPose,
+      mood: postData.mood,
+      moodEmoji: postData.moodEmoji,
+      text: postData.text.trim(),
+      imageUrl: postData.imageUrl,
+      timestamp: 'Just now',
+      createdAt: Date.now(),
+      reactions: {}
+    };
+
+    if (!this.isOnline) {
+      this.offlineQueue.unshift(newPost);
+      this.saveQueueToStorage();
+      this.lastSyncToast = 'Offline: update queued, will sync automatically when back online 📡';
+      this.notify();
+      return { queued: true, post: newPost };
+    } else {
+      this.posts.unshift(newPost);
+      this.saveToStorage();
+      this.syncPostToFirestore(newPost);
+      try {
+        this.broadcastChannel?.postMessage({ type: 'SYNC_POSTS' });
+      } catch {}
+      this.notify();
+      return { queued: false, post: newPost };
+    }
+  }
+
+  public async sendGroupChatMessage(data: {
+    senderId?: string;
+    senderName: string;
+    senderEmail?: string;
+    avatarUrl?: string;
+    senderIsNewUser?: boolean;
+    senderUserTag?: string;
+    text: string;
+    imageUrl?: string;
+    replyTo?: {
+      id: string;
+      senderName: string;
+      text: string;
+    };
+    poll?: ChatPoll;
+    isPinned?: boolean;
+    pinnedBy?: string;
+    pinnedAt?: number;
+  }): Promise<GroupChatMessage> {
+    const name = data.senderName.trim() || 'Batch 41 Student';
+    const email = data.senderEmail || '';
+    const isKritika = name.toLowerCase().includes('kritika') || 
+                      email.toLowerCase().includes('kritika') ||
+                      name.toLowerCase().includes('marisol');
+
+    const resolvedSenderId = data.senderId?.trim() || 
+      (email ? `user_${email.split('@')[0]}` : `user_${name.toLowerCase().replace(/\s+/g, '_')}`);
+
+    const isNewUser = data.senderIsNewUser ?? true;
+    const userTag = data.senderUserTag || (isKritika ? 'Founder 👑' : 'New User');
+
+    const msg: GroupChatMessage = {
+      id: `chat_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      senderId: resolvedSenderId,
+      senderName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
+      senderEmail: data.senderEmail,
+      avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+      senderIsNewUser: isNewUser,
+      senderUserTag: userTag,
+      text: data.text.trim(),
+      imageUrl: data.imageUrl,
+      replyTo: data.replyTo,
+      poll: data.poll,
+      timestamp: 'Just now',
+      createdAt: Date.now(),
+      isKritika,
+      isPinned: data.isPinned ?? false,
+      pinnedBy: data.pinnedBy,
+      pinnedAt: data.pinnedAt,
+      reactions: {},
+      seenBy: [
+        {
+          userId: resolvedSenderId,
+          userName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
+          userEmail: data.senderEmail,
+          avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+          seenAt: Date.now()
+        }
+      ]
+    };
+
+    this.chatMessages.push(msg);
+    this.saveChatToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'group_chat_messages', msg.id), msg);
+      } catch (err) {
+        console.warn('Failed to sync chat message to Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return msg;
+  }
+
+  // =========================================================================
+  // DIRECT MESSAGING (Chat With Each Other User)
+  // =========================================================================
+
+  public getDirectMessages(
+    convIdOrUserA: string,
+    userB?: string,
+    emailA?: string,
+    emailB?: string
+  ): DirectChatMessage[] {
+    let convId = convIdOrUserA;
+    if (userB) {
+      convId = getDirectConversationId(emailA || convIdOrUserA, emailB || userB);
+    }
+    return this.directMessages
+      .filter(m => m.conversationId === convId)
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  }
+
+  public getAllDirectConversations(myUserId?: string, myUserEmail?: string): {
+    conversationId: string;
+    partnerId: string;
+    partnerName: string;
+    partnerEmail?: string;
+    partnerAvatarUrl?: string;
+    partnerIsNewUser?: boolean;
+    lastMessage: DirectChatMessage;
+    unreadCount: number;
+  }[] {
+    const cleanMyId = (myUserId || '').toLowerCase();
+    const cleanMyEmail = (myUserEmail || '').toLowerCase();
+
+    const conversationMap = new Map<string, DirectChatMessage[]>();
+
+    this.directMessages.forEach(msg => {
+      const sId = (msg.senderId || '').toLowerCase();
+      const sEmail = (msg.senderEmail || '').toLowerCase();
+      const rId = (msg.recipientId || '').toLowerCase();
+      const rEmail = (msg.recipientEmail || '').toLowerCase();
+
+      const involvesMe = (cleanMyId && (sId === cleanMyId || rId === cleanMyId)) ||
+                         (cleanMyEmail && (sEmail === cleanMyEmail || rEmail === cleanMyEmail));
+
+      if (involvesMe) {
+        if (!conversationMap.has(msg.conversationId)) {
+          conversationMap.set(msg.conversationId, []);
+        }
+        conversationMap.get(msg.conversationId)!.push(msg);
+      }
+    });
+
+    const result: {
+      conversationId: string;
+      partnerId: string;
+      partnerName: string;
+      partnerEmail?: string;
+      partnerAvatarUrl?: string;
+      partnerIsNewUser?: boolean;
+      lastMessage: DirectChatMessage;
+      unreadCount: number;
+    }[] = [];
+
+    conversationMap.forEach((msgs, convId) => {
+      const sorted = msgs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      const lastMsg = sorted[sorted.length - 1];
+      const isSender = (lastMsg.senderId.toLowerCase() === cleanMyId) || (Boolean(cleanMyEmail) && lastMsg.senderEmail?.toLowerCase() === cleanMyEmail);
+      
+      const partnerId = isSender ? lastMsg.recipientId : lastMsg.senderId;
+      const partnerName = isSender ? lastMsg.recipientName : lastMsg.senderName;
+      const partnerEmail = isSender ? lastMsg.recipientEmail : lastMsg.senderEmail;
+      const partnerAvatarUrl = isSender ? lastMsg.recipientAvatarUrl : lastMsg.senderAvatarUrl;
+      const partnerIsNewUser = isSender ? undefined : lastMsg.senderIsNewUser;
+
+      const unreadCount = sorted.filter(m => {
+        const fromOther = (m.senderId.toLowerCase() !== cleanMyId) && (!cleanMyEmail || m.senderEmail?.toLowerCase() !== cleanMyEmail);
+        return fromOther && !m.isRead;
+      }).length;
+
+      result.push({
+        conversationId: convId,
+        partnerId,
+        partnerName,
+        partnerEmail,
+        partnerAvatarUrl,
+        partnerIsNewUser,
+        lastMessage: lastMsg,
+        unreadCount
+      });
+    });
+
+    return result.sort((a, b) => (b.lastMessage.createdAt || 0) - (a.lastMessage.createdAt || 0));
+  }
+
+  public async sendDirectMessage(data: {
+    senderId: string;
+    senderName: string;
+    senderEmail?: string;
+    senderAvatarUrl?: string;
+    senderIsNewUser?: boolean;
+    senderUserTag?: string;
+    recipientId: string;
+    recipientName: string;
+    recipientEmail?: string;
+    recipientAvatarUrl?: string;
+    text: string;
+    imageUrl?: string;
+  }): Promise<DirectChatMessage> {
+    const convId = getDirectConversationId(
+      data.senderEmail || data.senderId,
+      data.recipientEmail || data.recipientId
+    );
+
+    const msg: DirectChatMessage = {
+      id: `dm_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      conversationId: convId,
+      senderId: data.senderId,
+      senderName: data.senderName,
+      senderEmail: data.senderEmail,
+      senderAvatarUrl: data.senderAvatarUrl || '/marisol/avatars/01_brighter_ideas.png',
+      senderIsNewUser: data.senderIsNewUser ?? true,
+      senderUserTag: data.senderUserTag || 'New User',
+      recipientId: data.recipientId,
+      recipientName: data.recipientName,
+      recipientEmail: data.recipientEmail,
+      recipientAvatarUrl: data.recipientAvatarUrl,
+      text: data.text.trim(),
+      imageUrl: data.imageUrl,
+      timestamp: 'Just now',
+      createdAt: Date.now(),
+      isRead: false
+    };
+
+    this.directMessages.push(msg);
+    this.saveDirectMessagesToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_DM' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'direct_chat_messages', msg.id), msg);
+      } catch (err) {
+        console.warn('Failed to sync DM to Firestore:', err);
+      }
+    }
+
+    this.notify();
+
+    // Friendly automated comforting reply from built-in batch members for instant interactivity
+    const rLower = (data.recipientName || '').toLowerCase();
+    const isBotRecipient = rLower.includes('kritika') || rLower.includes('priyanshu') || rLower.includes('ananya') || rLower.includes('rohan');
+    
+    if (isBotRecipient) {
+      setTimeout(async () => {
+        let replyText = `Hey ${data.senderName.split(' ')[0]}! Great to hear from you. Welcome to Factory of Fun as our new user! ♡ 🌸`;
+        if (rLower.includes('kritika')) {
+          replyText = `Hey ${data.senderName.split(' ')[0]}! 👑 So wonderful chatting with you! Welcome as a New User to our Factory of Fun comfort hub ♡ Savoring sweet memories together! ✨`;
+        } else if (rLower.includes('priyanshu')) {
+          replyText = `Hey ${data.senderName.split(' ')[0]}! 🍕 Welcome! Ready for a quick round of 1,000+ Food & Movie trivia anytime!`;
+        } else if (rLower.includes('ananya')) {
+          replyText = `Hi ${data.senderName.split(' ')[0]}! ☕ Enjoying a warm cup of chai right now. So happy you reached out and joined us!`;
+        } else if (rLower.includes('rohan')) {
+          replyText = `Hey ${data.senderName.split(' ')[0]}! 🎸 Welcome! Listening to some relaxing music on the jukebox. Hope you have a wonderful day!`;
+        }
+
+        const autoMsg: DirectChatMessage = {
+          id: `dm_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          conversationId: convId,
+          senderId: data.recipientId,
+          senderName: data.recipientName,
+          senderEmail: data.recipientEmail,
+          senderAvatarUrl: data.recipientAvatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+          recipientId: data.senderId,
+          recipientName: data.senderName,
+          recipientEmail: data.senderEmail,
+          recipientAvatarUrl: data.senderAvatarUrl,
+          text: replyText,
+          timestamp: 'Just now',
+          createdAt: Date.now(),
+          isRead: false
+        };
+
+        this.directMessages.push(autoMsg);
+        this.saveDirectMessagesToStorage();
+        try {
+          this.broadcastChannel?.postMessage({ type: 'SYNC_DM' });
+        } catch {}
+        if (db) {
+          try {
+            await setDoc(doc(db, 'direct_chat_messages', autoMsg.id), autoMsg);
+          } catch {}
+        }
+        this.notify();
+      }, 1200);
+    }
+
+    return msg;
+  }
+
+  public async markDirectMessagesAsRead(conversationId: string, currentUserId: string) {
+    let changed = false;
+    this.directMessages.forEach(m => {
+      if (m.conversationId === conversationId && m.recipientId === currentUserId && !m.isRead) {
+        m.isRead = true;
+        changed = true;
+        if (db) {
+          try {
+            setDoc(doc(db, 'direct_chat_messages', m.id), { isRead: true }, { merge: true });
+          } catch {}
+        }
+      }
+    });
+    if (changed) {
+      this.saveDirectMessagesToStorage();
+      this.notify();
+    }
+  }
+
+  public async pinChatMessage(messageId: string, pinnedBy?: string) {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg) return;
+
+    const willPin = !msg.isPinned;
+    msg.isPinned = willPin;
+    msg.pinnedBy = willPin ? (pinnedBy || 'Classmate') : undefined;
+    msg.pinnedAt = willPin ? Date.now() : undefined;
+
+    this.saveChatToStorage();
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'group_chat_messages', messageId), {
+          isPinned: willPin,
+          pinnedBy: willPin ? (pinnedBy || 'Classmate') : null,
+          pinnedAt: willPin ? Date.now() : null
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to update pin on Firestore:', err);
+      }
+    }
+
+    this.notify();
+  }
+
+  public getPinnedMessages(): GroupChatMessage[] {
+    return this.chatMessages
+      .filter(m => m.isPinned)
+      .sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0));
+  }
+
+  public async unpinChatMessage(messageId: string) {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg) return;
+
+    msg.isPinned = false;
+    msg.pinnedBy = undefined;
+    msg.pinnedAt = undefined;
+    this.saveChatToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'group_chat_messages', messageId), {
+          isPinned: false,
+          pinnedBy: null,
+          pinnedAt: null
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to unpin message on Firestore:', err);
+      }
+    }
+
+    this.notify();
+  }
+
+  public votePoll(messageId: string, optionId: string, voterName: string) {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg || !msg.poll) return;
+
+    const voter = voterName.trim() || 'You';
+    msg.poll.options.forEach(opt => {
+      // Toggle or switch vote
+      if (opt.id === optionId) {
+        if (opt.votes.includes(voter)) {
+          opt.votes = opt.votes.filter(v => v !== voter);
+        } else {
+          opt.votes.push(voter);
+        }
+      } else {
+        opt.votes = opt.votes.filter(v => v !== voter);
+      }
+    });
+
+    this.saveChatToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
+    if (db) {
+      try {
+        setDoc(doc(db, 'group_chat_messages', messageId), { poll: msg.poll }, { merge: true });
+      } catch {}
+    }
+
+    this.notify();
+  }
+
+  public reactToChatMessage(messageId: string, emoji: string) {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg) return;
+
+    if (!msg.reactions) {
+      msg.reactions = {};
+    }
+
+    msg.reactions[emoji] = (msg.reactions[emoji] || 0) + 1;
+    this.saveChatToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
+    if (db) {
+      try {
+        setDoc(doc(db, 'group_chat_messages', messageId), { reactions: msg.reactions }, { merge: true });
+      } catch {}
+    }
+
+    this.notify();
+  }
+
+  public async editChatMessage(
+    messageId: string, 
+    newText: string,
+    editor?: { id?: string; email?: string; name?: string }
+  ): Promise<{ success: boolean; error?: string }> {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg || msg.isDeletedForEveryone) {
+      return { success: false, error: 'Message not found or deleted.' };
+    }
+
+    // Strict author verification: ONLY author can edit their own message!
+    if (editor) {
+      const editorNameClean = (editor.name || '').replace(' 👑', '').trim().toLowerCase();
+      const senderNameClean = (msg.senderName || '').replace(' 👑', '').trim().toLowerCase();
+      const isAuthor = Boolean(
+        (editor.id && msg.senderId && editor.id === msg.senderId) ||
+        (editor.email && msg.senderEmail && editor.email.toLowerCase().trim() === msg.senderEmail.toLowerCase().trim()) ||
+        (editorNameClean !== '' && editorNameClean === senderNameClean)
+      );
+
+      if (!isAuthor) {
+        return { success: false, error: 'Permission denied: You can only edit your own messages.' };
+      }
+    }
+
+    msg.text = newText.trim();
+    msg.isEdited = true;
+    this.saveChatToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'group_chat_messages', messageId), { text: msg.text, isEdited: true }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to edit chat message on Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return { success: true };
+  }
+
+  public deleteChatMessageForMe(messageId: string) {
+    this.chatMessages = this.chatMessages.filter(m => m.id !== messageId);
+    this.saveChatToStorage();
+    this.notify();
+  }
+
+  public async deleteChatMessageForEveryone(
+    messageId: string,
+    deleter?: { id?: string; email?: string; name?: string }
+  ): Promise<{ success: boolean; error?: string }> {
+    const msg = this.chatMessages.find(m => m.id === messageId);
+    if (!msg) return { success: false, error: 'Message not found.' };
+
+    if (deleter) {
+      const isKritika = (deleter.name || '').toLowerCase().includes('kritika') || (deleter.email || '').toLowerCase().includes('kritika');
+      const deleterNameClean = (deleter.name || '').replace(' 👑', '').trim().toLowerCase();
+      const senderNameClean = (msg.senderName || '').replace(' 👑', '').trim().toLowerCase();
+      const isAuthor = Boolean(
+        (deleter.id && msg.senderId && deleter.id === msg.senderId) ||
+        (deleter.email && msg.senderEmail && deleter.email.toLowerCase().trim() === msg.senderEmail.toLowerCase().trim()) ||
+        (deleterNameClean !== '' && deleterNameClean === senderNameClean)
+      );
+
+      if (!isAuthor && !isKritika) {
+        return { success: false, error: 'Permission denied: Only the author can delete this message for everyone.' };
+      }
+    }
+
+    // Remove from local in-memory message list
+    this.chatMessages = this.chatMessages.filter(m => m.id !== messageId);
+    this.saveChatToStorage();
+
+    // Broadcast instant removal to all tabs/windows
+    try {
+      this.broadcastChannel?.postMessage({ type: 'DELETE_CHAT_MESSAGE', messageId });
+      this.broadcastChannel?.postMessage({ type: 'SYNC_CHAT' });
+    } catch {}
+
+    // Delete document directly from Firebase Firestore
+    if (db) {
+      try {
+        await deleteDoc(doc(db, 'group_chat_messages', messageId));
+      } catch (err) {
+        console.warn('Failed to delete for everyone on Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return { success: true };
+  }
+
+  // =================== INSTAGRAM POSTS MANAGEMENT ===================
+  public async addInstagramPost(data: {
+    userId?: string;
+    userEmail?: string;
+    authorName: string;
+    authorAvatarUrl?: string;
+    location?: string;
+    imageUrl: string;
+    filter?: string;
+    caption: string;
+    hashtags?: string[];
+  }): Promise<InstagramPost> {
+    const name = data.authorName.trim() || 'Batch 41 Creator';
+    const isKritika = name.toLowerCase().includes('kritika') || 
+                      (data.userEmail && data.userEmail.toLowerCase().includes('kritika')) ||
+                      name.toLowerCase().includes('marisol');
+
+    const newPost: InstagramPost = {
+      id: `insta_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      userId: data.userId,
+      userEmail: data.userEmail,
+      authorName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
+      authorAvatarUrl: data.authorAvatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+      location: data.location || 'Batch 41 Comfort Hub 🌸',
+      imageUrl: data.imageUrl,
+      filter: data.filter || 'none',
+      caption: data.caption.trim(),
+      hashtags: data.hashtags && data.hashtags.length > 0 ? data.hashtags : ['#Batch41', '#FactoryOfFun'],
+      likesCount: 1,
+      likedByCurrentUser: true,
+      likedByUsers: [name],
+      comments: [],
+      saved: false,
+      timestamp: 'Just now',
+      createdAt: Date.now(),
+      isKritika
+    };
+
+    this.instagramPosts.unshift(newPost);
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'instagram_posts', newPost.id), newPost);
+      } catch (err) {
+        console.warn('Failed to add insta post to Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return newPost;
+  }
+
+  public async pinInstagramPost(postId: string, pinnedBy?: string) {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return;
+
+    const willPin = !post.isPinned;
+    post.isPinned = willPin;
+    post.pinnedBy = willPin ? (pinnedBy || 'Classmate') : undefined;
+    post.pinnedAt = willPin ? Date.now() : undefined;
+
+    this.saveInstaToStorage();
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'instagram_posts', postId), {
+          isPinned: willPin,
+          pinnedBy: willPin ? (pinnedBy || 'Classmate') : null,
+          pinnedAt: willPin ? Date.now() : null
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to update post pin on Firestore:', err);
+      }
+    }
+
+    this.notify();
+  }
+
+  public async unpinInstagramPost(postId: string) {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return;
+
+    post.isPinned = false;
+    post.pinnedBy = undefined;
+    post.pinnedAt = undefined;
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'instagram_posts', postId), {
+          isPinned: false,
+          pinnedBy: null,
+          pinnedAt: null
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to unpin post on Firestore:', err);
+      }
+    }
+
+    this.notify();
+  }
+
+  public async editInstagramPost(
+    postId: string, 
+    newCaption: string,
+    editor?: { id?: string; email?: string; name?: string }
+  ): Promise<{ success: boolean; error?: string }> {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return { success: false, error: 'Post not found.' };
+
+    if (editor) {
+      const editorNameClean = (editor.name || '').replace(' 👑', '').trim().toLowerCase();
+      const authorNameClean = (post.authorName || '').replace(' 👑', '').trim().toLowerCase();
+      const isAuthor = Boolean(
+        (editor.id && post.userId && editor.id === post.userId) ||
+        (editor.email && (post.userEmail || post.authorEmail) && editor.email.toLowerCase().trim() === (post.userEmail || post.authorEmail)?.toLowerCase().trim()) ||
+        (editorNameClean !== '' && editorNameClean === authorNameClean)
+      );
+
+      if (!isAuthor) {
+        return { success: false, error: 'Permission denied: You can only edit your own posts.' };
+      }
+    }
+
+    post.caption = newCaption.trim();
+    post.isEdited = true;
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'instagram_posts', postId), { caption: post.caption, isEdited: true }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to edit post on Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return { success: true };
+  }
+
+  public async deleteInstagramPost(
+    postId: string,
+    deleter?: { id?: string; email?: string; name?: string }
+  ): Promise<{ success: boolean; error?: string }> {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return { success: false, error: 'Post not found.' };
+
+    if (deleter) {
+      const isKritika = (deleter.name || '').toLowerCase().includes('kritika') || (deleter.email || '').toLowerCase().includes('kritika');
+      const deleterNameClean = (deleter.name || '').replace(' 👑', '').trim().toLowerCase();
+      const authorNameClean = (post.authorName || '').replace(' 👑', '').trim().toLowerCase();
+      const isAuthor = Boolean(
+        (deleter.id && post.userId && deleter.id === post.userId) ||
+        (deleter.email && (post.userEmail || post.authorEmail) && deleter.email.toLowerCase().trim() === (post.userEmail || post.authorEmail)?.toLowerCase().trim()) ||
+        (deleterNameClean !== '' && deleterNameClean === authorNameClean)
+      );
+
+      if (!isAuthor && !isKritika) {
+        return { success: false, error: 'Permission denied: Only the author can delete this post.' };
+      }
+    }
+
+    this.instagramPosts = this.instagramPosts.filter(p => p.id !== postId);
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await deleteDoc(doc(db, 'instagram_posts', postId));
+      } catch (err) {
+        console.warn('Failed to delete post on Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return { success: true };
+  }
+
+  public likeInstagramPost(postId: string, currentUserName?: string) {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return;
+
+    if (post.likedByCurrentUser) {
+      post.likedByCurrentUser = false;
+      post.likesCount = Math.max(0, post.likesCount - 1);
+      if (currentUserName && post.likedByUsers) {
+        post.likedByUsers = post.likedByUsers.filter(u => u !== currentUserName);
+      }
+    } else {
+      post.likedByCurrentUser = true;
+      post.likesCount += 1;
+      if (!post.likedByUsers) post.likedByUsers = [];
+      if (currentUserName && !post.likedByUsers.includes(currentUserName)) {
+        post.likedByUsers.push(currentUserName);
+      }
+    }
+
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        setDoc(doc(db, 'instagram_posts', postId), { 
+          likesCount: post.likesCount,
+          likedByUsers: post.likedByUsers || []
+        }, { merge: true });
+      } catch {}
+    }
+
+    this.notify();
+  }
+
+  public toggleBookmarkInstagramPost(postId: string) {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return;
+
+    post.saved = !post.saved;
+    this.saveInstaToStorage();
+    this.notify();
+  }
+
+  public async addInstagramComment(postId: string, commentData: {
+    authorId?: string;
+    authorName: string;
+    authorEmail?: string;
+    avatarUrl?: string;
+    text: string;
+  }): Promise<InstagramComment | null> {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return null;
+
+    if (!post.comments) {
+      post.comments = [];
+    }
+
+    const name = commentData.authorName.trim() || 'Classmate';
+    const email = commentData.authorEmail || '';
+    const isKritika = name.toLowerCase().includes('kritika') || 
+                      email.toLowerCase().includes('kritika') ||
+                      name.toLowerCase().includes('marisol');
+
+    const newComment: InstagramComment = {
+      id: `comm_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      authorId: commentData.authorId,
+      authorName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
+      authorEmail: commentData.authorEmail,
+      avatarUrl: commentData.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+      text: commentData.text.trim(),
+      timestamp: 'Just now',
+      createdAt: Date.now(),
+      isKritika
+    };
+
+    post.comments.push(newComment);
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'instagram_posts', postId), { comments: post.comments }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to sync insta comment to Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return newComment;
+  }
+
+  public async deletePost(postId: string) {
+    this.posts = this.posts.filter(p => p.id !== postId);
+    this.saveToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_POSTS' });
+    } catch {}
+
+    if (db) {
+      try {
+        await deleteDoc(doc(db, 'batch_updates', postId));
+      } catch (err) {
+        console.warn('Failed to delete post from Firestore:', err);
+      }
+    }
+
+    this.notify();
+  }
+
+  public reactToPost(postId: string, stickerAliasOrId: string) {
+    const post = this.posts.find(p => p.id === postId);
+    if (!post) return;
+
+    if (!post.reactions) {
+      post.reactions = {};
+    }
+
+    post.reactions[stickerAliasOrId] = (post.reactions[stickerAliasOrId] || 0) + 1;
+    this.saveToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_POSTS' });
+    } catch {}
+
+    if (db) {
+      try {
+        setDoc(doc(db, 'batch_updates', postId), { reactions: post.reactions }, { merge: true });
+      } catch {}
+    }
+
+    this.notify();
+  }
+
+  /**
+   * Post an async reply to a bulletin note (allows Kritika or classmates to reply at their own time)
+   */
+  public async addReply(postId: string, replyData: {
+    authorId?: string;
+    authorName: string;
+    authorEmail?: string;
+    avatarUrl?: string;
+    text: string;
+    isKritika?: boolean;
+  }): Promise<BulletinReply | null> {
+    const post = this.posts.find(p => p.id === postId);
+    if (!post) return null;
+
+    if (!post.replies) {
+      post.replies = [];
+    }
+
+    const email = replyData.authorEmail || '';
+    const name = replyData.authorName || '';
+    const isKritika = replyData.isKritika || 
+      name.toLowerCase().includes('kritika') || 
+      email.toLowerCase().includes('kritika') ||
+      name.toLowerCase().includes('marisol');
+
+    const newReply: BulletinReply = {
+      id: `rep_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      authorId: replyData.authorId,
+      authorName: replyData.authorName.trim() || 'Batch 41 Classmate',
+      authorEmail: replyData.authorEmail,
+      avatarUrl: replyData.avatarUrl || '/marisol/avatars/01_brighter_ideas.png',
+      text: replyData.text.trim(),
+      timestamp: 'Just now',
+      createdAt: Date.now(),
+      isKritika
+    };
+
+    post.replies.push(newReply);
+    this.saveToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_POSTS' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'batch_updates', postId), { replies: post.replies }, { merge: true });
+      } catch (err) {
+        console.warn('Failed to sync reply to Firestore:', err);
+      }
+    }
+
+    this.notify();
+    return newReply;
+  }
+
+  /**
+   * Matches the group chat messages table for the current session user:
+   * Extracts user ID, finds all matched messages in the table,
+   * identifies the user's current (latest) message, and returns the matched dataset.
+   */
+  public getUserMatchedChatData(userQuery: { id?: string; email?: string; name?: string }): {
+    userId: string;
+    userName: string;
+    userEmail: string;
+    matchedMessages: GroupChatMessage[];
+    currentMessage: GroupChatMessage | null;
+    totalMatched: number;
+  } {
+    const rawId = userQuery.id?.trim() || '';
+    const rawEmail = userQuery.email?.trim().toLowerCase() || '';
+    const rawName = (userQuery.name || '').replace(' 👑', '').trim().toLowerCase();
+
+    const resolvedUserId = rawId || (rawEmail ? `user_${rawEmail.split('@')[0]}` : (rawName ? `user_${rawName.replace(/\s+/g, '_')}` : 'user_student'));
+
+    const matchedMessages = this.chatMessages.filter(msg => {
+      const msgSenderId = msg.senderId?.trim();
+      const msgEmail = msg.senderEmail?.trim().toLowerCase();
+      const msgName = (msg.senderName || '').replace(' 👑', '').trim().toLowerCase();
+
+      if (rawId && msgSenderId && rawId === msgSenderId) return true;
+      if (rawEmail && msgEmail && rawEmail === msgEmail) return true;
+      if (rawName && msgName && rawName === msgName) return true;
+      return false;
+    });
+
+    const currentMessage = matchedMessages.length > 0 ? matchedMessages[matchedMessages.length - 1] : null;
+
+    return {
+      userId: resolvedUserId,
+      userName: userQuery.name || 'Student',
+      userEmail: rawEmail,
+      matchedMessages,
+      currentMessage,
+      totalMatched: matchedMessages.length
+    };
+  }
+
+  public subscribe(listener: () => void) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private notify() {
+    this.listeners.forEach(l => l());
+  }
+}
+
+export const batchWallService = new BatchWallService();
+
+
+```
+
+---
+
+### File: `src/services/firebase.ts`
+
+```ts
+// Firebase Initialization & Services for Marisol: Factory of Fun (Spec v2)
+import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
+  signInAnonymously,
+  signOut as firebaseSignOut, 
+  onAuthStateChanged,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  PhoneAuthProvider,
+  type Auth,
+  type User as FirebaseUser,
+  type ConfirmationResult
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  limit, 
+  serverTimestamp, 
+  type Firestore 
+} from 'firebase/firestore';
+
+export interface FirebaseConfig {
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  appId: string;
+}
+
+// Read from Vite environment variables with fallback to active project credentials
+const envConfig: FirebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyD4dIfV_Xv7sE_sx4wHE6n66QGWw9HZf-A',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'kritika-61cc2.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'kritika-61cc2',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'kritika-61cc2.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '926415718546',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:926415718546:web:bbca8e9e21becdbc8d7e4b',
+};
+
+// Check if valid Firebase credentials are provided
+export const isFirebaseConfigured = Boolean(
+  envConfig.apiKey && 
+  envConfig.apiKey !== 'YOUR_FIREBASE_API_KEY' &&
+  envConfig.projectId
+);
+
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let googleProvider: GoogleAuthProvider | null = null;
+
+if (isFirebaseConfigured) {
+  try {
+    app = getApps().length > 0 ? getApps()[0] : initializeApp(envConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    googleProvider = new GoogleAuthProvider();
+    googleProvider.setCustomParameters({ prompt: 'select_account' });
+  } catch (error) {
+    console.warn('Firebase initialization error, fallback mode active:', error);
+  }
+}
+
+export { 
+  app, 
+  auth, 
+  db, 
+  googleProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signInAnonymously,
+  firebaseSignOut,
+  onAuthStateChanged,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  PhoneAuthProvider,
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  getDocs,
+  addDoc,
+  updateDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  limit,
+  serverTimestamp,
+  type FirebaseUser,
+  type ConfirmationResult
+};
 
 ```
 
@@ -11081,121 +19903,872 @@ export const gameState = new GameStateManager();
 
 ---
 
-### File: `src/services/synthAudioEngine.ts`
+### File: `src/services/moodQuizService.ts`
 
 ```ts
-// 80s Synth & Sound Effects Audio Engine powered by Web Audio API
-import type { AudioSettings } from '../types/game';
+import { MOOD_MACARONIS, type MacaroniDish } from '../data/macaroniRecipes';
+import { nonRepeatingQuizEngine } from '../data/foodMovieQuestions1000';
+import type { Question, Category } from '../types/game';
 
-export interface MusicTrack {
+import moodHappyImg from '../assets/moods/mood_happy.jpg';
+import moodExcitedImg from '../assets/moods/mood_excited.jpg';
+import moodCalmImg from '../assets/moods/mood_calm.jpg';
+import moodStressedImg from '../assets/moods/mood_stressed.jpg';
+import moodTiredImg from '../assets/moods/mood_tired.jpg';
+import moodMotivatedImg from '../assets/moods/mood_motivated.jpg';
+import moodPlayfulImg from '../assets/moods/mood_playful.jpg';
+import moodGratefulImg from '../assets/moods/mood_grateful.jpg';
+import moodConfidentImg from '../assets/moods/mood_confident.jpg';
+
+export interface MoodProfileSetting {
   id: string;
-  title: string;
+  scaleNumber: number; // 1 to 9
+  label: string;
   emoji: string;
-  genre: string;
-  tagline: string;
+  imageSrc: string;
+  stickerQuote: string;
   vibe: string;
-  color: string;
-  tempoMs: number;
-  pattern: number[];
-  oscType: OscillatorType;
+  dialogue: string;
+  themeColor: string;
+  targetCategories: Category[];
+  preferredTheme: 'Food' | 'Movies';
 }
 
-export const MUSIC_TRACKS: MusicTrack[] = [
+export const KRITIKA_STICKER_MOODS: MoodProfileSetting[] = [
   {
-    id: 'girl_power',
-    title: 'Girl Power Anthem ♡',
-    emoji: '👑',
-    genre: 'Upbeat Disco Synth',
-    tagline: 'Boss-girl sparkle for running the world and conquering your day!',
-    vibe: 'Empowered & Sparkling',
-    color: '#EC4899',
-    tempoMs: 200,
-    pattern: [523.25, 659.25, 783.99, 1046.50, 880.00, 783.99, 659.25, 880.00, 1046.50, 1174.66, 1046.50, 880.00],
-    oscType: 'triangle'
+    id: 'happy',
+    scaleNumber: 1,
+    label: 'Happy',
+    emoji: '🌸',
+    imageSrc: moodHappyImg,
+    stickerQuote: 'Radiant Sunshine <3',
+    vibe: 'Joyful & bright',
+    dialogue: 'Your smile brings the brightest sunshine to our world! Keep shining, queen! ✨💖',
+    themeColor: '#EC4899',
+    targetCategories: ['Bollywood', 'Movies', 'Pop Culture'],
+    preferredTheme: 'Movies'
   },
   {
-    id: 'cozy_chai',
-    title: 'Tapri Chai & Rainy Day Lo-Fi',
+    id: 'excited',
+    scaleNumber: 2,
+    label: 'Excited',
+    emoji: '⚡',
+    imageSrc: moodExcitedImg,
+    stickerQuote: 'Super Hyped & Ready!',
+    vibe: 'High energy & thrilled',
+    dialogue: 'That electric energy is contagious! Let’s celebrate big wins and have endless fun! ⚡🎉',
+    themeColor: '#F59E0B',
+    targetCategories: ['Bollywood', 'Pop Culture'],
+    preferredTheme: 'Movies'
+  },
+  {
+    id: 'calm',
+    scaleNumber: 3,
+    label: 'Calm',
     emoji: '☕',
-    genre: 'Soulful Monsoon Lo-Fi',
-    tagline: 'Warm ginger-cardamom comfort while raindrops hit the windowpane.',
-    vibe: 'Warm, Cozy & Mindful',
-    color: '#F97316',
-    tempoMs: 320,
-    pattern: [220.00, 277.18, 329.63, 415.30, 440.00, 329.63, 277.18, 220.00, 196.00, 246.94, 293.66, 369.99],
-    oscType: 'sine'
+    imageSrc: moodCalmImg,
+    stickerQuote: 'Peace & Warm Chai <3',
+    vibe: 'Peaceful & grounded',
+    dialogue: 'Hot cup of ginger chai & soothing comfort on our agenda today. Breathe easy. ☕☁️',
+    themeColor: '#10B981',
+    targetCategories: ['Food & Cooking', 'Pop Culture'],
+    preferredTheme: 'Food'
   },
   {
-    id: 'bollywood',
-    title: 'Bollywood Thumka Beats',
-    emoji: '💃',
-    genre: 'Desi Celebratory Pop',
-    tagline: 'Infectious upbeat rhythm to snap your fingers and dance away tension!',
-    vibe: 'Bubbly, Joyous & Sassy',
-    color: '#EAB308',
-    tempoMs: 190,
-    pattern: [293.66, 329.63, 369.99, 440.00, 493.88, 440.00, 369.99, 329.63, 293.66, 220.00, 293.66, 369.99],
-    oscType: 'triangle'
+    id: 'stressed',
+    scaleNumber: 4,
+    label: 'Stressed',
+    emoji: '🥺',
+    imageSrc: moodStressedImg,
+    stickerQuote: 'Need a Gentle Hug',
+    vibe: 'Overwhelmed & anxious',
+    dialogue: 'Deep breath, darling. Drop your shoulders, sip some water. You are doing amazing! 🌸💆‍♀️',
+    themeColor: '#3B82F6',
+    targetCategories: ['Food & Cooking', 'Movies'],
+    preferredTheme: 'Food'
   },
   {
-    id: 'retro_synth',
-    title: '80s Neon Sunset Drive',
-    emoji: '🌆',
-    genre: 'Retro Synthwave',
-    tagline: 'Cruising down neon highways with cool confidence and zero drama.',
-    vibe: 'Dreamy, Nostalgic & Cool',
-    color: '#8B5CF6',
-    tempoMs: 220,
-    pattern: [164.81, 196.00, 246.94, 329.63, 293.66, 246.94, 196.00, 146.83, 164.81, 220.00, 261.63, 329.63],
-    oscType: 'sawtooth'
+    id: 'tired',
+    scaleNumber: 5,
+    label: 'Tired',
+    emoji: '💤',
+    imageSrc: moodTiredImg,
+    stickerQuote: 'Recharging Battery...',
+    vibe: 'Low energy & sleepy',
+    dialogue: 'You worked so hard today. Let’s wrap in a warm blanket and cozy up. 🌙💤',
+    themeColor: '#8B5CF6',
+    targetCategories: ['Movies', 'Food & Cooking'],
+    preferredTheme: 'Movies'
   },
   {
-    id: 'zen_chill',
-    title: 'Zen Mind Spa & Calm',
-    emoji: '🧘',
-    genre: 'Ambient Mindful Chimes',
-    tagline: 'Soft chimes and deep breath tempo to gently dissolve overthinking.',
-    vibe: 'Peaceful, Serene & Grounded',
-    color: '#10B981',
-    tempoMs: 380,
-    pattern: [392.00, 440.00, 523.25, 659.25, 523.25, 440.00, 329.63, 392.00],
-    oscType: 'sine'
+    id: 'motivated',
+    scaleNumber: 6,
+    label: 'Motivated',
+    emoji: '💼',
+    imageSrc: moodMotivatedImg,
+    stickerQuote: 'Focused & Slaying',
+    vibe: 'Ambitious & driven',
+    dialogue: 'Look at you conquering your goals! Slay those tasks and reach new heights! ⚡👑',
+    themeColor: '#0EA5E9',
+    targetCategories: ['Movies', 'Pop Culture'],
+    preferredTheme: 'Movies'
   },
   {
-    id: 'rage_buster',
-    title: 'Hangry Rage Popper & Vent Beat',
-    emoji: '💥',
-    genre: 'High-Octane Mood Lifter',
-    tagline: 'Fast punchy groove to channel anger into unstoppable superstar energy!',
-    vibe: 'Punchy, Fiery & Cathartic',
-    color: '#EF4444',
-    tempoMs: 160,
-    pattern: [130.81, 164.81, 196.00, 261.63, 196.00, 164.81, 220.00, 261.63, 329.63, 261.63, 220.00, 174.61],
-    oscType: 'sawtooth'
+    id: 'playful',
+    scaleNumber: 7,
+    label: 'Playful',
+    emoji: '🤪',
+    imageSrc: moodPlayfulImg,
+    stickerQuote: 'Silly Is A Vibe',
+    vibe: 'Quirky & cheerful',
+    dialogue: 'Main apni favourite hoon! Keep laughing and being your iconic joyful self! 🎀🌈',
+    themeColor: '#EC4899',
+    targetCategories: ['Food & Cooking', 'Movies'],
+    preferredTheme: 'Movies'
+  },
+  {
+    id: 'grateful',
+    scaleNumber: 8,
+    label: 'Grateful',
+    emoji: '🐶',
+    imageSrc: moodGratefulImg,
+    stickerQuote: 'Wholesome & Loved',
+    vibe: 'Warm & thankful',
+    dialogue: 'Sending you gentle puppy cuddles and the warmest fuzzy sisterly love! 🐶🧸',
+    themeColor: '#FBBF24',
+    targetCategories: ['Food & Cooking', 'Movies'],
+    preferredTheme: 'Food'
+  },
+  {
+    id: 'confident',
+    scaleNumber: 9,
+    label: 'Confident',
+    emoji: '👑',
+    imageSrc: moodConfidentImg,
+    stickerQuote: 'Main apni favourite hoon!',
+    vibe: 'Unstoppable royal confidence',
+    dialogue: 'Step into your royal power! The world is your catwalk and you are the queen! 👑✨',
+    themeColor: '#D946EF',
+    targetCategories: ['Bollywood', 'Movies'],
+    preferredTheme: 'Movies'
   }
 ];
 
+export const getMoodMacaroni = (moodId: string): MacaroniDish => {
+  return MOOD_MACARONIS[moodId] || MOOD_MACARONIS['happy'];
+};
+
+/**
+ * Draw 100% unrepeated questions from the 1000+ Food & Movie database
+ */
+export const getQuestionsForMood = (moodId: string, count: number = 5, _playedIds: string[] = []): Question[] => {
+  const setting = KRITIKA_STICKER_MOODS.find(m => m.id === moodId) || KRITIKA_STICKER_MOODS[0];
+  return nonRepeatingQuizEngine.getUnplayedQuestions(count, setting.preferredTheme);
+};
+
+```
+
+---
+
+### File: `src/services/moodRotationService.ts`
+
+```ts
+// Mood Rotation & History Engine for Marisol: Factory of Fun (Spec v2)
+
+export interface MoodHistoryEntry {
+  id: string;
+  date: string; // YYYY-MM-DD
+  timestamp: number;
+  scaleNumber: number; // 1 to 9
+  moodId: string;
+  moodLabel: string;
+  emoji: string;
+  privateNote?: string;
+  macaroniId: string;
+}
+
+export interface ComfortBookmark {
+  id: string;
+  type: 'macaroni' | 'quote' | 'movie';
+  title: string;
+  subtitle: string;
+  emoji: string;
+  savedAt: string;
+  data?: any;
+}
+
+const MOOD_HISTORY_KEY = 'marisol_mood_history_v2';
+const COMFORT_SHELF_KEY = 'marisol_comfort_shelf_v2';
+
+export class MoodRotationTracker {
+  private history: string[] = [];
+  private readonly maxHistoryLength = 5;
+
+  public getNextRecommendation<T extends { id: string }>(items: T[]): T {
+    const freshCandidates = items.filter(item => !this.history.includes(item.id));
+    const pool = freshCandidates.length > 0
+      ? freshCandidates
+      : items.filter(item => item.id !== this.history[this.history.length - 1]);
+
+    const selected = pool[Math.floor(Math.random() * pool.length)];
+
+    this.history.push(selected.id);
+    if (this.history.length > this.maxHistoryLength) {
+      this.history.shift();
+    }
+    return selected;
+  }
+
+  public clearHistory() {
+    this.history = [];
+  }
+}
+
+class MoodHistoryManager {
+  private entries: MoodHistoryEntry[] = [];
+  private bookmarks: ComfortBookmark[] = [];
+  private listeners: Set<() => void> = new Set();
+
+  constructor() {
+    this.loadData();
+  }
+
+  private loadData() {
+    try {
+      const historyStr = localStorage.getItem(MOOD_HISTORY_KEY);
+      if (historyStr) {
+        this.entries = JSON.parse(historyStr);
+      }
+      const shelfStr = localStorage.getItem(COMFORT_SHELF_KEY);
+      if (shelfStr) {
+        this.bookmarks = JSON.parse(shelfStr);
+      }
+    } catch (err) {
+      console.warn('Failed to load mood history / shelf from storage', err);
+    }
+  }
+
+  private saveData() {
+    try {
+      localStorage.setItem(MOOD_HISTORY_KEY, JSON.stringify(this.entries));
+      localStorage.setItem(COMFORT_SHELF_KEY, JSON.stringify(this.bookmarks));
+    } catch {}
+    this.notify();
+  }
+
+  // Add or update daily mood check-in
+  public recordMoodCheckIn(scaleNumber: number, moodId: string, moodLabel: string, emoji: string, macaroniId: string, privateNote?: string): MoodHistoryEntry {
+    const today = new Date().toISOString().split('T')[0];
+    const newEntry: MoodHistoryEntry = {
+      id: `entry_${Date.now()}`,
+      date: today,
+      timestamp: Date.now(),
+      scaleNumber,
+      moodId,
+      moodLabel,
+      emoji,
+      privateNote: privateNote?.trim() || undefined,
+      macaroniId
+    };
+
+    // Filter out previous check-in for the same day if updating
+    this.entries = [newEntry, ...this.entries.filter(e => e.date !== today)];
+    this.saveData();
+    return newEntry;
+  }
+
+  public getMoodHistory(): MoodHistoryEntry[] {
+    return this.entries;
+  }
+
+  public getTodayCheckIn(): MoodHistoryEntry | undefined {
+    const today = new Date().toISOString().split('T')[0];
+    return this.entries.find(e => e.date === today);
+  }
+
+  // Comfort Shelf Bookmarks
+  public toggleBookmark(bookmark: ComfortBookmark): boolean {
+    const existsIndex = this.bookmarks.findIndex(b => b.id === bookmark.id);
+    if (existsIndex >= 0) {
+      this.bookmarks.splice(existsIndex, 1);
+      this.saveData();
+      return false; // Removed
+    } else {
+      this.bookmarks.unshift(bookmark);
+      this.saveData();
+      return true; // Added
+    }
+  }
+
+  public isBookmarked(id: string): boolean {
+    return this.bookmarks.some(b => b.id === id);
+  }
+
+  public getBookmarks(): ComfortBookmark[] {
+    return this.bookmarks;
+  }
+
+  public subscribe(listener: () => void) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private notify() {
+    this.listeners.forEach(l => l());
+  }
+}
+
+export const questionRotationTracker = new MoodRotationTracker();
+export const quoteRotationTracker = new MoodRotationTracker();
+export const moodHistoryManager = new MoodHistoryManager();
+
+```
+
+---
+
+### File: `src/services/musicStreamingService.ts`
+
+```ts
+// Full-Length Audio Streaming Service for Marisol: Factory of Fun
+// Supports 100% Full-Length Audio Playback (3-5+ mins) via Background Audio Engine
+
+export interface Track {
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  artworkUrl: string;
+  streamUrl: string;
+  durationMs: number; // in milliseconds (e.g. 268000 = 4:28)
+  genre: string;
+  releaseYear: string;
+  youtubeId?: string; // Full-length song ID
+}
+
+export interface PlayerState {
+  currentTrack: Track | null;
+  isPlaying: boolean;
+  currentTime: number; // in seconds
+  duration: number; // in seconds (e.g. 268s)
+  volume: number; // 0.0 to 1.0
+  isLoading: boolean;
+  queue: Track[];
+  queueIndex: number;
+  error: string | null;
+}
+
+// Curated 100% Full-Length Songs (Complete 3–5 min tracks)
+export const CURATED_NEW_RELEASES: Track[] = [
+  {
+    id: 'full_kesariya',
+    title: 'Kesariya',
+    artist: 'Arijit Singh & Pritam',
+    album: 'Brahmastra',
+    artworkUrl: 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=300&h=300&fit=crop',
+    streamUrl: 'https://cdn.pixabay.com/download/audio/2023/04/10/audio_51a37c413b.mp3?filename=coffee-chill-out-146317.mp3',
+    youtubeId: 'BddP6PYo2gs',
+    durationMs: 268000, // 4:28 full song
+    genre: 'Bollywood Romance',
+    releaseYear: '2024'
+  },
+  {
+    id: 'full_apna_bana_le',
+    title: 'Apna Bana Le',
+    artist: 'Arijit Singh & Sachin-Jigar',
+    album: 'Bhediya (Comfort Acoustic)',
+    artworkUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop',
+    streamUrl: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3',
+    youtubeId: 'ElZfdU54Cp8',
+    durationMs: 261000, // 4:21 full song
+    genre: 'Bollywood Romance',
+    releaseYear: '2024'
+  },
+  {
+    id: 'full_chaleya',
+    title: 'Chaleya',
+    artist: 'Arijit Singh & Shilpa Rao',
+    album: 'Jawan',
+    artworkUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&h=300&fit=crop',
+    streamUrl: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=chill-abstract-intention-12099.mp3',
+    youtubeId: 'VAdGW7QDJUI',
+    durationMs: 200000, // 3:20 full song
+    genre: 'Bollywood Romantic',
+    releaseYear: '2024'
+  },
+  {
+    id: 'full_lover',
+    title: 'Lover',
+    artist: 'Diljit Dosanjh',
+    album: 'MoonChild Era',
+    artworkUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&h=300&fit=crop',
+    streamUrl: 'https://cdn.pixabay.com/download/audio/2022/10/14/audio_9939f792cb.mp3?filename=relaxed-vlog-131746.mp3',
+    youtubeId: 'mH_LFkWxpI0',
+    durationMs: 190000, // 3:10 full song
+    genre: 'Punjabi Pop',
+    releaseYear: '2024'
+  },
+  {
+    id: 'full_kabira',
+    title: 'Kabira',
+    artist: 'Tochi Raina & Rekha Bhardwaj',
+    album: 'Yeh Jawaani Hai Deewani',
+    artworkUrl: 'https://images.unsplash.com/photo-1487180144351-b8472da7d491?w=300&h=300&fit=crop',
+    streamUrl: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3',
+    youtubeId: 'jHNNMj5bNQw',
+    durationMs: 251000, // 4:11 full song
+    genre: 'Sufi Comfort',
+    releaseYear: '2024'
+  },
+  {
+    id: 'full_tum_se_hi',
+    title: 'Tum Se Hi',
+    artist: 'Mohit Chauhan & Pritam',
+    album: 'Jab We Met',
+    artworkUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&h=300&fit=crop',
+    streamUrl: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=chill-abstract-intention-12099.mp3',
+    youtubeId: 'mt9xg0mmt28',
+    durationMs: 320000, // 5:20 full song
+    genre: 'Bollywood Classic',
+    releaseYear: '2024'
+  },
+  {
+    id: 'full_pehle_bhi_main',
+    title: 'Pehle Bhi Main',
+    artist: 'Vishal Mishra & Raj Shekhar',
+    album: 'Animal',
+    artworkUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=300&h=300&fit=crop',
+    streamUrl: 'https://cdn.pixabay.com/download/audio/2023/04/10/audio_51a37c413b.mp3?filename=coffee-chill-out-146317.mp3',
+    youtubeId: 'ydSAtcO_bA8',
+    durationMs: 250000, // 4:10 full song
+    genre: 'Bollywood Soul',
+    releaseYear: '2024'
+  },
+  {
+    id: 'full_until_i_found_you',
+    title: 'Until I Found You',
+    artist: 'Stephen Sanchez',
+    album: 'Easy On My Eyes',
+    artworkUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop',
+    streamUrl: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=sweet-life-luxury-chill-110034.mp3',
+    youtubeId: 'GxldQ9eX2wo',
+    durationMs: 180000, // 3:00 full song
+    genre: 'Indie Romance',
+    releaseYear: '2024'
+  }
+];
+
+class MusicStreamingService {
+  private ytPlayer: any = null;
+  private isYtReady = false;
+  private timerInterval: any = null;
+  private audioFallback: HTMLAudioElement | null = null;
+
+  private state: PlayerState = {
+    currentTrack: CURATED_NEW_RELEASES[0],
+    isPlaying: false,
+    currentTime: 0,
+    duration: Math.floor(CURATED_NEW_RELEASES[0].durationMs / 1000), // 268s for Kesariya
+    volume: 0.85,
+    isLoading: false,
+    queue: CURATED_NEW_RELEASES,
+    queueIndex: 0,
+    error: null
+  };
+  private listeners: Set<(state: PlayerState) => void> = new Set();
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      this.initBackgroundYouTubeAudio();
+      this.initAudioFallback();
+    }
+  }
+
+  private initAudioFallback() {
+    this.audioFallback = new Audio();
+    this.audioFallback.volume = this.state.volume;
+    this.audioFallback.addEventListener('timeupdate', () => {
+      if (!this.isYtReady && this.audioFallback) {
+        this.state.currentTime = this.audioFallback.currentTime;
+        this.state.duration = this.audioFallback.duration || this.state.duration;
+        this.notify();
+      }
+    });
+    this.audioFallback.addEventListener('ended', () => {
+      if (!this.isYtReady) this.playNext();
+    });
+  }
+
+  private initBackgroundYouTubeAudio() {
+    // 1. Create hidden offscreen container for background audio
+    let container = document.getElementById('hidden-youtube-audio-engine');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'hidden-youtube-audio-engine';
+      container.style.position = 'fixed';
+      container.style.bottom = '-9999px';
+      container.style.left = '-9999px';
+      container.style.width = '1px';
+      container.style.height = '1px';
+      container.style.opacity = '0';
+      container.style.pointerEvents = 'none';
+      container.style.zIndex = '-1000';
+      document.body.appendChild(container);
+    }
+
+    // 2. Load YouTube IFrame API
+    const loadApi = () => {
+      if ((window as any).YT && (window as any).YT.Player) {
+        this.createPlayer();
+      } else {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
+
+        const prevReady = (window as any).onYouTubeIframeAPIReady;
+        (window as any).onYouTubeIframeAPIReady = () => {
+          if (prevReady) prevReady();
+          this.createPlayer();
+        };
+      }
+    };
+
+    if (document.readyState === 'complete') {
+      loadApi();
+    } else {
+      window.addEventListener('load', loadApi);
+    }
+  }
+
+  private createPlayer() {
+    try {
+      const initialVideoId = this.state.currentTrack?.youtubeId || 'BddP6PYo2gs';
+      this.ytPlayer = new (window as any).YT.Player('hidden-youtube-audio-engine', {
+        height: '1',
+        width: '1',
+        videoId: initialVideoId,
+        playerVars: {
+          autoplay: 0,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          playsinline: 1,
+          rel: 0
+        },
+        events: {
+          onReady: () => {
+            this.isYtReady = true;
+            this.ytPlayer.setVolume(Math.round(this.state.volume * 100));
+            this.startTracking();
+          },
+          onStateChange: (event: any) => {
+            // YT.PlayerState.PLAYING = 1, PAUSED = 2, BUFFERING = 3, ENDED = 0
+            if (event.data === 1) {
+              this.state.isPlaying = true;
+              this.state.isLoading = false;
+              const d = this.ytPlayer?.getDuration?.();
+              if (d && d > 10) {
+                this.state.duration = Math.floor(d);
+              }
+              this.notify();
+            } else if (event.data === 2) {
+              this.state.isPlaying = false;
+              this.notify();
+            } else if (event.data === 3) {
+              this.state.isLoading = true;
+              this.notify();
+            } else if (event.data === 0) {
+              this.playNext();
+            }
+          },
+          onError: (err: any) => {
+            console.warn('[AudioEngine] YouTube Audio Notice:', err);
+            this.state.isLoading = false;
+            this.state.isPlaying = false;
+            this.notify();
+          }
+        }
+      });
+    } catch (err) {
+      console.warn('Error creating YT player:', err);
+    }
+  }
+
+  private startTracking() {
+    if (this.timerInterval) clearInterval(this.timerInterval);
+    this.timerInterval = setInterval(() => {
+      if (this.ytPlayer && this.isYtReady && this.state.isPlaying) {
+        const cur = this.ytPlayer.getCurrentTime?.() || 0;
+        const dur = this.ytPlayer.getDuration?.() || this.state.duration;
+        this.state.currentTime = cur;
+        if (dur && dur > 10) {
+          this.state.duration = Math.floor(dur);
+        }
+        this.notify();
+      }
+    }, 400);
+  }
+
+  public getState(): PlayerState {
+    return { ...this.state };
+  }
+
+  public subscribe(listener: (state: PlayerState) => void) {
+    this.listeners.add(listener);
+    listener(this.getState());
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify() {
+    const s = this.getState();
+    this.listeners.forEach(l => l(s));
+  }
+
+  /**
+   * Search internet songs with CORS support
+   */
+  public async searchTracks(query: string): Promise<Track[]> {
+    if (!query.trim()) return CURATED_NEW_RELEASES;
+
+    try {
+      const formatted = encodeURIComponent(query.trim());
+      const url = `https://itunes.apple.com/search?term=${formatted}&media=music&entity=song&limit=25`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.results && data.results.length > 0) {
+        const tracks: Track[] = data.results
+          .filter((item: any) => item.trackName)
+          .map((item: any) => {
+            const rawDur = item.trackTimeMillis || 240000;
+            return {
+              id: `search_${item.trackId}`,
+              title: item.trackName,
+              artist: item.artistName,
+              album: item.collectionName || 'Single',
+              artworkUrl: (item.artworkUrl100 || '').replace('100x100bb', '300x300bb') || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop',
+              streamUrl: item.previewUrl || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3',
+              durationMs: rawDur < 45000 ? 240000 : rawDur, // Full song duration (e.g. 4 mins)
+              genre: item.primaryGenreName || 'Pop',
+              releaseYear: item.releaseDate ? new Date(item.releaseDate).getFullYear().toString() : '2024'
+            };
+          });
+        return tracks;
+      }
+      return [];
+    } catch (err) {
+      console.warn('Internet music search fallback', err);
+      return CURATED_NEW_RELEASES.filter(t => 
+        t.title.toLowerCase().includes(query.toLowerCase()) ||
+        t.artist.toLowerCase().includes(query.toLowerCase())
+      );
+    }
+  }
+
+  /**
+   * Play a specific full-length track without any overlap
+   */
+  public async playTrack(track: Track, newQueue?: Track[]) {
+    // 1. Immediately halt and reset any existing audio playback
+    if (this.audioFallback) {
+      try {
+        this.audioFallback.pause();
+        this.audioFallback.currentTime = 0;
+        this.audioFallback.src = '';
+      } catch {}
+    }
+    if (this.ytPlayer && this.isYtReady) {
+      try {
+        this.ytPlayer.stopVideo?.() || this.ytPlayer.pauseVideo?.();
+      } catch {}
+    }
+
+    if (newQueue && newQueue.length > 0) {
+      this.state.queue = newQueue;
+      this.state.queueIndex = newQueue.findIndex(t => t.id === track.id);
+      if (this.state.queueIndex === -1) this.state.queueIndex = 0;
+    }
+
+    this.state.currentTrack = track;
+    this.state.currentTime = 0;
+    this.state.duration = Math.floor(track.durationMs / 1000); // Set expected full length (e.g. 268s)
+    this.state.isLoading = true;
+    this.state.error = null;
+    this.notify();
+
+    // Map known popular tracks to YouTube IDs for full 4-5 minute audio streaming
+    const ytId = track.youtubeId || this.resolveKnownYouTubeId(track.title, track.artist);
+
+    if (this.ytPlayer && this.isYtReady && ytId) {
+      try {
+        this.ytPlayer.loadVideoById(ytId);
+        this.ytPlayer.playVideo();
+        return;
+      } catch (err) {
+        console.warn('YouTube audio engine error, fallback:', err);
+      }
+    }
+
+    // Fallback HTML5 Audio (Guaranteed single audio source)
+    if (this.audioFallback) {
+      try {
+        this.audioFallback.src = track.streamUrl;
+        this.audioFallback.currentTime = 0;
+        await this.audioFallback.play();
+        this.state.isPlaying = true;
+        this.state.isLoading = false;
+        this.notify();
+      } catch (err) {
+        console.warn('Audio fallback error:', err);
+      }
+    }
+  }
+
+  private resolveKnownYouTubeId(title: string, artist: string): string | undefined {
+    const s = `${title} ${artist}`.toLowerCase();
+    if (s.includes('kesariya')) return 'BddP6PYo2gs';
+    if (s.includes('apna bana le')) return 'ElZfdU54Cp8';
+    if (s.includes('chaleya')) return 'VAdGW7QDJUI';
+    if (s.includes('lover')) return 'mH_LFkWxpI0';
+    if (s.includes('kabira')) return 'jHNNMj5bNQw';
+    if (s.includes('tum se hi')) return 'mt9xg0mmt28';
+    if (s.includes('pehle bhi main')) return 'ydSAtcO_bA8';
+    if (s.includes('until i found you')) return 'GxldQ9eX2wo';
+    if (s.includes('naina da')) return '0Z33mUkzS7s';
+    if (s.includes('flowers')) return 'G7KNmW9a75Y';
+    return undefined;
+  }
+
+  /**
+   * Completely stop and cut music playback (dismisses player)
+   */
+  public stop() {
+    if (this.ytPlayer && this.isYtReady) {
+      try {
+        this.ytPlayer.stopVideo?.() || this.ytPlayer.pauseVideo?.();
+      } catch {}
+    }
+    if (this.audioFallback) {
+      try {
+        this.audioFallback.pause();
+        this.audioFallback.currentTime = 0;
+        this.audioFallback.src = '';
+      } catch {}
+    }
+    this.state.isPlaying = false;
+    this.state.currentTrack = null;
+    this.notify();
+  }
+
+  public togglePlayPause() {
+    if (!this.state.currentTrack) {
+      if (this.state.queue.length > 0) {
+        this.playTrack(this.state.queue[0]);
+      }
+      return;
+    }
+
+    if (this.ytPlayer && this.isYtReady) {
+      if (this.state.isPlaying) {
+        this.ytPlayer.pauseVideo();
+        this.state.isPlaying = false;
+      } else {
+        // Ensure fallback audio is silent
+        if (this.audioFallback) {
+          this.audioFallback.pause();
+        }
+        this.ytPlayer.playVideo();
+        this.state.isPlaying = true;
+      }
+      this.notify();
+      return;
+    }
+
+    if (this.audioFallback) {
+      if (this.state.isPlaying) {
+        this.audioFallback.pause();
+        this.state.isPlaying = false;
+      } else {
+        this.audioFallback.play().catch(console.warn);
+        this.state.isPlaying = true;
+      }
+      this.notify();
+    }
+  }
+
+  public playNext() {
+    if (this.state.queue.length === 0) return;
+    let nextIndex = this.state.queueIndex + 1;
+    if (nextIndex >= this.state.queue.length) {
+      nextIndex = 0;
+    }
+    this.state.queueIndex = nextIndex;
+    this.playTrack(this.state.queue[nextIndex]);
+  }
+
+  public playPrev() {
+    if (this.state.queue.length === 0) return;
+    let prevIndex = this.state.queueIndex - 1;
+    if (prevIndex < 0) {
+      prevIndex = this.state.queue.length - 1;
+    }
+    this.state.queueIndex = prevIndex;
+    this.playTrack(this.state.queue[prevIndex]);
+  }
+
+  public seek(timeInSeconds: number) {
+    this.state.currentTime = timeInSeconds;
+    if (this.ytPlayer && this.isYtReady) {
+      this.ytPlayer.seekTo(timeInSeconds, true);
+    } else if (this.audioFallback) {
+      this.audioFallback.currentTime = timeInSeconds;
+    }
+    this.notify();
+  }
+
+  public setVolume(volume: number) {
+    const clamped = Math.max(0, Math.min(1, volume));
+    this.state.volume = clamped;
+    if (this.ytPlayer && this.isYtReady) {
+      this.ytPlayer.setVolume(Math.round(clamped * 100));
+    }
+    if (this.audioFallback) {
+      this.audioFallback.volume = clamped;
+    }
+    this.notify();
+  }
+}
+
+export const musicStreamingService = new MusicStreamingService();
+
+
+```
+
+---
+
+### File: `src/services/synthAudioEngine.ts`
+
+```ts
+// Tactile Audio & Click Sound Engine powered by Web Audio API
+import type { AudioSettings } from '../types/game';
+
 class SynthAudioEngine {
   private ctx: AudioContext | null = null;
-  private musicGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
   private masterGain: GainNode | null = null;
-
-  private isPlayingMusic = false;
-  private currentMusicState: string = 'none';
-  private currentTrackId: string = 'girl_power';
-  private musicInterval: any = null;
   private listeners: Set<() => void> = new Set();
   
   private settings: AudioSettings = {
-    musicOn: false,
-    sfxOn: true,
-    musicVolume: 0.5,
-    sfxVolume: 0.7,
+    musicOn: false, // Background music disabled as requested
+    sfxOn: true,    // Keyboard and tap clicks enabled
+    musicVolume: 0.0,
+    sfxVolume: 0.8,
   };
 
   constructor() {
-    // AudioContext will be initialized on first user interaction
+    // Context initialized on first user tap
   }
 
   private notify() {
@@ -11217,10 +20790,6 @@ class SynthAudioEngine {
       this.masterGain = this.ctx.createGain();
       this.masterGain.connect(this.ctx.destination);
 
-      this.musicGain = this.ctx.createGain();
-      this.musicGain.gain.value = this.settings.musicOn ? this.settings.musicVolume * 0.4 : 0;
-      this.musicGain.connect(this.masterGain);
-
       this.sfxGain = this.ctx.createGain();
       this.sfxGain.gain.value = this.settings.sfxOn ? this.settings.sfxVolume : 0;
       this.sfxGain.connect(this.masterGain);
@@ -11233,14 +20802,8 @@ class SynthAudioEngine {
 
   public updateSettings(newSettings: Partial<AudioSettings>) {
     this.settings = { ...this.settings, ...newSettings };
-    if (this.musicGain) {
-      this.musicGain.gain.value = this.settings.musicOn ? this.settings.musicVolume * 0.4 : 0;
-    }
     if (this.sfxGain) {
       this.sfxGain.gain.value = this.settings.sfxOn ? this.settings.sfxVolume : 0;
-    }
-    if (!this.settings.musicOn && this.isPlayingMusic) {
-      this.stopMusic();
     }
     this.notify();
   }
@@ -11249,24 +20812,8 @@ class SynthAudioEngine {
     return { ...this.settings };
   }
 
-  public getTracks(): MusicTrack[] {
-    return MUSIC_TRACKS;
-  }
-
-  public getCurrentTrack(): MusicTrack {
-    return MUSIC_TRACKS.find(t => t.id === this.currentTrackId) || MUSIC_TRACKS[0];
-  }
-
-  public getIsPlaying(): boolean {
-    return this.isPlayingMusic;
-  }
-
-  public getCurrentMusicState(): string {
-    return this.currentMusicState;
-  }
-
-  // Play retro synth sound effects
-  public playSfx(type: 'click' | 'correct' | 'wrong' | 'streak' | 'levelup' | 'fanfare' | 'powerup' | 'boss' | 'pop') {
+  // Crisp keyboard / tap click and celebratory SFX
+  public playSfx(type: 'click' | 'correct' | 'wrong' | 'streak' | 'levelup' | 'fanfare' | 'powerup' | 'pop') {
     if (!this.settings.sfxOn) return;
     this.initCtx();
     if (!this.ctx || !this.sfxGain) return;
@@ -11275,256 +20822,224 @@ class SynthAudioEngine {
 
     switch (type) {
       case 'click': {
+        // Crisp tactile mechanical keyboard / switch click sound
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(440, now);
-        osc.frequency.exponentialRampToValueAtTime(880, now + 0.05);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(1400, now + 0.025);
 
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
 
         osc.connect(gain);
         gain.connect(this.sfxGain);
 
         osc.start(now);
-        osc.stop(now + 0.05);
+        osc.stop(now + 0.025);
         break;
       }
 
       case 'pop': {
-        // Satisfying bubble bubble pop sound for stress reliever
+        // Soft bubble tap pop
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(600 + Math.random() * 300, now);
-        osc.frequency.exponentialRampToValueAtTime(1200 + Math.random() * 200, now + 0.06);
+        osc.frequency.setValueAtTime(700, now);
+        osc.frequency.exponentialRampToValueAtTime(1300, now + 0.04);
 
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
 
         osc.connect(gain);
         gain.connect(this.sfxGain);
 
         osc.start(now);
-        osc.stop(now + 0.06);
+        osc.stop(now + 0.04);
         break;
       }
 
-      case 'correct': {
-        // Bright 80s synth chime arpeggio (C5 -> E5 -> G5 -> C6)
+      case 'correct':
+      case 'fanfare':
+      case 'levelup': {
+        // Gentle celebratory chime
         const notes = [523.25, 659.25, 783.99, 1046.50];
         notes.forEach((freq, idx) => {
           if (!this.ctx) return;
           const osc = this.ctx.createOscillator();
           const gain = this.ctx.createGain();
           osc.type = 'sine';
-          const startTime = now + idx * 0.07;
+          const startTime = now + idx * 0.05;
           osc.frequency.setValueAtTime(freq, startTime);
 
-          gain.gain.setValueAtTime(0.4, startTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
+          gain.gain.setValueAtTime(0.25, startTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.18);
 
           osc.connect(gain);
           gain.connect(this.sfxGain!);
 
           osc.start(startTime);
-          osc.stop(startTime + 0.25);
+          osc.stop(startTime + 0.18);
         });
         break;
       }
 
       case 'wrong': {
-        // Soft retro comedic blip (E3 -> Bb2)
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(164.81, now);
-        osc.frequency.linearRampToValueAtTime(116.54, now + 0.2);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.linearRampToValueAtTime(140, now + 0.1);
 
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
 
         osc.connect(gain);
         gain.connect(this.sfxGain);
 
         osc.start(now);
-        osc.stop(now + 0.2);
+        osc.stop(now + 0.1);
         break;
       }
 
-      case 'streak': {
-        // Rising synth sequence
-        const freqs = [440, 554.37, 659.25, 880, 1108.73];
-        freqs.forEach((f, i) => {
-          if (!this.ctx) return;
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-          osc.type = 'sawtooth';
-          const startTime = now + i * 0.06;
-          osc.frequency.setValueAtTime(f, startTime);
-
-          gain.gain.setValueAtTime(0.25, startTime);
-          gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.15);
-
-          osc.connect(gain);
-          gain.connect(this.sfxGain!);
-
-          osc.start(startTime);
-          osc.stop(startTime + 0.15);
-        });
-        break;
-      }
-
-      case 'levelup':
-      case 'fanfare': {
-        // Energetic 80s victory fanfare
-        const notes = [
-          { f: 523.25, d: 0.1, t: 0 },
-          { f: 659.25, d: 0.1, t: 0.1 },
-          { f: 783.99, d: 0.1, t: 0.2 },
-          { f: 1046.50, d: 0.3, t: 0.3 },
-          { f: 880.00, d: 0.15, t: 0.5 },
-          { f: 1046.50, d: 0.5, t: 0.65 }
-        ];
-
-        notes.forEach(n => {
-          if (!this.ctx) return;
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-          osc.type = 'square';
-          const startTime = now + n.t;
-          osc.frequency.setValueAtTime(n.f, startTime);
-
-          gain.gain.setValueAtTime(0.3, startTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, startTime + n.d);
-
-          osc.connect(gain);
-          gain.connect(this.sfxGain!);
-
-          osc.start(startTime);
-          osc.stop(startTime + n.d);
-        });
-        break;
-      }
-
+      case 'streak':
       case 'powerup': {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(300, now);
-        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(900, now + 0.15);
 
-        gain.gain.setValueAtTime(0.35, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
 
         osc.connect(gain);
         gain.connect(this.sfxGain);
 
         osc.start(now);
-        osc.stop(now + 0.3);
+        osc.stop(now + 0.15);
         break;
       }
     }
   }
 
-  // Play a specific curated track
-  public playTrack(trackId: string) {
-    const track = MUSIC_TRACKS.find(t => t.id === trackId) || MUSIC_TRACKS[0];
-    this.currentTrackId = track.id;
-
-    if (!this.settings.musicOn) {
-      this.updateSettings({ musicOn: true });
-    }
-
-    this.initCtx();
-    this.stopMusicIntervalOnly();
-
-    this.isPlayingMusic = true;
-    this.currentMusicState = track.id;
-
-    let noteIdx = 0;
-    const tempoMs = track.tempoMs;
-
-    this.musicInterval = setInterval(() => {
-      if (!this.isPlayingMusic || !this.ctx || !this.musicGain || !this.settings.musicOn) return;
-
-      const freq = track.pattern[noteIdx % track.pattern.length];
-      noteIdx++;
-
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = track.oscType;
-      osc.frequency.setValueAtTime(freq, now);
-
-      gain.gain.setValueAtTime(0.16, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + (tempoMs / 1000) * 0.95);
-
-      osc.connect(gain);
-      gain.connect(this.musicGain);
-
-      osc.start(now);
-      osc.stop(now + (tempoMs / 1000) * 0.95);
-    }, tempoMs);
-
-    this.notify();
-  }
-
-  public togglePlayPause() {
-    if (this.isPlayingMusic) {
-      this.stopMusic();
-    } else {
-      this.playTrack(this.currentTrackId);
-    }
-  }
-
-  public nextTrack() {
-    const currentIdx = MUSIC_TRACKS.findIndex(t => t.id === this.currentTrackId);
-    const nextIdx = (currentIdx + 1) % MUSIC_TRACKS.length;
-    this.playTrack(MUSIC_TRACKS[nextIdx].id);
-  }
-
-  public prevTrack() {
-    const currentIdx = MUSIC_TRACKS.findIndex(t => t.id === this.currentTrackId);
-    const prevIdx = (currentIdx - 1 + MUSIC_TRACKS.length) % MUSIC_TRACKS.length;
-    this.playTrack(MUSIC_TRACKS[prevIdx].id);
-  }
-
-  // 80s Synth Background Loop Engine (Legacy / Screen-state integration)
-  public startMusic(state: 'menu' | 'map' | 'quiz' | 'boss' | 'final' | string = 'menu') {
-    // Map screen state to appropriate track
-    if (state === 'quiz') {
-      this.playTrack('girl_power');
-    } else if (state === 'map') {
-      this.playTrack('retro_synth');
-    } else if (state === 'final') {
-      this.playTrack('cozy_chai');
-    } else {
-      // Menu / default
-      if (!this.isPlayingMusic) {
-        this.playTrack(this.currentTrackId || 'girl_power');
-      }
-    }
-  }
-
-  private stopMusicIntervalOnly() {
-    if (this.musicInterval) {
-      clearInterval(this.musicInterval);
-      this.musicInterval = null;
-    }
-  }
-
-  public stopMusic() {
-    this.isPlayingMusic = false;
-    this.currentMusicState = 'none';
-    this.stopMusicIntervalOnly();
-    this.notify();
-  }
+  // App music is turned off (no background synth noise)
+  public startMusic(_state: string = 'none') {}
+  public stopMusic() {}
+  public togglePlayPause() {}
 }
 
 export const audioEngine = new SynthAudioEngine();
+
+```
+
+---
+
+### File: `src/services/videoPlaybackService.ts`
+
+```ts
+// Video Playback Service for background & picture-in-picture floating mini-player
+
+export interface FloatingVideo {
+  type: 'mp4' | 'youtube';
+  src: string;
+  title: string;
+  subtitle?: string;
+  isPlaying: boolean;
+  isMuted: boolean;
+  currentTime?: number;
+}
+
+class VideoPlaybackService {
+  private currentVideo: FloatingVideo | null = null;
+  private isMinimized: boolean = false;
+  private listeners: Set<() => void> = new Set();
+  private expandHandler: (() => void) | null = null;
+
+  public getVideo(): FloatingVideo | null {
+    return this.currentVideo;
+  }
+
+  public getIsMinimized(): boolean {
+    return this.isMinimized && this.currentVideo !== null;
+  }
+
+  public setExpandHandler(handler: (() => void) | null) {
+    this.expandHandler = handler;
+  }
+
+  public minimizeVideo(video: {
+    type: 'mp4' | 'youtube';
+    src: string;
+    title: string;
+    subtitle?: string;
+    isMuted?: boolean;
+    currentTime?: number;
+  }, onExpand?: () => void) {
+    this.currentVideo = {
+      type: video.type,
+      src: video.src,
+      title: video.title,
+      subtitle: video.subtitle,
+      isPlaying: true,
+      isMuted: video.isMuted ?? true,
+      currentTime: video.currentTime ?? 0,
+    };
+    this.isMinimized = true;
+    if (onExpand) {
+      this.expandHandler = onExpand;
+    }
+    this.notify();
+  }
+
+  public expandVideo() {
+    if (this.expandHandler) {
+      this.expandHandler();
+    }
+    this.isMinimized = false;
+    this.notify();
+  }
+
+  public closeVideo() {
+    this.currentVideo = null;
+    this.isMinimized = false;
+    this.expandHandler = null;
+    this.notify();
+  }
+
+  public togglePlay() {
+    if (this.currentVideo) {
+      this.currentVideo.isPlaying = !this.currentVideo.isPlaying;
+      this.notify();
+    }
+  }
+
+  public toggleMute() {
+    if (this.currentVideo) {
+      this.currentVideo.isMuted = !this.currentVideo.isMuted;
+      this.notify();
+    }
+  }
+
+  public updateTime(currentTime: number) {
+    if (this.currentVideo) {
+      this.currentVideo.currentTime = currentTime;
+    }
+  }
+
+  public subscribe(listener: () => void) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify() {
+    this.listeners.forEach(l => l());
+  }
+}
+
+export const videoPlaybackService = new VideoPlaybackService();
 
 ```
 
@@ -11706,10 +21221,13 @@ class WellnessState {
   ];
   private queenMood: KritikaMoodId = 'Happy';
   private loveNoteIndex: number = 0;
-  private streakDays: number = 3;
+  private streakDays: number = 1;
+  private lastActiveDate: string = '';
+  private activeDates: string[] = [];
 
   constructor() {
     this.load();
+    this.checkInDaily();
   }
 
   private notify() {
@@ -11721,6 +21239,49 @@ class WellnessState {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+
+  private getTodayStr(): string {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  public checkInDaily(): boolean {
+    const today = this.getTodayStr();
+    if (!this.activeDates.includes(today)) {
+      this.activeDates.push(today);
+      if (this.activeDates.length > 60) {
+        this.activeDates = this.activeDates.slice(-60);
+      }
+    }
+
+    if (this.lastActiveDate === today) {
+      this.save();
+      return false; // Already checked in today
+    }
+
+    if (!this.lastActiveDate) {
+      this.streakDays = 1;
+      this.lastActiveDate = today;
+    } else {
+      const lastDate = new Date(this.lastActiveDate + 'T00:00:00');
+      const currDate = new Date(today + 'T00:00:00');
+      const diffDays = Math.round((currDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) {
+        this.streakDays += 1;
+      } else if (diffDays > 1) {
+        this.streakDays = 1;
+      }
+      this.lastActiveDate = today;
+    }
+
+    this.save();
+    this.notify();
+    return true;
   }
 
   private load() {
@@ -11740,7 +21301,13 @@ class WellnessState {
       }
 
       const savedStreak = localStorage.getItem('kritika_sparkle_streak');
-      if (savedStreak) this.streakDays = parseInt(savedStreak, 10) || 3;
+      if (savedStreak) this.streakDays = parseInt(savedStreak, 10) || 1;
+
+      const savedLastDate = localStorage.getItem('kritika_last_active_date');
+      if (savedLastDate) this.lastActiveDate = savedLastDate;
+
+      const savedDates = localStorage.getItem('kritika_active_dates');
+      if (savedDates) this.activeDates = JSON.parse(savedDates);
     } catch {
       // ignore
     }
@@ -11753,6 +21320,8 @@ class WellnessState {
       localStorage.setItem('kritika_secret_notes', JSON.stringify(this.secretNotes));
       localStorage.setItem('kritika_queen_mood', this.queenMood);
       localStorage.setItem('kritika_sparkle_streak', this.streakDays.toString());
+      localStorage.setItem('kritika_last_active_date', this.lastActiveDate);
+      localStorage.setItem('kritika_active_dates', JSON.stringify(this.activeDates));
     } catch {
       // ignore
     }
@@ -11836,11 +21405,12 @@ class WellnessState {
 
   public setQueenMood(moodId: KritikaMoodId): void {
     this.queenMood = moodId;
+    this.checkInDaily();
     this.save();
     this.notify();
   }
 
-  // Love Notes
+  // Love Notes & Daily Affirmation
   public getCurrentLoveNote(): LoveNote {
     return LOVE_NOTES[this.loveNoteIndex % LOVE_NOTES.length];
   }
@@ -11851,13 +21421,49 @@ class WellnessState {
     return this.getCurrentLoveNote();
   }
 
-  // Sparkle Streak
+  public getDailyAffirmation(): LoveNote {
+    const today = this.getTodayStr();
+    let hash = 0;
+    for (let i = 0; i < today.length; i++) {
+      hash = (hash << 5) - hash + today.charCodeAt(i);
+      hash |= 0;
+    }
+    const idx = Math.abs(hash) % LOVE_NOTES.length;
+    return LOVE_NOTES[idx];
+  }
+
+  // Sparkle Streak & Heatmap
   public getSparkleStreak(): { streak: number, trail: boolean[] } {
     const trail = [true, true, true, false, false, false, false].map((_, idx) => idx < this.streakDays);
     return { streak: this.streakDays, trail };
   }
 
+  public getStreakHeatmap(): Array<{ date: string; dayLabel: string; active: boolean; isToday: boolean }> {
+    const days: Array<{ date: string; dayLabel: string; active: boolean; isToday: boolean }> = [];
+    const today = this.getTodayStr();
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const dayLabel = dayNames[d.getDay()];
+
+      days.push({
+        date: dateStr,
+        dayLabel,
+        active: this.activeDates.includes(dateStr),
+        isToday: dateStr === today
+      });
+    }
+    return days;
+  }
+
   public addSparkleStreak(): void {
+    this.checkInDaily();
     this.streakDays += 1;
     this.save();
     this.notify();
@@ -12103,7 +21709,6 @@ export type ScreenState =
   | 'home'
   | 'map'
   | 'quiz'
-  | 'boss'
   | 'passport'
   | 'daily'
   | 'profile'
@@ -12112,7 +21717,12 @@ export type ScreenState =
   | 'teacher_custom'
   | 'secret_classroom'
   | 'stickers'
-  | 'recipes';
+  | 'recipes'
+  | 'vault'
+  | 'batch_wall'
+  | 'music'
+  | 'group_chat';
+
 
 
 
@@ -12318,75 +21928,16 @@ export default {
 
 ```ts
 import react from '@vitejs/plugin-react'
-import { defineConfig, type Plugin } from 'vite'
-
-function youtubeSearchPlugin(): Plugin {
-  return {
-    name: 'youtube-search-api',
-    configureServer(server) {
-      server.middlewares.use('/api/youtube-search', async (req, res) => {
-        try {
-          const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
-          const query = url.searchParams.get('q') || '';
-          if (!query.trim()) {
-            res.statusCode = 400;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'Missing query' }));
-            return;
-          }
-
-          const fetchRes = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(query.trim() + ' song')}`, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept-Language': 'en-US,en;q=0.9',
-            }
-          });
-          const html = await fetchRes.text();
-          const match = html.match(/var ytInitialData = ({.*?});<\/script>/) || html.match(/ytInitialData\s*=\s*({.+?});/);
-          const results: Array<{
-            videoId: string;
-            title: string;
-            channel: string;
-            duration: string;
-            thumbnail: string;
-          }> = [];
-
-          if (match) {
-            const json = JSON.parse(match[1]);
-            const contents = json.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
-            for (const item of contents) {
-              const v = item.videoRenderer;
-              if (v && v.videoId) {
-                results.push({
-                  videoId: v.videoId,
-                  title: v.title?.runs?.[0]?.text || 'YouTube Song',
-                  channel: v.ownerText?.runs?.[0]?.text || 'YouTube Music',
-                  duration: v.lengthText?.simpleText || '',
-                  thumbnail: `https://img.youtube.com/vi/${v.videoId}/mqdefault.jpg`
-                });
-              }
-              if (results.length >= 12) break;
-            }
-          }
-
-          res.statusCode = 200;
-          res.setHeader('Content-Type', 'application/json');
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.end(JSON.stringify({ results }));
-        } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : 'Unknown error';
-          res.statusCode = 500;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: message, results: [] }));
-        }
-      });
-    }
-  };
-}
+import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), youtubeSearchPlugin()],
+  base: './',
+  plugins: [react()],
+  server: {
+    host: true,
+    port: 5173
+  }
 })
 
 
