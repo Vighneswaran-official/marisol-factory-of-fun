@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ScreenState } from '../types/game';
-import { batchWallService, type InstagramPost, type GroupChatMessage, formatChatTimestamp } from '../services/batchWallState';
+import { batchWallService, type InstagramPost, type GroupChatMessage, type LikedMember, formatChatTimestamp } from '../services/batchWallState';
 import { authService, type StudentProfile } from '../services/authService';
 import { STICKERS } from '../data/stickers';
 import { gameState } from '../services/gameState';
@@ -11,7 +11,7 @@ import {
   Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check,
   Reply, BarChart2, AtSign, MoreVertical, Mic, Volume2, VolumeX, Headphones, MicOff, PhoneOff,
   Trash2, ChevronDown, Ban, Globe, Lock, Clock,
-  AlertCircle, RefreshCw
+  AlertCircle, RefreshCw, Video, Phone, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { BaseModal } from './BaseModal';
@@ -129,7 +129,7 @@ const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
             return (
               <span 
                 key={tokIdx} 
-                className={`font-bold ${isCurrentUser ? 'text-amber-200 underline' : 'text-rose-600 bg-rose-50/90 px-1 py-0.5 rounded'} hover:underline cursor-pointer`}
+                className={`font-bold ${isCurrentUser ? 'text-rose-700 bg-white/80 px-1 py-0.5 rounded shadow-2xs' : 'text-rose-600 bg-rose-50/90 px-1 py-0.5 rounded'} hover:underline cursor-pointer`}
               >
                 {token}
               </span>
@@ -139,7 +139,7 @@ const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
             return (
               <span 
                 key={tokIdx} 
-                className={`font-bold underline cursor-pointer ${isCurrentUser ? 'text-amber-100' : 'text-rose-600'}`}
+                className={`font-bold underline cursor-pointer ${isCurrentUser ? 'text-stone-900 hover:text-rose-600' : 'text-rose-600'}`}
               >
                 {token}
               </span>
@@ -147,7 +147,7 @@ const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
           }
           if (/^(?:GRAND FESTIVE SALE|Start Date|End Date):?$/.test(token)) {
             return (
-              <span key={tokIdx} className={isCurrentUser ? 'font-black text-white' : 'font-black text-stone-900'}>
+              <span key={tokIdx} className="font-black text-stone-900">
                 {token}
               </span>
             );
@@ -194,6 +194,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const profileAvatarFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Group Chat State (WhatsApp Group Style)
+  const [chatFilter, setChatFilter] = useState<'all' | 'mine'>('all');
   const [chatInput, setChatInput] = useState('');
   const [chatImageAttachment, setChatImageAttachment] = useState<string | null>(null);
   const [replyingToMessage, setReplyingToMessage] = useState<GroupChatMessage | null>(null);
@@ -216,6 +217,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const [editingPost, setEditingPost] = useState<InstagramPost | null>(null);
   const [editingPostCaption, setEditingPostCaption] = useState('');
   const [activePostMenuId, setActivePostMenuId] = useState<string | null>(null);
+  const [deleteConfirmPost, setDeleteConfirmPost] = useState<{ id: string; type: 'photo' | 'bulletin'; title?: string } | null>(null);
+  const [isDeletingPost, setIsDeletingPost] = useState(false);
 
   // Group Poll Creation State
   const [pollQuestion, setPollQuestion] = useState('');
@@ -228,9 +231,14 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
   const [heartBurstId, setHeartBurstId] = useState<string | null>(null);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const [activePostImgIndex, setActivePostImgIndex] = useState<Record<string, number>>({});
+  const [showLikedByModalPost, setShowLikedByModalPost] = useState<InstagramPost | null>(null);
+  const [activeReactionPickerPostId, setActiveReactionPickerPostId] = useState<string | null>(null);
 
-  // New Photo Post Form State
+  // New Photo Post Form State (Supports Multiple Photos in one poster)
   const [newPostImage, setNewPostImage] = useState<string | null>(null);
+  const [newPostImages, setNewPostImages] = useState<string[]>([]);
+  const [activeCreatePreviewIndex, setActiveCreatePreviewIndex] = useState(0);
   const [newPostCaption, setNewPostCaption] = useState('');
   const [newPostLocation, setNewPostLocation] = useState('Comfort Lounge 🌸');
   const [newPostFilter, setNewPostFilter] = useState('none');
@@ -386,13 +394,23 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     if (chatFileInputRef.current) chatFileInputRef.current.value = '';
   };
 
-  // Photo Post Image Upload
+  // Photo Post Image Upload (Supports uploading multiple photos in one poster)
   const handlePhotoPostImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     try {
-      const compressed = await compressImageFile(file, 1080, 0.8);
-      setNewPostImage(compressed);
+      const compressedList: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const compressed = await compressImageFile(files[i], 1080, 0.8);
+        compressedList.push(compressed);
+      }
+      setNewPostImages(prev => {
+        const updated = [...prev, ...compressedList];
+        if (!newPostImage && updated.length > 0) {
+          setNewPostImage(updated[0]);
+        }
+        return updated;
+      });
       audioEngine.playSfx('pop');
     } catch (err) {
       console.warn('Image processing failed:', err);
@@ -628,19 +646,43 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     setTimeout(() => setShareToast(null), 2500);
   };
 
-  const handleDeletePost = async (post: InstagramPost) => {
+  const handleDeletePost = (post: InstagramPost) => {
     audioEngine.playSfx('pop');
-    const result = await batchWallService.deleteInstagramPost(post.id, {
+    setActivePostMenuId(null);
+    setDeleteConfirmPost({
+      id: post.id,
+      type: 'photo',
+      title: post.caption ? `"${post.caption.slice(0, 35)}..."` : 'Photo Post'
+    });
+  };
+
+  const handleConfirmDeletePost = async () => {
+    if (!deleteConfirmPost) return;
+    setIsDeletingPost(true);
+    audioEngine.playSfx('pop');
+
+    const deleter = {
       id: currentUser?.id,
       email: currentUser?.email,
       name: currentUser?.name || profileNameInput
-    });
+    };
+
+    let result: { success: boolean; error?: string };
+    if (deleteConfirmPost.type === 'photo') {
+      result = await batchWallService.deleteInstagramPost(deleteConfirmPost.id, deleter);
+    } else {
+      result = await batchWallService.deletePost(deleteConfirmPost.id, deleter);
+    }
+
+    setIsDeletingPost(false);
+    setDeleteConfirmPost(null);
+    setActivePostMenuId(null);
+
     if (!result.success) {
       setShareToast(result.error || 'Failed to delete post');
     } else {
-      setShareToast('Post deleted 🗑️');
+      setShareToast('Post completely deleted 🗑️');
     }
-    setActivePostMenuId(null);
     setTimeout(() => setShareToast(null), 2500);
   };
 
@@ -732,16 +774,63 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const handleDoubleTapPost = (post: InstagramPost) => {
     audioEngine.playSfx('fanfare');
     setHeartBurstId(post.id);
-    batchWallService.likeInstagramPost(post.id, currentUser?.name);
+    batchWallService.likeInstagramPost(post.id, {
+      id: currentUser?.id,
+      name: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
+      email: currentUser?.email,
+      avatarUrl: currentUser?.avatarUrl || profileAvatarInput
+    });
     confetti({ particleCount: 40, spread: 50, origin: { y: 0.6 } });
     setTimeout(() => setHeartBurstId(null), 900);
   };
 
-  // Submit Photo Post
+  const handleToggleLikePost = (post: InstagramPost) => {
+    audioEngine.playSfx('pop');
+    batchWallService.likeInstagramPost(post.id, {
+      id: currentUser?.id,
+      name: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
+      email: currentUser?.email,
+      avatarUrl: currentUser?.avatarUrl || profileAvatarInput
+    });
+  };
+
+  const handleReactToPost = (postId: string, emoji: string) => {
+    audioEngine.playSfx('pop');
+    batchWallService.reactToInstagramPost(postId, emoji, {
+      id: currentUser?.id,
+      name: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
+      email: currentUser?.email
+    });
+    setActiveReactionPickerPostId(null);
+  };
+
+  const handleLikeComment = (postId: string, commentId: string) => {
+    audioEngine.playSfx('pop');
+    const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
+    batchWallService.likeInstagramComment(postId, commentId, name);
+  };
+
+  const handleSharePost = async (post: InstagramPost) => {
+    audioEngine.playSfx('pop');
+    const updatedCount = await batchWallService.shareInstagramPost(post.id, {
+      id: currentUser?.id,
+      name: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student'
+    });
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(window.location.href);
+    }
+
+    setShareToast(`Link copied! Shared ${updatedCount} time${updatedCount > 1 ? 's' : ''} 🚀✨`);
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  // Submit Photo Post (Supports multi-photo poster)
   const handleCreatePhotoPost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPostImage) {
-      alert('Please upload or select a photo for your post!');
+    const imagesToPublish = newPostImages.length > 0 ? newPostImages : (newPostImage ? [newPostImage] : []);
+    if (imagesToPublish.length === 0) {
+      alert('Please upload or select at least one photo for your poster!');
       return;
     }
     setIsPublishingPost(true);
@@ -754,13 +843,16 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       authorName: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
       authorAvatarUrl: currentUser?.avatarUrl || profileAvatarInput,
       location: newPostLocation,
-      imageUrl: newPostImage,
+      imageUrl: imagesToPublish[0],
+      images: imagesToPublish,
       filter: newPostFilter,
       caption: newPostCaption.trim(),
       hashtags: selectedTags
     });
 
+    setNewPostImages([]);
     setNewPostImage(null);
+    setActiveCreatePreviewIndex(0);
     setNewPostCaption('');
     setNewPostFilter('none');
     setSelectedTags(['#Batch41', '#ComfortVibes']);
@@ -844,12 +936,27 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     setExpandedReplies(prev => ({ ...prev, [postId]: true }));
   };
 
-  const handleShareClick = (title: string) => {
-    audioEngine.playSfx('pop');
-    navigator.clipboard?.writeText(window.location.href);
-    setShareToast(`Link for "${title || 'Post'}" copied to clipboard! ✨`);
-    setTimeout(() => setShareToast(null), 2500);
-  };
+  const currentUserId = currentUser?.id || authService.getFirebaseUser()?.uid;
+  const currentUserEmail = currentUser?.email?.toLowerCase() || authService.getFirebaseUser()?.email?.toLowerCase();
+  const currentUserNameClean = (currentUser?.name || profileNameInput || '').toLowerCase().replace(' 👑', '').trim();
+
+  const myMessagesCount = chatMessages.filter(msg => {
+    return Boolean(
+      (currentUserId && msg.senderId && msg.senderId === currentUserId) ||
+      (currentUserEmail && msg.senderEmail && msg.senderEmail.trim().toLowerCase() === currentUserEmail) ||
+      (currentUserNameClean && msg.senderName && msg.senderName.toLowerCase().replace(' 👑', '').trim() === currentUserNameClean)
+    );
+  }).length;
+
+  const displayedChatMessages = chatFilter === 'mine'
+    ? chatMessages.filter(msg => {
+        return Boolean(
+          (currentUserId && msg.senderId && msg.senderId === currentUserId) ||
+          (currentUserEmail && msg.senderEmail && msg.senderEmail.trim().toLowerCase() === currentUserEmail) ||
+          (currentUserNameClean && msg.senderName && msg.senderName.toLowerCase().replace(' 👑', '').trim() === currentUserNameClean)
+        );
+      })
+    : chatMessages;
 
   return (
     <div className={`bg-[#FAF8F5] text-stone-900 w-full ${
@@ -946,57 +1053,66 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
         {/* ==================== 1. BATCH LOUNGE (Real-Time Group Chat) ==================== */}
         {activeMode === 'chat' && (
           <div className="bg-white border border-stone-200/90 rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm flex flex-col flex-1 min-h-0 animate-fade-in relative">
-            {/* Clean Modern Lounge Top Bar */}
-            <div className="bg-white border-b border-stone-200/80 text-stone-900 p-2.5 px-4 flex items-center justify-between shrink-0 shadow-2xs">
-              <div 
-                onClick={() => setShowProfileModal(true)}
-                className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-85 transition-opacity"
-              >
-                <div className="relative shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-200 overflow-hidden flex items-center justify-center text-lg font-bold shadow-2xs">
+            {/* Clean Chat Top Bar matching user design: [ 🌸 avatar ] [ All (X) | My Messages (Y) ]  📹  📞  📊  ⋮ */}
+            <div className="bg-white border-b border-stone-200/80 text-stone-900 px-3 sm:px-4 py-2 flex items-center justify-between shrink-0 shadow-2xs">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                {/* 🌸 Flower Avatar with Green Online Dot */}
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(true)}
+                  className="relative shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                  title="View Profile / Group Info"
+                >
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-rose-50 border border-rose-200/90 overflow-hidden flex items-center justify-center text-lg shadow-2xs">
                     🌸
                   </div>
-                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-display font-black text-sm text-stone-900 leading-tight truncate">
-                      Batch 41 Connected Group Chat
-                    </h3>
-                    {/* Real-time Status Badge */}
-                    {chatStatus.status === 'connecting' && (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
-                        <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping" />
-                        <span>Connecting to Batch 41...</span>
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
+                </button>
+
+                {/* Pill Switcher: All (X) | My Messages (Y) */}
+                <div className="bg-stone-100/90 border border-stone-200/80 rounded-full p-1 flex items-center gap-1 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      audioEngine.playSfx('click');
+                      setChatFilter('all');
+                    }}
+                    className={`px-3 py-1 rounded-full text-xs sm:text-[13px] font-display font-bold transition-all cursor-pointer ${
+                      chatFilter === 'all'
+                        ? 'bg-white text-stone-900 shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    All ({chatMessages.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      audioEngine.playSfx('click');
+                      setChatFilter('mine');
+                    }}
+                    className={`px-3 py-1 rounded-full text-xs sm:text-[13px] font-display font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      chatFilter === 'mine'
+                        ? 'bg-white text-stone-900 shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <span>My Messages</span>
+                    {myMessagesCount > 0 && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                        chatFilter === 'mine' ? 'bg-rose-100 text-rose-700' : 'bg-stone-200 text-stone-700'
+                      }`}>
+                        {myMessagesCount}
                       </span>
                     )}
-                    {chatStatus.status === 'connected' && (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                        <span>Connected ✓</span>
-                      </span>
-                    )}
-                    {chatStatus.status === 'offline' && (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded-full border border-stone-200 shrink-0">
-                        <span className="w-1.5 h-1.5 bg-stone-400 rounded-full" />
-                        <span>Offline — showing cached messages</span>
-                      </span>
-                    )}
-                    {chatStatus.status === 'error' && (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 shrink-0">
-                        <AlertCircle className="w-3 h-3 text-rose-500" />
-                        <span>Connection issue</span>
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-stone-500 font-medium truncate">
-                    {currentUser?.email ? `Chatting as ${currentUser.name} (${currentUser.email})` : 'Connected email users chatting together'}
-                  </p>
+                  </button>
                 </div>
               </div>
 
-              {/* Action: Discord-Style Voice Room & Info */}
-              <div className="flex items-center gap-1.5 shrink-0">
+              {/* 4 Clean Action Icons: Video, Phone, Poll/Chart, More */}
+              <div className="flex items-center gap-2 sm:gap-3 text-stone-600 shrink-0">
+                {/* Video Call Icon */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1007,31 +1123,53 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                       setShowVoiceRoomModal(true);
                     }
                   }}
-                  className={`px-2.5 py-1 rounded-full text-xs font-display font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0 shadow-2xs ${
-                    isVoiceRoomConnected
-                      ? 'bg-emerald-600 text-white shadow-emerald-500/30 shadow-sm'
-                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300'
-                  }`}
-                  title="Batch 41 Voice Room (Discord-style: speak anytime)"
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full transition-colors cursor-pointer"
+                  title="Voice & Video Room"
                 >
-                  <Volume2 className={`w-3.5 h-3.5 ${isVoiceRoomConnected ? 'text-white animate-pulse' : 'text-emerald-600'}`} />
-                  <span className="text-[11px] sm:text-xs font-bold">Voice Room</span>
-                  {isVoiceRoomConnected ? (
-                    <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping" />
-                  ) : (
-                    <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.2 rounded-full font-mono font-bold">
-                      {voiceParticipants.length}
-                    </span>
-                  )}
+                  <Video className="w-5 h-5 text-stone-600 hover:text-stone-900" />
                 </button>
 
+                {/* Phone Call Icon */}
                 <button
                   type="button"
-                  onClick={() => setShowProfileModal(true)}
-                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors text-stone-600 shrink-0"
+                  onClick={() => {
+                    audioEngine.playSfx('pop');
+                    if (!isVoiceRoomConnected) {
+                      handleJoinVoiceRoom();
+                    } else {
+                      setShowVoiceRoomModal(true);
+                    }
+                  }}
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full transition-colors cursor-pointer"
+                  title="Audio Call"
+                >
+                  <Phone className="w-5 h-5 text-stone-600 hover:text-stone-900" />
+                </button>
+
+                {/* Poll / BarChart Icon */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setShowCreatePollModal(true);
+                  }}
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full transition-colors cursor-pointer"
+                  title="Create Group Poll"
+                >
+                  <BarChart2 className="w-5 h-5 text-stone-600 hover:text-stone-900" />
+                </button>
+
+                {/* More Options / Profile Info Icon */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setShowProfileModal(true);
+                  }}
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full transition-colors cursor-pointer"
                   title="Group Info & Profile"
                 >
-                  <MoreVertical className="w-4.5 h-4.5" />
+                  <MoreVertical className="w-5 h-5 text-stone-600 hover:text-stone-900" />
                 </button>
               </div>
             </div>
@@ -1116,8 +1254,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
               
 
-              {/* Empty / Loading State for All Messages */}
-              {chatMessages.length === 0 && (
+              {/* Empty / Loading State for Messages */}
+              {displayedChatMessages.length === 0 && (
                 <div className="p-12 text-center space-y-3 my-8">
                   {chatStatus.status === 'connecting' ? (
                     <div className="space-y-2.5">
@@ -1138,6 +1276,16 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                         Retry Connection
                       </button>
                     </div>
+                  ) : chatFilter === 'mine' ? (
+                    <div className="space-y-2.5">
+                      <div className="w-14 h-14 rounded-full bg-stone-100 text-stone-600 mx-auto flex items-center justify-center font-bold text-2xl border border-stone-200 shadow-2xs">
+                        ✍️
+                      </div>
+                      <h4 className="font-display font-black text-sm sm:text-base text-stone-800">No messages from you yet</h4>
+                      <p className="text-xs text-stone-500 max-w-xs mx-auto">
+                        Type a message in the input below to share your thoughts with the group!
+                      </p>
+                    </div>
                   ) : (
                     <div className="space-y-2.5">
                       <div className="w-14 h-14 rounded-full bg-rose-50 text-rose-500 mx-auto flex items-center justify-center font-bold text-2xl border border-rose-200 shadow-2xs">
@@ -1153,7 +1301,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               )}
 
               {/* Date Separators & Chat Stream */}
-              {chatMessages.map((msg, index) => {
+              {displayedChatMessages.map((msg, index) => {
                 const isCurrentUser = Boolean(
                   (currentUser?.id && msg.senderId && currentUser.id === msg.senderId) ||
                   (currentUser?.email && msg.senderEmail && currentUser.email.trim().toLowerCase() === msg.senderEmail.trim().toLowerCase())
@@ -1196,12 +1344,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                         </div>
                       )}
 
-                      {/* Speech Bubble Card */}
+                      {/* Speech Bubble Card: Light Grey for Yours Chat, Clean White for Others */}
                       <div className="relative max-w-[85%] sm:max-w-[75%] space-y-1">
                         <div
                           className={`p-2.5 px-3 rounded-2xl shadow-2xs text-xs sm:text-sm leading-relaxed relative ${
                             isCurrentUser
-                              ? 'bg-rose-500 text-white rounded-tr-xs shadow-xs'
+                              ? 'bg-stone-200 text-stone-900 rounded-tr-xs border border-stone-300/80 shadow-2xs'
                               : 'bg-white text-stone-900 rounded-tl-xs border border-stone-200/80 shadow-2xs'
                           }`}
                         >
@@ -1213,18 +1361,18 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                                 onClick={() => {
                                   setChatInput((prev: string) => `${prev ? prev + ' ' : ''}@${msg.senderName} `);
                                 }}
-                                className={`font-display font-black text-xs sm:text-[13px] tracking-tight ${isCurrentUser ? 'text-white' : senderColor} hover:underline cursor-pointer truncate`}
+                                className={`font-display font-black text-xs sm:text-[13px] tracking-tight ${isCurrentUser ? 'text-stone-900' : senderColor} hover:underline cursor-pointer truncate`}
                                 title="Click to mention in chat"
                               >
                                 {isCurrentUser ? 'You' : msg.senderName}
                               </span>
                               {msg.isKritika && (
-                                <span className={`${isCurrentUser ? 'bg-white text-rose-600' : 'bg-rose-500 text-white'} font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0`}>
+                                <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0">
                                   👑 QUEEN
                                 </span>
                               )}
                               {msg.senderIsNewUser && (
-                                <span className={`${isCurrentUser ? 'bg-white/20 text-white border border-white/30' : 'bg-gradient-to-r from-rose-500 to-pink-600 text-white'} font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0 flex items-center gap-0.5`}>
+                                <span className="bg-gradient-to-r from-rose-500 to-pink-600 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0 flex items-center gap-0.5">
                                   <span>✨</span>
                                   <span>NEW USER</span>
                                 </span>
@@ -1296,7 +1444,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                             onClick={() => handleJumpToMessage(msg.replyTo!.id)}
                             className={`mb-1.5 p-1.5 px-2 rounded-lg border-l-4 text-[11px] cursor-pointer hover:opacity-85 transition-opacity ${
                             isCurrentUser
-                              ? 'bg-emerald-50/80 border-[#005C4B] text-emerald-950'
+                              ? 'bg-white/80 border-[#008069] text-stone-800'
                               : 'bg-stone-100 border-[#008069] text-stone-700'
                           }`}>
                             <span className="font-display font-black block text-[10px] text-[#008069]">
@@ -1800,7 +1948,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
                 const postAuthorName = (post.authorName || '').replace(' 👑', '').trim().toLowerCase();
                 const isPostAuthor = Boolean(
-                  (currentUser?.id && post.userId && currentUser.id === post.userId) ||
+                  (currentUser?.id && (post.userId || post.authorId) && (currentUser.id === post.userId || currentUser.id === post.authorId)) ||
                   (currentUser?.email && (post.userEmail || post.authorEmail) && currentUser.email.toLowerCase().trim() === (post.userEmail || post.authorEmail)?.toLowerCase().trim()) ||
                   (currentUserName !== '' && currentUserName === postAuthorName)
                 );
@@ -1905,68 +2053,245 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                       </div>
                     </div>
 
-                    <div 
-                      className="relative w-full aspect-4/3 sm:aspect-16/10 bg-stone-950 overflow-hidden cursor-pointer select-none group"
-                      onDoubleClick={() => handleDoubleTapPost(post)}
-                    >
-                      <img
-                        src={post.imageUrl}
-                        alt="Post visual"
-                        style={{ filter: filterDef.style }}
-                        className="w-full h-full object-cover group-hover:scale-101 transition-transform duration-300"
-                      />
+                    {/* 9:16 Aspect Ratio Photo Container with Multi-Photo Carousel */}
+                    {(() => {
+                      const allImages = (post.images && post.images.length > 0) ? post.images : [post.imageUrl];
+                      const currentIdx = activePostImgIndex[post.id] || 0;
+                      const activeImg = allImages[currentIdx] || post.imageUrl;
 
-                      {heartBurstId === post.id && (
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-scale-up">
-                          <Heart className="w-20 h-20 text-white fill-rose-500 drop-shadow-lg" />
+                      return (
+                        <div 
+                          className="relative w-full aspect-[9/16] max-h-[580px] bg-stone-950 overflow-hidden cursor-pointer select-none group flex items-center justify-center"
+                          onDoubleClick={() => handleDoubleTapPost(post)}
+                        >
+                          <img
+                            src={activeImg}
+                            alt="Post visual"
+                            style={{ filter: filterDef.style }}
+                            className="w-full h-full object-cover group-hover:scale-101 transition-transform duration-300"
+                          />
+
+                          {/* Multi-Photo Carousel Navigation */}
+                          {allImages.length > 1 && (
+                            <>
+                              {/* 1 / N Badge */}
+                              <div className="absolute top-2.5 right-2.5 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs z-10">
+                                {currentIdx + 1}/{allImages.length}
+                              </div>
+
+                              {/* Previous Arrow */}
+                              {currentIdx > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    audioEngine.playSfx('click');
+                                    setActivePostImgIndex(prev => ({
+                                      ...prev,
+                                      [post.id]: Math.max(0, currentIdx - 1)
+                                    }));
+                                  }}
+                                  className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center shadow-md cursor-pointer transition-transform active:scale-90 z-10"
+                                  title="Previous photo"
+                                >
+                                  <ChevronLeft className="w-5 h-5" />
+                                </button>
+                              )}
+
+                              {/* Next Arrow */}
+                              {currentIdx < allImages.length - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    audioEngine.playSfx('click');
+                                    setActivePostImgIndex(prev => ({
+                                      ...prev,
+                                      [post.id]: Math.min(allImages.length - 1, currentIdx + 1)
+                                    }));
+                                  }}
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center shadow-md cursor-pointer transition-transform active:scale-90 z-10"
+                                  title="Next photo"
+                                >
+                                  <ChevronRight className="w-5 h-5" />
+                                </button>
+                              )}
+
+                              {/* Bottom Dot Indicators */}
+                              <div className="absolute bottom-2.5 inset-x-0 flex items-center justify-center gap-1.5 pointer-events-none z-10">
+                                {allImages.map((_, dotIdx) => (
+                                  <span
+                                    key={dotIdx}
+                                    className={`transition-all rounded-full ${
+                                      dotIdx === currentIdx
+                                        ? 'w-2 h-2 bg-white ring-1 ring-black/50'
+                                        : 'w-1.5 h-1.5 bg-white/50'
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                            </>
+                          )}
+
+                          {heartBurstId === post.id && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-scale-up z-20">
+                              <Heart className="w-20 h-20 text-white fill-rose-500 drop-shadow-lg" />
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
 
-                    <div className="px-3.5 pt-0.5 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                    {/* Post Action Bar: Likes, Comments, Reactions, Shares, Bookmark */}
+                    <div className="px-3.5 pt-1 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 sm:gap-3">
+                        {/* Heart / Like Button */}
                         <button
-                          onClick={() => {
-                            audioEngine.playSfx('pop');
-                            batchWallService.likeInstagramPost(post.id, currentUser?.name);
-                          }}
+                          type="button"
+                          onClick={() => handleToggleLikePost(post)}
                           className={`flex items-center gap-1 text-xs font-display font-black transition-transform active:scale-90 cursor-pointer ${
                             post.likedByCurrentUser ? 'text-rose-600' : 'text-stone-600 hover:text-rose-600'
                           }`}
+                          title={post.likedByCurrentUser ? "Unlike post" : "Like post"}
                         >
-                          <Heart className={`w-4.5 h-4.5 ${post.likedByCurrentUser ? 'fill-rose-600' : ''}`} />
-                          <span>{post.likesCount}</span>
+                          <Heart className={`w-5 h-5 transition-colors ${post.likedByCurrentUser ? 'fill-rose-600 text-rose-600' : ''}`} />
+                          <span className="font-mono text-xs">{post.likesCount}</span>
                         </button>
 
+                        {/* Comment Button */}
                         <button
+                          type="button"
                           onClick={() => setExpandedComments(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
                           className="flex items-center gap-1 text-xs font-display font-bold text-stone-600 hover:text-purple-700 transition-transform active:scale-90 cursor-pointer"
+                          title="View & add comments"
                         >
-                          <MessageCircle className="w-4.5 h-4.5" />
-                          <span>{post.comments?.length || 0}</span>
+                          <MessageCircle className="w-5 h-5" />
+                          <span className="font-mono text-xs">{post.comments?.length || 0}</span>
                         </button>
 
+                        {/* Quick Reaction Picker Button */}
                         <button
-                          onClick={() => handleShareClick(post.caption.slice(0, 30))}
-                          className="text-stone-600 hover:text-blue-600 transition-transform active:scale-90 cursor-pointer"
+                          type="button"
+                          onClick={() => setActiveReactionPickerPostId(activeReactionPickerPostId === post.id ? null : post.id)}
+                          className={`flex items-center gap-1 text-xs font-display font-bold p-1 rounded-lg transition-all cursor-pointer ${
+                            activeReactionPickerPostId === post.id 
+                              ? 'bg-amber-100 text-amber-800 scale-105 shadow-2xs' 
+                              : 'text-stone-600 hover:text-amber-600'
+                          }`}
+                          title="Add an emoji reaction"
                         >
-                          <Share2 className="w-4.5 h-4.5" />
+                          <Smile className="w-5 h-5" />
+                        </button>
+
+                        {/* Share Button with Live Share Count */}
+                        <button
+                          type="button"
+                          onClick={() => handleSharePost(post)}
+                          className="flex items-center gap-1 text-stone-600 hover:text-blue-600 transition-transform active:scale-90 cursor-pointer group/share"
+                          title={`Share post (${post.sharesCount || 0} shares so far)`}
+                        >
+                          <Share2 className="w-5 h-5 group-hover/share:text-blue-600" />
+                          <span className="font-mono text-xs font-bold text-stone-700 group-hover/share:text-blue-600">
+                            {post.sharesCount || 0}
+                          </span>
                         </button>
                       </div>
 
+                      {/* Bookmark Button */}
                       <button
+                        type="button"
                         onClick={() => {
                           audioEngine.playSfx('pop');
                           batchWallService.toggleBookmarkInstagramPost(post.id);
                         }}
                         className={`transition-transform active:scale-90 cursor-pointer ${
-                          post.saved ? 'text-amber-500' : 'text-stone-500 hover:text-stone-900'
+                          post.saved ? 'text-amber-500' : 'text-stone-400 hover:text-stone-800'
                         }`}
+                        title={post.saved ? "Remove bookmark" : "Save post"}
                       >
-                        <Bookmark className={`w-4.5 h-4.5 ${post.saved ? 'fill-amber-500' : ''}`} />
+                        <Bookmark className={`w-5 h-5 ${post.saved ? 'fill-amber-500' : ''}`} />
                       </button>
                     </div>
 
+                    {/* Floating Quick Reaction Emoji Bar */}
+                    {activeReactionPickerPostId === post.id && (
+                      <div className="mx-3.5 bg-white border border-stone-200/90 rounded-2xl p-1.5 px-2.5 shadow-md flex items-center gap-1.5 animate-scale-up z-20 overflow-x-auto scrollbar-none">
+                        <span className="text-[10px] font-bold text-stone-400 mr-0.5">React:</span>
+                        {['❤️', '🔥', '👏', '🌸', '😍', '😂', '🎉', '🧁'].map(emoji => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => handleReactToPost(post.id, emoji)}
+                            className="w-7 h-7 hover:scale-125 transition-transform flex items-center justify-center text-base cursor-pointer rounded-lg hover:bg-stone-50"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Reactions Badges Row */}
+                    {post.reactions && Object.keys(post.reactions).length > 0 && (
+                      <div className="px-3.5 flex items-center gap-1.5 flex-wrap pt-0.5">
+                        {Object.entries(post.reactions).map(([emoji, count]) => {
+                          const users = post.reactedUsers?.[emoji] || [];
+                          const myName = (currentUser?.name || profileNameInput || '').toLowerCase().trim();
+                          const hasUserReacted = users.some(u => u.toLowerCase().trim() === myName);
+
+                          return (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => handleReactToPost(post.id, emoji)}
+                              className={`px-2 py-0.5 rounded-full text-xs font-bold border transition-all active:scale-95 flex items-center gap-1 cursor-pointer ${
+                                hasUserReacted
+                                  ? 'bg-rose-100 border-rose-300 text-rose-800 shadow-2xs font-black'
+                                  : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
+                              }`}
+                              title={`Reacted by: ${users.join(', ') || `${count} people`}`}
+                            >
+                              <span>{emoji}</span>
+                              <span className="text-[11px] font-mono">{count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Unique Likers & Hearts Summary Line (Click to see who liked) */}
+                    {(() => {
+                      const uniqueMembers = post.likedByMembers || [];
+                      const uniqueNames = (post.likedByUsers && post.likedByUsers.length > 0)
+                        ? post.likedByUsers
+                        : uniqueMembers.map(m => m.userName);
+                      const totalUniques = Math.max(post.likesCount || 0, uniqueNames.length, uniqueMembers.length);
+
+                      return (
+                        <div className="px-3.5 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setShowLikedByModalPost(post)}
+                            className="text-left text-xs font-display font-medium text-stone-700 hover:text-rose-600 cursor-pointer flex items-center gap-1.5 transition-colors group/likers"
+                            title="Click to see all unique people who liked this post"
+                          >
+                            <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500 group-hover/likers:scale-110 transition-transform shrink-0" />
+                            <span>
+                              {totalUniques === 0 ? (
+                                <span className="text-stone-400">Be the first to heart this</span>
+                              ) : uniqueNames.length === 1 ? (
+                                <span>Liked by <strong className="text-stone-900 font-bold">{uniqueNames[0]}</strong> <span className="text-stone-400 font-normal">({totalUniques} unique like)</span></span>
+                              ) : uniqueNames.length === 2 ? (
+                                <span>Liked by <strong className="text-stone-900 font-bold">{uniqueNames[0]}</strong> and <strong className="text-stone-900 font-bold">{uniqueNames[1]}</strong> <span className="text-stone-400 font-normal">({totalUniques} unique likes)</span></span>
+                              ) : (
+                                <span>Liked by <strong className="text-stone-900 font-bold">{uniqueNames[0]}</strong> and <strong className="text-stone-900 font-bold underline">{totalUniques - 1} other unique members</strong></span>
+                              )}
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Caption & Hashtags */}
                     <div className="px-3.5 space-y-1">
                       <p className="text-xs text-stone-800 font-sans leading-relaxed">
                         <span className="font-display font-black mr-1.5 text-stone-900">
@@ -1994,37 +2319,102 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                       )}
                     </div>
 
+                    {/* Comments Section: Showing WHO commented with avatars, timestamps & like button */}
                     <div className="px-3.5 pb-3 space-y-2">
                       {post.comments && post.comments.length > 0 && (
                         <button
+                          type="button"
                           onClick={() => setExpandedComments(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
-                          className="text-[11px] font-display font-bold text-stone-400 hover:text-stone-600 cursor-pointer block"
+                          className="text-[11px] font-display font-bold text-stone-500 hover:text-stone-800 cursor-pointer flex items-center gap-1"
                         >
-                          {isExpanded
-                            ? 'Hide comments'
-                            : `View all ${post.comments.length} comment${post.comments.length > 1 ? 's' : ''}`}
+                          <MessageCircle className="w-3.5 h-3.5 text-purple-600" />
+                          <span>{isExpanded ? 'Hide comments' : `View all ${post.comments.length} comment${post.comments.length > 1 ? 's' : ''}`}</span>
                         </button>
                       )}
 
                       {isExpanded && post.comments && (
-                        <div className="space-y-1.5 pt-1 border-t border-stone-100">
-                          {post.comments.map(c => (
-                            <div key={c.id} className="text-xs flex items-start gap-1.5">
-                              <span className="font-display font-black text-stone-900 shrink-0">
-                                {c.authorName}:
-                              </span>
-                              <span className="text-stone-700">{c.text}</span>
-                            </div>
-                          ))}
+                        <div className="space-y-2 pt-1 border-t border-stone-100">
+                          {post.comments.map(c => {
+                            const isQueen = c.isKritika || c.authorName.toLowerCase().includes('kritika');
+                            const myName = currentUser?.name || profileNameInput || studentName || 'Student';
+                            const hasLikedComment = c.likedByUsers?.includes(myName);
+
+                            return (
+                              <div key={c.id} className="flex items-start gap-2 bg-stone-50/80 p-2 rounded-xl border border-stone-200/60">
+                                {/* Commenter Avatar */}
+                                <div
+                                  onClick={() => {
+                                    const cm = classmates.find(cl => cl.name.toLowerCase() === c.authorName.toLowerCase().replace(' 👑', ''));
+                                    if (cm) setSelectedClassmateDetail(cm);
+                                  }}
+                                  className="w-7 h-7 rounded-full overflow-hidden border border-stone-200 shrink-0 cursor-pointer hover:scale-105 transition-transform mt-0.5"
+                                  title={`View ${c.authorName}`}
+                                >
+                                  <img
+                                    src={c.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop'}
+                                    alt={c.authorName}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+
+                                {/* Comment Details */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-display font-black text-xs text-stone-900">
+                                        {c.authorName}
+                                      </span>
+                                      {isQueen && (
+                                        <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs">
+                                          👑 QUEEN
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-stone-400 shrink-0">
+                                      {c.timestamp || (c.createdAt ? formatChatTimestamp(c.createdAt) : '')}
+                                    </span>
+                                  </div>
+
+                                  <p className="text-xs text-stone-700 mt-0.5 leading-relaxed break-words font-sans">
+                                    {c.text}
+                                  </p>
+
+                                  {/* Comment Actions: Heart Like */}
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleLikeComment(post.id, c.id)}
+                                      className={`flex items-center gap-1 text-[10px] font-bold cursor-pointer transition-colors ${
+                                        hasLikedComment ? 'text-rose-600' : 'text-stone-400 hover:text-rose-600'
+                                      }`}
+                                      title="Like this comment"
+                                    >
+                                      <Heart className={`w-3 h-3 ${hasLikedComment ? 'fill-rose-600' : ''}`} />
+                                      <span>{(c.likesCount || 0) > 0 ? c.likesCount : 'Like'}</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
 
-                      <div className="pt-1 flex items-center gap-2">
+                      {/* Comment Input with User Avatar */}
+                      <div className="pt-1.5 flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full overflow-hidden border border-stone-300 shrink-0">
+                          <img
+                            src={currentUser?.avatarUrl || profileAvatarInput || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop'}
+                            alt="You"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+
                         <input
                           type="text"
                           value={commentText}
                           onChange={(e) => setPostCommentText(prev => ({ ...prev, [post.id]: e.target.value }))}
-                          placeholder="Add a kind comment..."
+                          placeholder={`Add a comment as ${currentUser?.name || profileNameInput || 'Student'}...`}
                           className="flex-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white transition-colors"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -2033,11 +2423,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                             }
                           }}
                         />
+
                         <button
                           type="button"
                           disabled={!commentText.trim()}
                           onClick={() => handleSendPostComment(post.id)}
-                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl text-xs font-display font-black uppercase cursor-pointer"
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl text-xs font-display font-black uppercase cursor-pointer transition-all active:scale-95"
                         >
                           Post
                         </button>
@@ -2139,9 +2530,42 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                         </div>
                       </div>
 
-                      <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-xs font-handwritten font-bold text-amber-900">
-                        <span>{post.moodEmoji}</span>
-                        <span>{post.mood}</span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-xs font-handwritten font-bold text-amber-900">
+                          <span>{post.moodEmoji}</span>
+                          <span>{post.mood}</span>
+                        </div>
+                        {(() => {
+                          const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
+                          const studentNameClean = (post.studentName || '').replace(' 👑', '').trim().toLowerCase();
+                          const isBulletinAuthor = Boolean(
+                            (currentUser?.id && post.userId && currentUser.id === post.userId) ||
+                            (currentUser?.email && post.userEmail && currentUser.email.toLowerCase().trim() === post.userEmail.toLowerCase().trim()) ||
+                            (currentUserName !== '' && currentUserName === studentNameClean)
+                          );
+                          const isKritika = currentUserName.includes('kritika') || (currentUser?.email || '').toLowerCase().includes('kritika');
+                          const canDeleteBulletin = isBulletinAuthor || isKritika;
+
+                          if (!canDeleteBulletin) return null;
+
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                audioEngine.playSfx('pop');
+                                setDeleteConfirmPost({
+                                  id: post.id,
+                                  type: 'bulletin',
+                                  title: `Sticky note by ${post.studentName}`
+                                });
+                              }}
+                              className="p-1 hover:bg-rose-50 text-stone-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                              title="Delete sticky note"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -2441,32 +2865,137 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           >
             <form onSubmit={handleCreatePhotoPost} className="space-y-3.5 text-left">
               <div>
-                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
-                  1. Choose / Upload Photo:
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-display font-black text-xs text-stone-700 uppercase">
+                    1. Upload Photos (9:16 Ratio):
+                  </label>
+                  <span className="text-[10px] text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                    {newPostImages.length > 0 ? `${newPostImages.length} Photo${newPostImages.length > 1 ? 's' : ''} Selected` : '9:16 Portrait'}
+                  </span>
+                </div>
+
                 <input
                   ref={photoFileInputRef}
                   type="file"
                   accept="image/*"
+                  multiple
                   onChange={handlePhotoPostImageSelect}
                   className="hidden"
                 />
 
-                {newPostImage ? (
-                  <div className="relative rounded-2xl overflow-hidden border border-stone-300 aspect-4/3 bg-black shadow-xs">
-                    <img
-                      src={newPostImage}
-                      alt="Selected"
-                      style={{ filter: FILTER_STYLES[newPostFilter]?.style }}
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setNewPostImage(null)}
-                      className="absolute top-2 right-2 bg-black/70 hover:bg-black text-white p-1.5 rounded-full cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                {newPostImages.length > 0 ? (
+                  <div className="space-y-2.5">
+                    {/* 9:16 Portrait Poster Preview Container */}
+                    <div className="relative rounded-2xl overflow-hidden border border-stone-300 aspect-[9/16] max-h-72 sm:max-h-80 mx-auto bg-stone-950 shadow-sm flex items-center justify-center group">
+                      <img
+                        src={newPostImages[activeCreatePreviewIndex] || newPostImages[0]}
+                        alt="Selected"
+                        style={{ filter: FILTER_STYLES[newPostFilter]?.style }}
+                        className="w-full h-full object-cover"
+                      />
+
+                      {/* 9:16 Ratio Badge */}
+                      <span className="absolute top-2 left-2 bg-black/60 backdrop-blur-xs text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                        9:16 Ratio
+                      </span>
+
+                      {/* Multi-Photo Slide Counter */}
+                      {newPostImages.length > 1 && (
+                        <span className="absolute top-2 right-10 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          {activeCreatePreviewIndex + 1}/{newPostImages.length}
+                        </span>
+                      )}
+
+                      {/* Remove Current Photo Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewPostImages(prev => {
+                            const next = prev.filter((_, idx) => idx !== activeCreatePreviewIndex);
+                            if (activeCreatePreviewIndex >= next.length) {
+                              setActiveCreatePreviewIndex(Math.max(0, next.length - 1));
+                            }
+                            if (next.length > 0) setNewPostImage(next[0]);
+                            else setNewPostImage(null);
+                            return next;
+                          });
+                        }}
+                        className="absolute top-2 right-2 bg-black/70 hover:bg-rose-600 text-white p-1.5 rounded-full cursor-pointer transition-colors shadow-xs"
+                        title="Remove this photo"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Carousel Arrow Controls */}
+                      {newPostImages.length > 1 && (
+                        <>
+                          {activeCreatePreviewIndex > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveCreatePreviewIndex(i => Math.max(0, i - 1))}
+                              className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center cursor-pointer shadow-md"
+                              title="Previous photo"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                          )}
+                          {activeCreatePreviewIndex < newPostImages.length - 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveCreatePreviewIndex(i => Math.min(newPostImages.length - 1, i + 1))}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center cursor-pointer shadow-md"
+                              title="Next photo"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Thumbnail Strip with "+ Add More Photos" button */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none pt-1">
+                      {newPostImages.map((imgUrl, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => setActiveCreatePreviewIndex(idx)}
+                          className={`relative w-12 h-16 rounded-lg overflow-hidden border-2 shrink-0 cursor-pointer transition-transform ${
+                            idx === activeCreatePreviewIndex ? 'border-rose-600 scale-105 ring-2 ring-rose-200' : 'border-stone-300 opacity-80 hover:opacity-100'
+                          }`}
+                        >
+                          <img src={imgUrl} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setNewPostImages(prev => {
+                                const next = prev.filter((_, i) => i !== idx);
+                                if (activeCreatePreviewIndex >= next.length) {
+                                  setActiveCreatePreviewIndex(Math.max(0, next.length - 1));
+                                }
+                                if (next.length > 0) setNewPostImage(next[0]);
+                                else setNewPostImage(null);
+                                return next;
+                              });
+                            }}
+                            className="absolute top-0.5 right-0.5 bg-black/70 hover:bg-rose-600 text-white p-0.5 rounded-full"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Add More Photos Button */}
+                      <button
+                        type="button"
+                        onClick={() => photoFileInputRef.current?.click()}
+                        className="w-12 h-16 rounded-lg border-2 border-dashed border-rose-300 hover:border-rose-500 bg-rose-50/50 hover:bg-rose-50 text-rose-600 flex flex-col items-center justify-center shrink-0 cursor-pointer transition-colors"
+                        title="Add more photos to this poster"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span className="text-[8px] font-bold mt-0.5">+Photo</span>
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -2478,18 +3007,25 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                         <Camera className="w-5 h-5" />
                       </div>
                       <p className="font-display font-bold text-xs text-rose-900">
-                        Tap to upload from device 📸
+                        Tap to upload photos from device 📸
+                      </p>
+                      <p className="text-[10px] text-stone-500">
+                        9:16 portrait ratio • Multiple photos supported in one poster!
                       </p>
                     </div>
 
                     <div>
-                      <span className="text-[10px] font-bold text-stone-400 block mb-1">Or pick a comfort preset:</span>
+                      <span className="text-[10px] font-bold text-stone-400 block mb-1">Or pick comfort preset photos:</span>
                       <div className="grid grid-cols-3 gap-1.5">
                         {PRESET_PHOTOS.slice(0, 3).map((preset, idx) => (
                           <div
                             key={idx}
-                            onClick={() => setNewPostImage(preset.url)}
-                            className="border border-stone-200 hover:border-rose-400 rounded-xl overflow-hidden cursor-pointer group relative aspect-4/3"
+                            onClick={() => {
+                              setNewPostImages(prev => [...prev, preset.url]);
+                              setNewPostImage(preset.url);
+                              audioEngine.playSfx('pop');
+                            }}
+                            className="border border-stone-200 hover:border-rose-400 rounded-xl overflow-hidden cursor-pointer group relative aspect-[9/16] max-h-28"
                           >
                             <img src={preset.url} alt={preset.label} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                             <span className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[9px] font-bold p-0.5 truncate text-center">
@@ -2503,7 +3039,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 )}
               </div>
 
-              {newPostImage && (
+              {newPostImages.length > 0 && (
                 <div>
                   <label className="font-display font-black text-[11px] text-stone-700 uppercase block mb-1">
                     2. Filter Preset:
@@ -2698,6 +3234,48 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 Pin to Bulletin Board ✨
               </button>
             </form>
+          </BaseModal>
+        )}
+
+        {/* MODAL: CONFIRM PERMANENT POST DELETION */}
+        {deleteConfirmPost && (
+          <BaseModal
+            onClose={() => !isDeletingPost && setDeleteConfirmPost(null)}
+            title="DELETE POST PERMANENTLY?"
+            subtitle="This will completely remove the post for all batch members"
+            icon={<Trash2 className="w-5 h-5 text-rose-600" />}
+            maxWidth="max-w-sm"
+          >
+            <div className="space-y-4 text-left">
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <span>⚠️ Permanent Deletion Notice:</span>
+                </p>
+                <p className="text-stone-600 leading-relaxed">
+                  Once deleted, {deleteConfirmPost.title || 'this post'} will be completely removed from the feed and will <strong>no longer be visible to you or any other members</strong>.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={isDeletingPost}
+                  onClick={() => setDeleteConfirmPost(null)}
+                  className="flex-1 py-2 px-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-xs cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingPost}
+                  onClick={handleConfirmDeletePost}
+                  className="flex-1 py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isDeletingPost ? 'Deleting...' : 'Delete for Everyone'}</span>
+                </button>
+              </div>
+            </div>
           </BaseModal>
         )}
 
@@ -3061,6 +3639,143 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           </BaseModal>
         )}
 
+        {/* MODAL: POST LIKES & HEARTS (UNIQUE MEMBERS) */}
+        {showLikedByModalPost && (
+          <BaseModal
+            onClose={() => setShowLikedByModalPost(null)}
+            title="LIKES & HEARTS"
+            subtitle="Unique batch members who liked this post"
+            icon={<Heart className="w-5 h-5 fill-rose-500 text-rose-500" />}
+            maxWidth="max-w-md"
+          >
+            {(() => {
+              const post = showLikedByModalPost;
+              // Collect unique members from post.likedByMembers and post.likedByUsers
+              const membersMap = new Map<string, { id?: string; name: string; email?: string; avatarUrl?: string; likedAt?: number }>();
+
+              (post.likedByMembers || []).forEach((m: LikedMember) => {
+                const key = (m.userId || m.userName || '').toLowerCase().trim();
+                if (key && !membersMap.has(key)) {
+                  membersMap.set(key, {
+                    id: m.userId,
+                    name: m.userName,
+                    email: m.userEmail,
+                    avatarUrl: m.avatarUrl,
+                    likedAt: m.likedAt
+                  });
+                }
+              });
+
+              (post.likedByUsers || []).forEach(name => {
+                const key = name.toLowerCase().trim();
+                if (key && !membersMap.has(key)) {
+                  const match = classmates.find(cl => cl.name.toLowerCase().trim() === key || cl.name.toLowerCase().includes(key));
+                  membersMap.set(key, {
+                    name,
+                    avatarUrl: match?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+                    likedAt: Date.now()
+                  });
+                }
+              });
+
+              const uniqueList = Array.from(membersMap.values());
+              const totalUniques = Math.max(post.likesCount || 0, uniqueList.length);
+
+              return (
+                <div className="space-y-4 text-left">
+                  {/* Total Unique Likes Banner */}
+                  <div className="p-3 rounded-2xl bg-gradient-to-r from-rose-50 via-pink-50 to-amber-50 border border-rose-200/80 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center text-sm shadow-xs">
+                        ❤️
+                      </div>
+                      <div>
+                        <h4 className="font-display font-black text-xs sm:text-sm text-stone-900">
+                          {totalUniques} Unique {totalUniques === 1 ? 'Person' : 'People'} Liked
+                        </h4>
+                        <p className="text-[11px] text-stone-500">
+                          Each batch member counts once toward unique hearts
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-xs font-mono font-black bg-rose-500 text-white shadow-2xs">
+                      {totalUniques} ❤️
+                    </span>
+                  </div>
+
+                  {/* Likers List */}
+                  <div className="space-y-2">
+                    <h5 className="font-display font-black text-[11px] uppercase tracking-wider text-stone-500">
+                      Who Liked ({uniqueList.length})
+                    </h5>
+
+                    {uniqueList.length === 0 ? (
+                      <div className="p-6 text-center text-stone-400 text-xs italic bg-stone-50 rounded-2xl border border-stone-200">
+                        No likes yet. Be the first to drop a heart!
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 scrollbar-thin">
+                        {uniqueList.map((member, idx) => {
+                          const isQueen = member.name.toLowerCase().includes('kritika');
+                          const isMe = (currentUser?.name || profileNameInput || '').toLowerCase().trim() === member.name.toLowerCase().trim();
+
+                          return (
+                            <div
+                              key={idx}
+                              className="p-2.5 bg-white border border-stone-200/80 hover:border-rose-300 rounded-xl flex items-center justify-between transition-colors shadow-2xs"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-full overflow-hidden border border-rose-200 bg-stone-100 shrink-0">
+                                  <img
+                                    src={member.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop'}
+                                    alt={member.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-display font-black text-xs text-stone-900 truncate">
+                                      {member.name}
+                                    </span>
+                                    {isMe && (
+                                      <span className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded-full">
+                                        You
+                                      </span>
+                                    )}
+                                    {isQueen && (
+                                      <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs">
+                                        👑 QUEEN
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-stone-400 block truncate">
+                                    {member.likedAt ? `Liked ${new Date(member.likedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : 'Liked post'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <span className="text-sm shrink-0">
+                                ❤️
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowLikedByModalPost(null)}
+                    className="w-full py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-display font-black text-xs uppercase cursor-pointer transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              );
+            })()}
+          </BaseModal>
+        )}
 
         {/* Modal: Google Sign In */}
         {showGoogleModal && (

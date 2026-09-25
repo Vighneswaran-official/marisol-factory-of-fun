@@ -6,6 +6,7 @@ import {
   signInWithPopup, 
   signInWithRedirect,
   getRedirectResult,
+  signInAnonymously,
   firebaseSignOut, 
   onAuthStateChanged, 
   RecaptchaVerifier,
@@ -160,8 +161,9 @@ class AuthService {
 
   private initFirebaseListeners() {
     if (auth) {
+      const authInstance = auth;
       // 1. Check for Mobile Redirect Sign-In Result on Boot (Essential for mobile browsers)
-      getRedirectResult(auth)
+      getRedirectResult(authInstance)
         .then((result) => {
           if (result && result.user && !result.user.isAnonymous) {
             this.handleFirebaseUserLogin(result.user, 'google');
@@ -174,9 +176,13 @@ class AuthService {
         });
 
       // 2. Regular Auth State Change
-      onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+      onAuthStateChanged(authInstance, (firebaseUser: FirebaseUser | null) => {
         if (firebaseUser && !firebaseUser.isAnonymous) {
           this.handleFirebaseUserLogin(firebaseUser, firebaseUser.phoneNumber ? 'phone_otp' : 'google');
+        } else if (!firebaseUser) {
+          signInAnonymously(authInstance).catch((err) => {
+            console.warn('[Auth] Anonymous fallback sign-in notice:', err);
+          });
         }
       });
     }

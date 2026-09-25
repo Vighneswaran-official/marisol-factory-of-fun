@@ -177,6 +177,32 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
               </p>
             </div>
 
+            {/* Quick One-Tap Mail ID Suggestions */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wide">
+                Quick 1-Tap Sign In:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { name: 'Kritika Gupta 👑', email: 'kritika.gupta@mlp41.edu' },
+                  { name: 'Priyanshu Sharma', email: 'priyanshu.sharma@mlp41.edu' },
+                  { name: 'Batch 41 Member', email: 'student@mlp41.edu' },
+                ].map(item => (
+                  <button
+                    key={item.email}
+                    type="button"
+                    onClick={() => {
+                      setEmailInput(item.email);
+                      setNameInput(item.name);
+                    }}
+                    className="text-[10px] font-bold px-2 py-0.5 bg-stone-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 border border-stone-200 rounded-lg text-stone-700 transition-colors cursor-pointer"
+                  >
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Mail ID Quick Sign In Form */}
             <form onSubmit={handleSignInSubmit} className="space-y-2.5">
               <div className="space-y-1">

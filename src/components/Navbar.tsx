@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import type { ScreenState, AudioSettings } from '../types/game';
-import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
 import { 
-  Flame, ArrowLeft, Menu, X, Sparkles, Volume2, UserCheck, CheckCircle2
+  ArrowLeft, Menu, X, Volume2, UserCheck, CheckCircle2, Smartphone
 } from 'lucide-react';
 import { authService } from '../services/authService';
 
@@ -14,7 +13,7 @@ interface NavbarProps {
   onOpenGoogleSignIn?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpenGoogleSignIn }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpenInstallApp, onOpenGoogleSignIn }) => {
   const [, setAuthTick] = useState(0);
 
   useEffect(() => {
@@ -23,7 +22,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
     });
   }, []);
 
-  const player = gameState.getPlayer();
   const currentUser = authService.getCurrentUser();
   const isAuthenticated = authService.isAuthenticated();
   const [audioState, setAudioState] = useState<AudioSettings>(audioEngine.getSettings());
@@ -46,52 +44,71 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur-md border-b border-stone-200/80 px-2 sm:px-6 py-2 shadow-xs">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-1 sm:gap-2">
+      <header className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur-md border-b border-stone-200/80 px-3 sm:px-6 py-2 shadow-xs">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
           
-          {/* Left: Custom Logo or Back Button */}
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            {currentScreen !== 'home' ? (
-              <button 
-                onClick={() => {
-                  audioEngine.playSfx('click');
-                  onNavigate('home');
-                }}
-                className="py-1 px-2.5 sm:py-1.5 sm:px-3 bg-white border border-stone-200 rounded-xl flex items-center gap-1 shadow-xs text-xs sm:text-sm font-display font-black text-stone-800 hover:bg-stone-50 transition-all cursor-pointer shrink-0"
-                title="Return to Home Screen"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>HOME</span>
-              </button>
-            ) : (
-              <button 
-                onClick={() => {
-                  audioEngine.playSfx('click');
-                  onNavigate('home');
-                }}
-                className="flex items-center gap-2 group text-left cursor-pointer min-w-0"
-              >
-                {/* Custom Brand 'M' Logo Badge */}
-                <div className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-400 p-[2px] shadow-xs group-hover:scale-105 transition-transform flex items-center justify-center shrink-0">
-                  <div className="w-full h-full bg-white rounded-full flex items-center justify-center relative overflow-hidden">
-                    <span className="font-display font-black text-rose-600 text-sm leading-none tracking-tight">M</span>
-                  </div>
-                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-400 rounded-full flex items-center justify-center shadow-2xs">
-                    <Sparkles className="w-1.5 h-1.5 text-white fill-white" />
-                  </span>
-                </div>
+          {/* Left: Profile Picture in Left Corner + Brand Title */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            {/* Profile Avatar Button on the Far Left Corner */}
+            <button
+              type="button"
+              onClick={() => {
+                audioEngine.playSfx('pop');
+                if (onOpenGoogleSignIn) {
+                  onOpenGoogleSignIn();
+                } else {
+                  onNavigate('batch_wall');
+                }
+              }}
+              className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full p-[2px] bg-gradient-to-tr from-rose-500 via-pink-400 to-amber-300 shadow-xs hover:scale-105 transition-transform cursor-pointer shrink-0"
+              title={isAuthenticated && currentUser ? `Signed in as ${currentUser.name} (Click for Profile)` : "Your Profile (Click to Connect)"}
+            >
+              <div className="w-full h-full rounded-full overflow-hidden bg-white border border-white">
+                <img
+                  src={currentUser?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop'}
+                  alt={currentUser?.name || "Profile"}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full shadow-2xs" />
+            </button>
 
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1">
-                    <h1 className="font-display font-black text-sm sm:text-base tracking-tight leading-none text-stone-900 group-hover:text-rose-600 transition-colors">
-                      MARISOL
-                    </h1>
-                    <span className="text-rose-500 font-black text-[10px] sm:text-xs">✨</span>
-                  </div>
-                  <p className="font-display text-[8px] sm:text-[9px] text-rose-700 font-extrabold tracking-wider uppercase -mt-0.5 truncate hidden min-[360px]:block">
-                    FACTORY OF FUN
-                  </p>
+            {/* Logo / Brand Name */}
+            <button 
+              type="button"
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onNavigate('home');
+              }}
+              className="flex items-center gap-1.5 text-left cursor-pointer min-w-0 group"
+              title="Return to Home"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                  <h1 className="font-display font-black text-sm sm:text-base tracking-tight leading-none text-stone-900 group-hover:text-rose-600 transition-colors">
+                    MARISOL
+                  </h1>
+                  <span className="text-rose-500 font-black text-xs">✨</span>
                 </div>
+                <p className="font-display text-[8px] sm:text-[9px] text-rose-700 font-extrabold tracking-wider uppercase -mt-0.5 truncate">
+                  FACTORY OF FUN
+                </p>
+              </div>
+            </button>
+
+            {/* Back button indicator when on sub-pages */}
+            {currentScreen !== 'home' && (
+              <button 
+                type="button"
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onNavigate('home');
+                }}
+                className="ml-1 py-1 px-2 bg-stone-100 hover:bg-stone-200 border border-stone-200 rounded-lg flex items-center gap-1 text-[10px] font-display font-bold text-stone-700 transition-colors cursor-pointer shrink-0"
+                title="Return to Home"
+              >
+                <ArrowLeft className="w-3 h-3" />
+                <span className="hidden sm:inline">Home</span>
               </button>
             )}
           </div>
@@ -125,62 +142,35 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
             })}
           </nav>
 
-          {/* Right: Core Stats & Menu Controls */}
+          {/* Right: Clean, Uncluttered Controls */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            
-            {/* Macaronis Score */}
-            <div 
-              className="h-8 px-2.5 flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200 rounded-full shadow-2xs text-xs font-black shrink-0"
-              title={`${player.cucumberSandwiches || 0} Macaronis`}
-            >
-              <span className="text-xs">🧀</span>
-              <span>{player.cucumberSandwiches || 0}</span>
-            </div>
-
-            {/* Streak Counter */}
-            <div 
-              className="h-8 px-2.5 flex items-center gap-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-full shadow-xs text-xs font-bold shrink-0"
-              title={`${player.streak} Day Streak`}
-            >
-              <Flame className="w-3.5 h-3.5 fill-white animate-bounce-gentle" />
-              <span>{player.streak}</span>
-            </div>
-
-            {/* Direct Community Lounge Button (Mobile only since desktop has center links) */}
+            {/* Audio SFX Toggle */}
             <button
-              onClick={() => {
-                audioEngine.playSfx('click');
-                onNavigate('batch_wall');
-              }}
-              className={`md:hidden h-8 px-2.5 rounded-full flex items-center gap-1 text-xs font-display font-black transition-all cursor-pointer shrink-0 ${
-                currentScreen === 'batch_wall'
-                  ? 'bg-rose-600 text-white shadow-xs'
-                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs'
+              type="button"
+              onClick={toggleSfx}
+              className={`w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer transition-colors shadow-2xs ${
+                audioState.sfxOn
+                  ? 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
+                  : 'bg-stone-100 border-stone-200 text-stone-400'
               }`}
-              title="Open Batch 41 Lounge"
+              title={audioState.sfxOn ? "Sound Effects ON" : "Sound Effects OFF"}
             >
-              <span>💬</span>
-              <span className="hidden min-[400px]:inline">Lounge</span>
+              <Volume2 className="w-3.5 h-3.5" />
             </button>
 
-            {/* Account Profile / Sign In Pill (Desktop & Mobile) */}
-            {onOpenGoogleSignIn && (
+            {/* Quick Install as App Button */}
+            {onOpenInstallApp && (
               <button
+                type="button"
                 onClick={() => {
                   audioEngine.playSfx('click');
-                  onOpenGoogleSignIn();
+                  onOpenInstallApp();
                 }}
-                className="h-8 px-2.5 sm:px-3 bg-white hover:bg-stone-50 border border-stone-200 rounded-full flex items-center gap-1.5 text-xs font-display font-bold text-stone-800 shadow-2xs transition-all cursor-pointer shrink-0"
-                title={isAuthenticated && currentUser ? `Signed in as ${currentUser.name}` : "Sign In with Google"}
+                className="h-8 px-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-full flex items-center gap-1.5 text-xs font-display font-black transition-all cursor-pointer shrink-0 active:scale-95 shadow-2xs"
+                title="Install Marisol as App on iPhone or Android"
               >
-                {isAuthenticated && currentUser ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                ) : (
-                  <UserCheck className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                )}
-                <span className="hidden lg:inline truncate max-w-[100px]">
-                  {isAuthenticated && currentUser ? currentUser.name.split(' ')[0] : 'Profile'}
-                </span>
+                <Smartphone className="w-3.5 h-3.5 text-rose-600" />
+                <span className="hidden sm:inline">Add App</span>
               </button>
             )}
 
@@ -307,6 +297,35 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                     </div>
                     <span className="text-[10px] font-display font-black text-rose-600 bg-white px-2 py-0.5 rounded-full border border-stone-200">
                       {isAuthenticated ? "MANAGE" : "SIGN IN"}
+                    </span>
+                  </button>
+                </div>
+              )}
+
+              {/* Install as App Option in Drawer Menu */}
+              {onOpenInstallApp && (
+                <div className="mt-3 p-3 bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-200 rounded-2xl shadow-xs">
+                  <button
+                    onClick={() => {
+                      audioEngine.playSfx('click');
+                      setIsMenuOpen(false);
+                      onOpenInstallApp();
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-rose-50 border border-rose-300 text-stone-800 text-xs font-bold transition-all shadow-2xs flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="w-4 h-4 text-rose-600 shrink-0" />
+                      <div className="text-left">
+                        <div className="font-display font-black text-xs text-stone-900">
+                          Add Marisol to Phone
+                        </div>
+                        <div className="text-[10px] text-stone-500 font-sans">
+                          iPhone (Safari) & Android install guide
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-display font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                      INSTALL 📱
                     </span>
                   </button>
                 </div>

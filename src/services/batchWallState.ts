@@ -1,6 +1,7 @@
 // Shared Batch Wall State Service for MLP41PT Batch Students with Firebase Firestore
 import { 
   db, 
+  auth,
   collection, 
   onSnapshot, 
   query, 
@@ -41,6 +42,9 @@ export interface BatchUpdatePost {
   isPinned?: boolean;
   pinnedBy?: string;
   pinnedAt?: number;
+  isDeleted?: boolean;
+  isDeletedForEveryone?: boolean;
+  deletedAt?: number;
 }
 
 export interface MessageReceipt {
@@ -149,6 +153,14 @@ export interface GroupChatMessage {
   pinnedAt?: number;
 }
 
+export interface LikedMember {
+  userId?: string;
+  userName: string;
+  userEmail?: string;
+  avatarUrl?: string;
+  likedAt?: number;
+}
+
 export interface InstagramComment {
   id: string;
   authorId?: string;
@@ -159,6 +171,8 @@ export interface InstagramComment {
   timestamp: string;
   createdAt: number;
   likesCount?: number;
+  likedByUsers?: string[];
+  reactions?: Record<string, number>;
   isKritika?: boolean;
 }
 
@@ -172,12 +186,18 @@ export interface InstagramPost {
   authorAvatarUrl: string;
   location?: string;
   imageUrl: string;
+  images?: string[]; // Multiple photos in one 9:16 poster
   filter?: string; // 'none' | 'warm' | 'vintage' | 'pink' | 'golden' | 'bw'
   caption: string;
   hashtags: string[];
   likesCount: number;
   likedByCurrentUser?: boolean;
   likedByUsers?: string[];
+  likedByMembers?: LikedMember[]; // Unique users who liked/hearted
+  reactions?: Record<string, number>; // emoji -> count, e.g. { '❤️': 38, '🔥': 12, '🌸': 9 }
+  reactedUsers?: Record<string, string[]>; // emoji -> array of user names
+  sharesCount?: number; // Total unique shares count
+  sharedByUsers?: string[]; // Users who shared
   comments: InstagramComment[];
   saved?: boolean;
   timestamp: string;
@@ -187,6 +207,9 @@ export interface InstagramPost {
   pinnedBy?: string;
   pinnedAt?: number;
   isEdited?: boolean;
+  isDeleted?: boolean;
+  isDeletedForEveryone?: boolean;
+  deletedAt?: number;
 }
 
 export const formatChatTimestamp = (createdAt: number): string => {
@@ -209,6 +232,7 @@ const CHAT_STORAGE_KEY = 'marisol_group_chat_messages_v2';
 const CHAT_QUEUE_KEY = 'marisol_chat_offline_queue_v2';
 const INSTA_STORAGE_KEY = 'marisol_instagram_posts_v2';
 const QUEUE_KEY = 'marisol_batch_offline_queue_v2';
+const DELETED_POSTS_STORAGE_KEY = 'marisol_deleted_posts_v2';
 
 const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
   {
@@ -224,7 +248,22 @@ const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
     hashtags: ['#Batch41', '#KritikaQueen', '#FactoryOfFun', '#ComfortVibes'],
     likesCount: 38,
     likedByCurrentUser: true,
-    likedByUsers: ['Kritika Gupta 👑'],
+    likedByUsers: ['Kritika Gupta 👑', 'Priyanshu Sharma', 'Ananya Deshmukh', 'Rohan Mehra'],
+    likedByMembers: [
+      { userId: 'member_kritika', userName: 'Kritika Gupta 👑', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop', likedAt: Date.now() - 3600000 },
+      { userId: 'member_priyanshu', userName: 'Priyanshu Sharma', avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop', likedAt: Date.now() - 2500000 },
+      { userId: 'member_ananya', userName: 'Ananya Deshmukh', avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop', likedAt: Date.now() - 1800000 },
+      { userId: 'member_rohan', userName: 'Rohan Mehra', avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop', likedAt: Date.now() - 900000 }
+    ],
+    reactions: { '❤️': 38, '🌸': 15, '✨': 12, '🔥': 9 },
+    reactedUsers: {
+      '❤️': ['Kritika Gupta 👑', 'Priyanshu Sharma', 'Ananya Deshmukh'],
+      '🌸': ['Ananya Deshmukh', 'Kritika Gupta 👑'],
+      '✨': ['Rohan Mehra'],
+      '🔥': ['Priyanshu Sharma']
+    },
+    sharesCount: 7,
+    sharedByUsers: ['Priyanshu Sharma', 'Ananya Deshmukh', 'Rohan Mehra'],
     comments: [
       {
         id: 'c1',
@@ -232,7 +271,9 @@ const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
         avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
         text: 'Royal aesthetic as always! Keep shining Kritika! 👑🔥',
         timestamp: '1 hour ago',
-        createdAt: Date.now() - 3600000
+        createdAt: Date.now() - 3600000,
+        likesCount: 4,
+        likedByUsers: ['Kritika Gupta 👑', 'Ananya Deshmukh']
       },
       {
         id: 'c2',
@@ -240,7 +281,9 @@ const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
         avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
         text: 'Best batch memories ever! 💖✨',
         timestamp: '30 mins ago',
-        createdAt: Date.now() - 1800000
+        createdAt: Date.now() - 1800000,
+        likesCount: 2,
+        likedByUsers: ['Kritika Gupta 👑']
       }
     ],
     timestamp: '2 hours ago',
@@ -280,6 +323,7 @@ class BatchWallService {
   private instagramPosts: InstagramPost[] = [];
   private offlineQueue: BatchUpdatePost[] = [];
   private chatOfflineQueue: GroupChatMessage[] = [];
+  private deletedPostIds: Set<string> = new Set();
   private listeners: Set<() => void> = new Set();
   private isOnline: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
   private lastSyncToast: string | null = null;
@@ -306,6 +350,20 @@ class BatchWallService {
               this.chatMessages = this.chatMessages.filter(m => m.id !== event.data.messageId);
               this.saveChatToStorage();
               this.notify();
+            } else if (event.data?.type === 'DELETE_INSTA_POST' && event.data?.postId) {
+              this.deletedPostIds.add(event.data.postId);
+              this.saveDeletedPostsToStorage();
+              this.instagramPosts = this.instagramPosts.filter(p => p.id !== event.data.postId);
+              this.saveInstaToStorage();
+              this.notify();
+            } else if (event.data?.type === 'DELETE_BULLETIN_POST' && event.data?.postId) {
+              this.deletedPostIds.add(event.data.postId);
+              this.saveDeletedPostsToStorage();
+              this.posts = this.posts.filter(p => p.id !== event.data.postId);
+              this.offlineQueue = this.offlineQueue.filter(p => p.id !== event.data.postId);
+              this.saveToStorage();
+              this.saveQueueToStorage();
+              this.notify();
             } else if (event.data?.type === 'SYNC_CHAT') {
               this.loadFromStorage();
               this.notify();
@@ -329,33 +387,61 @@ class BatchWallService {
       localStorage.removeItem('marisol_batch_updates_v1');
       localStorage.removeItem('marisol_direct_chat_messages_v1');
       localStorage.removeItem('marisol_direct_chat_messages_v2');
+      localStorage.removeItem('marisol_deleted_posts_v1');
     } catch {}
   }
 
   private initFirestoreSync() {
     if (db) {
       try {
-        // 1. Bulletin Corkboard Posts
+        // 0. Shared Deleted Posts Registry Listener (guarantees real-time complete deletion for all batch members)
+        const deletedQuery = collection(db, 'deleted_posts');
+        onSnapshot(deletedQuery, (snapshot) => {
+          let hasNewDeletions = false;
+          snapshot.forEach((docSnap) => {
+            if (!this.deletedPostIds.has(docSnap.id)) {
+              this.deletedPostIds.add(docSnap.id);
+              hasNewDeletions = true;
+            }
+          });
+          if (hasNewDeletions) {
+            this.saveDeletedPostsToStorage();
+            this.posts = this.posts.filter(p => !this.deletedPostIds.has(p.id));
+            this.instagramPosts = this.instagramPosts.filter(p => !this.deletedPostIds.has(p.id));
+            this.saveToStorage();
+            this.saveInstaToStorage();
+            this.notify();
+          }
+        }, (err) => {
+          console.warn('[BatchWall] Firestore deleted_posts listener notice:', err);
+        });
+
+        // 1. Bulletin Corkboard Posts Listener
         const postsQuery = query(
           collection(db, 'batch_updates'),
           orderBy('createdAt', 'desc')
         );
         onSnapshot(postsQuery, (snapshot) => {
-          if (!snapshot.empty) {
-            const remotePosts: BatchUpdatePost[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as BatchUpdatePost;
-              remotePosts.push({ ...data, id: docSnap.id });
-            });
+          const remotePosts: BatchUpdatePost[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as BatchUpdatePost;
+            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(docSnap.id)) {
+              if (!this.deletedPostIds.has(docSnap.id)) {
+                this.deletedPostIds.add(docSnap.id);
+                this.saveDeletedPostsToStorage();
+              }
+              return;
+            }
+            remotePosts.push({ ...data, id: docSnap.id });
+          });
 
-            this.posts = remotePosts.sort((a, b) => {
-              if (a.isPinned && !b.isPinned) return -1;
-              if (!a.isPinned && b.isPinned) return 1;
-              return (b.createdAt || 0) - (a.createdAt || 0);
-            });
-            this.saveToStorage();
-            this.notify();
-          }
+          this.posts = remotePosts.sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return (b.createdAt || 0) - (a.createdAt || 0);
+          });
+          this.saveToStorage();
+          this.notify();
         }, (err) => {
           console.warn('[BatchWall] Firestore posts sync notice:', err);
         });
@@ -369,19 +455,25 @@ class BatchWallService {
           orderBy('createdAt', 'desc')
         );
         onSnapshot(instaQuery, (snapshot) => {
-          if (!snapshot.empty) {
-            const remoteInsta: InstagramPost[] = [];
-            snapshot.forEach((docSnap) => {
-              remoteInsta.push({ ...(docSnap.data() as InstagramPost), id: docSnap.id });
-            });
-            this.instagramPosts = remoteInsta.sort((a, b) => {
-              if (a.isPinned && !b.isPinned) return -1;
-              if (!a.isPinned && b.isPinned) return 1;
-              return (b.createdAt || 0) - (a.createdAt || 0);
-            });
-            this.saveInstaToStorage();
-            this.notify();
-          }
+          const remoteInsta: InstagramPost[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as InstagramPost;
+            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(docSnap.id)) {
+              if (!this.deletedPostIds.has(docSnap.id)) {
+                this.deletedPostIds.add(docSnap.id);
+                this.saveDeletedPostsToStorage();
+              }
+              return;
+            }
+            remoteInsta.push({ ...data, id: docSnap.id });
+          });
+          this.instagramPosts = remoteInsta.sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return (b.createdAt || 0) - (a.createdAt || 0);
+          });
+          this.saveInstaToStorage();
+          this.notify();
         }, (err) => {
           console.warn('[BatchWall] Firestore insta listener notice:', err);
         });
@@ -464,10 +556,24 @@ class BatchWallService {
 
   private loadFromStorage() {
     try {
+      const storedDeleted = localStorage.getItem(DELETED_POSTS_STORAGE_KEY);
+      if (storedDeleted) {
+        try {
+          const ids: string[] = JSON.parse(storedDeleted);
+          this.deletedPostIds = new Set(ids);
+        } catch {
+          this.deletedPostIds = new Set();
+        }
+      } else {
+        this.deletedPostIds = new Set();
+      }
+
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed: BatchUpdatePost[] = JSON.parse(stored);
-        this.posts = parsed.filter(p => !['post_01', 'post_02', 'post_03', 'post_04'].includes(p.id));
+        this.posts = parsed
+          .filter(p => !['post_01', 'post_02', 'post_03', 'post_04'].includes(p.id))
+          .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone);
       } else {
         this.posts = [];
         this.saveToStorage();
@@ -483,15 +589,24 @@ class BatchWallService {
 
       const storedInsta = localStorage.getItem(INSTA_STORAGE_KEY);
       if (storedInsta) {
-        this.instagramPosts = JSON.parse(storedInsta);
+        const parsed: InstagramPost[] = JSON.parse(storedInsta);
+        this.instagramPosts = parsed.filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone);
       } else {
+        this.instagramPosts = DEFAULT_INSTAGRAM_POSTS.filter(p => !this.deletedPostIds.has(p.id));
+        this.saveInstaToStorage();
+      }
+
+      if (!this.instagramPosts || this.instagramPosts.length === 0) {
+        DEFAULT_INSTAGRAM_POSTS.forEach(dp => this.deletedPostIds.delete(dp.id));
+        this.saveDeletedPostsToStorage();
         this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
         this.saveInstaToStorage();
       }
 
       const queue = localStorage.getItem(QUEUE_KEY);
       if (queue) {
-        this.offlineQueue = JSON.parse(queue);
+        const parsedQueue: BatchUpdatePost[] = JSON.parse(queue);
+        this.offlineQueue = parsedQueue.filter(p => !this.deletedPostIds.has(p.id));
       }
 
       const chatQueue = localStorage.getItem(CHAT_QUEUE_KEY);
@@ -499,12 +614,19 @@ class BatchWallService {
         this.chatOfflineQueue = JSON.parse(chatQueue);
       }
     } catch {
+      this.deletedPostIds = new Set();
       this.posts = [];
       this.chatMessages = [];
-      this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
+      this.instagramPosts = DEFAULT_INSTAGRAM_POSTS.filter(p => !this.deletedPostIds.has(p.id));
       this.offlineQueue = [];
       this.chatOfflineQueue = [];
     }
+  }
+
+  private saveDeletedPostsToStorage() {
+    try {
+      localStorage.setItem(DELETED_POSTS_STORAGE_KEY, JSON.stringify(Array.from(this.deletedPostIds)));
+    } catch {}
   }
 
   private saveToStorage() {
@@ -585,7 +707,7 @@ class BatchWallService {
   private async syncPostToFirestore(post: BatchUpdatePost) {
     if (db) {
       try {
-        await setDoc(doc(db, 'batch_updates', post.id), post);
+        await setDoc(doc(db, 'batch_updates', post.id), cleanForFirestore(post));
       } catch (err) {
         console.warn('Failed to add post to Firestore:', err);
       }
@@ -963,7 +1085,7 @@ class BatchWallService {
   // =========================================================================
 
   public getPosts(onlyCurrentUser?: boolean, currentUserId?: string): BatchUpdatePost[] {
-    let list = [...this.posts];
+    let list = this.posts.filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone);
     if (onlyCurrentUser && currentUserId) {
       list = list.filter(p => p.userId === currentUserId);
     }
@@ -997,11 +1119,26 @@ class BatchWallService {
   }
 
   public getInstagramPosts(): InstagramPost[] {
-    return [...this.instagramPosts].sort((a, b) => {
+    const active = this.instagramPosts
+      .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone);
+    
+    if (active.length === 0 && DEFAULT_INSTAGRAM_POSTS.length > 0) {
+      DEFAULT_INSTAGRAM_POSTS.forEach(dp => this.deletedPostIds.delete(dp.id));
+      this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
+      this.saveInstaToStorage();
+      this.saveDeletedPostsToStorage();
+      return [...DEFAULT_INSTAGRAM_POSTS];
+    }
+
+    return active.sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
       return (b.createdAt || 0) - (a.createdAt || 0);
     });
+  }
+
+  public isPostDeleted(postId: string): boolean {
+    return this.deletedPostIds.has(postId);
   }
 
   public getNetworkStatus(): { isOnline: boolean; queuedCount: number; syncToast: string | null } {
@@ -1029,8 +1166,8 @@ class BatchWallService {
   }): { queued: boolean; post: BatchUpdatePost } {
     const newPost: BatchUpdatePost = {
       id: `post_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      userId: postData.userId,
-      userEmail: postData.userEmail,
+      userId: postData.userId || (auth?.currentUser?.uid ?? undefined),
+      userEmail: postData.userEmail || (auth?.currentUser?.email ?? undefined),
       batch: 'MLP41PT',
       studentName: postData.studentName.trim() || 'MLP41PT Student',
       avatarPose: postData.avatarPose,
@@ -1060,11 +1197,14 @@ class BatchWallService {
 
   public async addInstagramPost(data: {
     userId?: string;
+    authorId?: string;
     userEmail?: string;
+    authorEmail?: string;
     authorName: string;
     authorAvatarUrl?: string;
     location?: string;
-    imageUrl: string;
+    imageUrl?: string;
+    images?: string[];
     filter?: string;
     caption: string;
     hashtags?: string[];
@@ -1074,14 +1214,20 @@ class BatchWallService {
                       (data.userEmail && data.userEmail.toLowerCase().includes('kritika')) ||
                       name.toLowerCase().includes('marisol');
 
+    const imagesList = data.images && data.images.length > 0 ? data.images : (data.imageUrl ? [data.imageUrl] : []);
+    const mainImageUrl = imagesList[0] || data.imageUrl || '';
+
     const newPost: InstagramPost = {
       id: `insta_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      userId: data.userId,
-      userEmail: data.userEmail,
+      userId: data.userId || (auth?.currentUser?.uid ?? undefined),
+      authorId: data.authorId || data.userId || (auth?.currentUser?.uid ?? undefined),
+      userEmail: data.userEmail || (auth?.currentUser?.email ?? undefined),
+      authorEmail: data.authorEmail || data.userEmail || (auth?.currentUser?.email ?? undefined),
       authorName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
       authorAvatarUrl: data.authorAvatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
       location: data.location || 'Batch 41 Comfort Hub 🌸',
-      imageUrl: data.imageUrl,
+      imageUrl: mainImageUrl,
+      images: imagesList,
       filter: data.filter || 'none',
       caption: data.caption.trim(),
       hashtags: data.hashtags && data.hashtags.length > 0 ? data.hashtags : ['#Batch41', '#FactoryOfFun'],
@@ -1104,7 +1250,7 @@ class BatchWallService {
 
     if (db) {
       try {
-        await setDoc(doc(db, 'instagram_posts', newPost.id), newPost);
+        await setDoc(doc(db, 'instagram_posts', newPost.id), cleanForFirestore(newPost));
       } catch (err) {
         console.warn('Failed to add insta post to Firestore:', err);
       }
@@ -1218,14 +1364,18 @@ class BatchWallService {
     deleter?: { id?: string; email?: string; name?: string }
   ): Promise<{ success: boolean; error?: string }> {
     const post = this.instagramPosts.find(p => p.id === postId);
-    if (!post) return { success: false, error: 'Post not found.' };
+    if (!post) {
+      this.deletedPostIds.add(postId);
+      this.saveDeletedPostsToStorage();
+      return { success: true };
+    }
 
     if (deleter) {
       const isKritika = (deleter.name || '').toLowerCase().includes('kritika') || (deleter.email || '').toLowerCase().includes('kritika');
       const deleterNameClean = (deleter.name || '').replace(' 👑', '').trim().toLowerCase();
       const authorNameClean = (post.authorName || '').replace(' 👑', '').trim().toLowerCase();
       const isAuthor = Boolean(
-        (deleter.id && post.userId && deleter.id === post.userId) ||
+        (deleter.id && (post.userId || post.authorId) && (deleter.id === post.userId || deleter.id === post.authorId)) ||
         (deleter.email && (post.userEmail || post.authorEmail) && deleter.email.toLowerCase().trim() === (post.userEmail || post.authorEmail)?.toLowerCase().trim()) ||
         (deleterNameClean !== '' && deleterNameClean === authorNameClean)
       );
@@ -1235,18 +1385,47 @@ class BatchWallService {
       }
     }
 
+    // 1. Instantly purge locally and record deleted post ID
+    this.deletedPostIds.add(postId);
+    this.saveDeletedPostsToStorage();
     this.instagramPosts = this.instagramPosts.filter(p => p.id !== postId);
     this.saveInstaToStorage();
 
+    // 2. Broadcast to other open browser tabs
     try {
-      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+      this.broadcastChannel?.postMessage({ type: 'DELETE_INSTA_POST', postId });
     } catch {}
 
+    // 3. Multi-layer authoritative purge in Firestore for all users
     if (db) {
+      // Step A: Mark as deleted on post doc (soft-delete safeguard so any cached reads immediately ignore it)
+      try {
+        await setDoc(doc(db, 'instagram_posts', postId), cleanForFirestore({
+          isDeleted: true,
+          isDeletedForEveryone: true,
+          deletedAt: Date.now()
+        }), { merge: true });
+      } catch (err) {
+        console.warn('[BatchWall] Firestore soft-delete mark notice:', err);
+      }
+
+      // Step B: Hard-delete document from collection
       try {
         await deleteDoc(doc(db, 'instagram_posts', postId));
       } catch (err) {
-        console.warn('Failed to delete post on Firestore:', err);
+        console.warn('[BatchWall] Firestore deleteDoc notice:', err);
+      }
+
+      // Step C: Save to shared 'deleted_posts' registry so other users sync deletion permanently
+      try {
+        await setDoc(doc(db, 'deleted_posts', postId), cleanForFirestore({
+          id: postId,
+          type: 'instagram_post',
+          deletedAt: Date.now(),
+          deleterName: deleter?.name || 'Author'
+        }));
+      } catch (err) {
+        console.warn('[BatchWall] Firestore deleted_posts registry notice:', err);
       }
     }
 
@@ -1254,23 +1433,49 @@ class BatchWallService {
     return { success: true };
   }
 
-  public likeInstagramPost(postId: string, currentUserName?: string) {
+  public likeInstagramPost(
+    postId: string, 
+    userInfo?: { id?: string; name?: string; email?: string; avatarUrl?: string } | string
+  ) {
     const post = this.instagramPosts.find(p => p.id === postId);
     if (!post) return;
 
-    if (post.likedByCurrentUser) {
+    const userName = typeof userInfo === 'string' ? userInfo : (userInfo?.name || 'Classmate');
+    const userId = typeof userInfo === 'object' ? userInfo?.id : undefined;
+    const userEmail = typeof userInfo === 'object' ? userInfo?.email : undefined;
+    const avatarUrl = typeof userInfo === 'object' ? userInfo?.avatarUrl : undefined;
+
+    if (!post.likedByUsers) post.likedByUsers = [];
+    if (!post.likedByMembers) post.likedByMembers = [];
+
+    const existingMemberIdx = post.likedByMembers.findIndex(m => 
+      (userId && m.userId === userId) ||
+      (userEmail && m.userEmail && m.userEmail.toLowerCase() === userEmail.toLowerCase()) ||
+      (m.userName && m.userName.toLowerCase().trim() === userName.toLowerCase().trim())
+    );
+
+    const isAlreadyLiked = post.likedByCurrentUser || existingMemberIdx >= 0 || post.likedByUsers.some(u => u.toLowerCase().trim() === userName.toLowerCase().trim());
+
+    if (isAlreadyLiked) {
       post.likedByCurrentUser = false;
       post.likesCount = Math.max(0, post.likesCount - 1);
-      if (currentUserName && post.likedByUsers) {
-        post.likedByUsers = post.likedByUsers.filter(u => u !== currentUserName);
+      post.likedByUsers = post.likedByUsers.filter(u => u.toLowerCase().trim() !== userName.toLowerCase().trim());
+      if (existingMemberIdx >= 0) {
+        post.likedByMembers.splice(existingMemberIdx, 1);
       }
     } else {
       post.likedByCurrentUser = true;
       post.likesCount += 1;
-      if (!post.likedByUsers) post.likedByUsers = [];
-      if (currentUserName && !post.likedByUsers.includes(currentUserName)) {
-        post.likedByUsers.push(currentUserName);
+      if (!post.likedByUsers.some(u => u.toLowerCase().trim() === userName.toLowerCase().trim())) {
+        post.likedByUsers.push(userName);
       }
+      post.likedByMembers.push({
+        userId,
+        userName,
+        userEmail,
+        avatarUrl: avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+        likedAt: Date.now()
+      });
     }
 
     this.saveInstaToStorage();
@@ -1281,10 +1486,130 @@ class BatchWallService {
 
     if (db) {
       try {
-        setDoc(doc(db, 'instagram_posts', postId), { 
+        setDoc(doc(db, 'instagram_posts', postId), cleanForFirestore({ 
           likesCount: post.likesCount,
-          likedByUsers: post.likedByUsers || []
-        }, { merge: true });
+          likedByUsers: post.likedByUsers || [],
+          likedByMembers: post.likedByMembers || []
+        }), { merge: true });
+      } catch {}
+    }
+
+    this.notify();
+  }
+
+  public reactToInstagramPost(
+    postId: string,
+    emoji: string,
+    userInfo?: { id?: string; name?: string; email?: string } | string
+  ) {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return;
+
+    const userName = typeof userInfo === 'string' ? userInfo : (userInfo?.name || 'Classmate');
+
+    if (!post.reactions) post.reactions = {};
+    if (!post.reactedUsers) post.reactedUsers = {};
+
+    const usersForEmoji = post.reactedUsers[emoji] || [];
+    const hasReacted = usersForEmoji.some(u => u.toLowerCase().trim() === userName.toLowerCase().trim());
+
+    if (hasReacted) {
+      // Toggle off
+      post.reactedUsers[emoji] = usersForEmoji.filter(u => u.toLowerCase().trim() !== userName.toLowerCase().trim());
+      post.reactions[emoji] = Math.max(0, (post.reactions[emoji] || 1) - 1);
+      if (post.reactions[emoji] === 0) {
+        delete post.reactions[emoji];
+        delete post.reactedUsers[emoji];
+      }
+    } else {
+      // Toggle on
+      post.reactedUsers[emoji] = [...usersForEmoji, userName];
+      post.reactions[emoji] = (post.reactions[emoji] || 0) + 1;
+    }
+
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        setDoc(doc(db, 'instagram_posts', postId), cleanForFirestore({
+          reactions: post.reactions || {},
+          reactedUsers: post.reactedUsers || {}
+        }), { merge: true });
+      } catch {}
+    }
+
+    this.notify();
+  }
+
+  public async shareInstagramPost(
+    postId: string,
+    userInfo?: { id?: string; name?: string } | string
+  ): Promise<number> {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return 0;
+
+    const userName = typeof userInfo === 'string' ? userInfo : (userInfo?.name || 'Classmate');
+
+    post.sharesCount = (post.sharesCount || 0) + 1;
+    if (!post.sharedByUsers) post.sharedByUsers = [];
+    if (!post.sharedByUsers.includes(userName)) {
+      post.sharedByUsers.push(userName);
+    }
+
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'instagram_posts', postId), cleanForFirestore({
+          sharesCount: post.sharesCount,
+          sharedByUsers: post.sharedByUsers || []
+        }), { merge: true });
+      } catch {}
+    }
+
+    this.notify();
+    return post.sharesCount;
+  }
+
+  public likeInstagramComment(
+    postId: string,
+    commentId: string,
+    currentUserName?: string
+  ) {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post || !post.comments) return;
+
+    const comment = post.comments.find(c => c.id === commentId);
+    if (!comment) return;
+
+    const user = currentUserName || 'Classmate';
+    if (!comment.likedByUsers) comment.likedByUsers = [];
+
+    if (comment.likedByUsers.includes(user)) {
+      comment.likedByUsers = comment.likedByUsers.filter(u => u !== user);
+      comment.likesCount = Math.max(0, (comment.likesCount || 1) - 1);
+    } else {
+      comment.likedByUsers.push(user);
+      comment.likesCount = (comment.likesCount || 0) + 1;
+    }
+
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        setDoc(doc(db, 'instagram_posts', postId), cleanForFirestore({ comments: post.comments }), { merge: true });
       } catch {}
     }
 
@@ -1329,6 +1654,8 @@ class BatchWallService {
       text: commentData.text.trim(),
       timestamp: 'Just now',
       createdAt: Date.now(),
+      likesCount: 0,
+      likedByUsers: [],
       isKritika
     };
 
@@ -1341,7 +1668,7 @@ class BatchWallService {
 
     if (db) {
       try {
-        await setDoc(doc(db, 'instagram_posts', postId), { comments: post.comments }, { merge: true });
+        await setDoc(doc(db, 'instagram_posts', postId), cleanForFirestore({ comments: post.comments }), { merge: true });
       } catch (err) {
         console.warn('Failed to sync insta comment to Firestore:', err);
       }
@@ -1351,23 +1678,80 @@ class BatchWallService {
     return newComment;
   }
 
-  public async deletePost(postId: string) {
-    this.posts = this.posts.filter(p => p.id !== postId);
-    this.saveToStorage();
+  public async deletePost(
+    postId: string,
+    deleter?: { id?: string; email?: string; name?: string }
+  ): Promise<{ success: boolean; error?: string }> {
+    const post = this.posts.find(p => p.id === postId);
+    if (!post) {
+      this.deletedPostIds.add(postId);
+      this.saveDeletedPostsToStorage();
+      return { success: true };
+    }
 
+    if (deleter) {
+      const isKritika = (deleter.name || '').toLowerCase().includes('kritika') || (deleter.email || '').toLowerCase().includes('kritika');
+      const deleterNameClean = (deleter.name || '').replace(' 👑', '').trim().toLowerCase();
+      const authorNameClean = (post.studentName || '').replace(' 👑', '').trim().toLowerCase();
+      const isAuthor = Boolean(
+        (deleter.id && post.userId && deleter.id === post.userId) ||
+        (deleter.email && post.userEmail && deleter.email.toLowerCase().trim() === post.userEmail?.toLowerCase().trim()) ||
+        (deleterNameClean !== '' && deleterNameClean === authorNameClean)
+      );
+
+      if (!isAuthor && !isKritika) {
+        return { success: false, error: 'Permission denied: Only the author can delete this sticky note.' };
+      }
+    }
+
+    // 1. Instantly purge locally and record deleted post ID
+    this.deletedPostIds.add(postId);
+    this.saveDeletedPostsToStorage();
+    this.posts = this.posts.filter(p => p.id !== postId);
+    this.offlineQueue = this.offlineQueue.filter(p => p.id !== postId);
+    this.saveToStorage();
+    this.saveQueueToStorage();
+
+    // 2. Broadcast to other open browser tabs
     try {
-      this.broadcastChannel?.postMessage({ type: 'SYNC_POSTS' });
+      this.broadcastChannel?.postMessage({ type: 'DELETE_BULLETIN_POST', postId });
     } catch {}
 
+    // 3. Multi-layer authoritative purge in Firestore for all users
     if (db) {
+      // Step A: Mark as deleted on post doc
+      try {
+        await setDoc(doc(db, 'batch_updates', postId), cleanForFirestore({
+          isDeleted: true,
+          isDeletedForEveryone: true,
+          deletedAt: Date.now()
+        }), { merge: true });
+      } catch (err) {
+        console.warn('[BatchWall] Firestore soft-delete mark notice:', err);
+      }
+
+      // Step B: Hard-delete document from collection
       try {
         await deleteDoc(doc(db, 'batch_updates', postId));
       } catch (err) {
-        console.warn('Failed to delete post from Firestore:', err);
+        console.warn('[BatchWall] Firestore deleteDoc notice:', err);
+      }
+
+      // Step C: Save to shared 'deleted_posts' registry so other users sync deletion permanently
+      try {
+        await setDoc(doc(db, 'deleted_posts', postId), cleanForFirestore({
+          id: postId,
+          type: 'bulletin_post',
+          deletedAt: Date.now(),
+          deleterName: deleter?.name || 'Author'
+        }));
+      } catch (err) {
+        console.warn('[BatchWall] Firestore deleted_posts registry notice:', err);
       }
     }
 
     this.notify();
+    return { success: true };
   }
 
   public reactToPost(postId: string, stickerAliasOrId: string) {

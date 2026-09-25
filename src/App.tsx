@@ -13,6 +13,7 @@ import { FloatingMusicBar } from './components/FloatingMusicBar';
 import { GoogleSignInModal } from './components/GoogleSignInModal';
 import { MoodHistoryModal } from './components/MoodHistoryModal';
 import { ComfortShelfModal } from './components/ComfortShelfModal';
+import { InstallAppModal } from './components/InstallAppModal';
 import { BottomNavigationDock, type MainNavTab } from './components/BottomNavigationDock';
 import { 
   getQuestionsForMood, 
@@ -38,6 +39,7 @@ export function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenState>('home');
   const [activeNavTab, setActiveNavTab] = useState<MainNavTab>('home');
   const [showGoogleSignIn, setShowGoogleSignIn] = useState(false);
+  const [showInstallApp, setShowInstallApp] = useState(false);
   const [showMoodHistory, setShowMoodHistory] = useState(false);
   const [showComfortShelf, setShowComfortShelf] = useState(false);
 
@@ -175,6 +177,7 @@ export function App() {
       <Navbar
         currentScreen={currentScreen}
         onNavigate={handleNavigate}
+        onOpenInstallApp={() => setShowInstallApp(true)}
         onOpenGoogleSignIn={() => setShowGoogleSignIn(true)}
       />
 
@@ -429,6 +432,11 @@ export function App() {
       {/* Clean Google Sign-In & Student Profile Modal */}
       {showGoogleSignIn && (
         <GoogleSignInModal onClose={() => setShowGoogleSignIn(false)} />
+      )}
+
+      {/* Install as App Modal (iPhone Safari & Android Chrome Guide) */}
+      {showInstallApp && (
+        <InstallAppModal onClose={() => setShowInstallApp(false)} />
       )}
 
       {/* Mood History & 14-Day Heatmap Modal */}
