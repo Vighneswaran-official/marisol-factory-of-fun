@@ -306,12 +306,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const network = batchWallService.getNetworkStatus();
   const classmates = authService.getClassmates();
 
-  // Sync authoritative Firestore chat listener with active user privacy scope (only when logged in)
-  useEffect(() => {
-    if (authService.isLoggedIn()) {
-      batchWallService.initChatListener(currentUser?.joinedAt, currentUser?.isNewUser);
-    }
-  }, [currentUser?.id, currentUser?.joinedAt, currentUser?.isNewUser]);
+  // Authoritative chat listener is managed by batchWallService.startFirestoreSync() on login
 
   // ==================== DISCORD-STYLE VOICE ROOM STATE ====================
   const [, setVoiceTick] = useState(0);

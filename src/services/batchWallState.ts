@@ -702,10 +702,34 @@ class BatchWallService {
         );
       }
 
+      console.log('[DEBUG_FIRESTORE_PRE_CALL]', {
+        isAuthCurrentUserSet: Boolean(auth?.currentUser),
+        authCurrentUserUid: auth?.currentUser?.uid || null,
+        authCurrentUserEmail: auth?.currentUser?.email || null,
+        effectiveIsNewUser,
+        effectiveJoinedAt,
+        queryType: (effectiveIsNewUser && effectiveJoinedAt > 0) ? 'range_createdAt_ge' : 'all_createdAt_asc',
+        timestamp: new Date().toISOString()
+      });
+
       const attachListener = (q: any, isFallback: boolean = false) => {
+        console.log('[DEBUG_FIRESTORE_ATTACH_LISTENER]', {
+          isFallback,
+          isAuthCurrentUserSet: Boolean(auth?.currentUser),
+          authCurrentUserUid: auth?.currentUser?.uid || null,
+          authCurrentUserEmail: auth?.currentUser?.email || null,
+        });
+
         return onSnapshot(
           q,
           (snapshot: any) => {
+            console.log('[DEBUG_FIRESTORE_SUCCESS]', {
+              docCount: snapshot.docs.length,
+              isFallback,
+              isAuthCurrentUserSet: Boolean(auth?.currentUser),
+              authCurrentUserUid: auth?.currentUser?.uid || null,
+            });
+
             const remoteChat: GroupChatMessage[] = [];
 
             snapshot.forEach((docSnap: any) => {
@@ -733,12 +757,15 @@ class BatchWallService {
             this.notify();
           },
           (error: any) => {
-            console.error('[Batch 41 Group Chat Debug] Firestore listener error:', {
-              code: error?.code,
-              message: error?.message,
+            console.error('[DEBUG_FIRESTORE_ERROR]', {
+              errorCode: error?.code,
+              errorMessage: error?.message,
+              isFallback,
+              isAuthCurrentUserSet: Boolean(auth?.currentUser),
+              authCurrentUserUid: auth?.currentUser?.uid || null,
+              authCurrentUserEmail: auth?.currentUser?.email || null,
               effectiveJoinedAt,
-              effectiveIsNewUser,
-              isFallback
+              effectiveIsNewUser
             });
 
             // Resilient Privacy Fallback:

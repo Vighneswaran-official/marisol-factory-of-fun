@@ -6,7 +6,6 @@ import {
   signInWithPopup, 
   signInWithRedirect,
   getRedirectResult,
-  signInAnonymously,
   firebaseSignOut, 
   onAuthStateChanged, 
   RecaptchaVerifier,
@@ -497,19 +496,7 @@ class AuthService {
       }
     }
 
-    try {
-      const cred = await signInAnonymously(auth);
-      if (this.currentUser && this.currentUser.id !== cred.user.uid) {
-        this.currentUser.id = cred.user.uid;
-        this.saveUserToStorage();
-        this.syncWithFirestore(this.currentUser);
-        this.notify();
-      }
-      return cred.user;
-    } catch (err) {
-      console.warn('[Auth] Anonymous sign-in error:', err);
-      return auth.currentUser || null;
-    }
+    return auth.currentUser || null;
   }
 
   /**
