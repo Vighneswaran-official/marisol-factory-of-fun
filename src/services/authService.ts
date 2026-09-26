@@ -153,6 +153,7 @@ class AuthService {
   private authReadyPromise: Promise<FirebaseUser | null>;
   private resolveAuthReady!: (user: FirebaseUser | null) => void;
   private isAuthReadyResolved: boolean = false;
+  private studentsUnsubscribe: (() => void) | null = null;
 
   constructor() {
     this.authReadyPromise = new Promise<FirebaseUser | null>((resolve) => {
@@ -208,6 +209,7 @@ class AuthService {
       onAuthStateChanged(authInstance, (firebaseUser: FirebaseUser | null) => {
         if (firebaseUser && !firebaseUser.isAnonymous) {
           this.handleFirebaseUserLogin(firebaseUser, firebaseUser.phoneNumber ? 'phone_otp' : 'google');
+          this.startStudentsListener();
           this.resolveAuthReady(firebaseUser);
         } else if (firebaseUser && firebaseUser.isAnonymous) {
           // Anonymous user session active: align profile ID with actual request.auth.uid
@@ -217,50 +219,63 @@ class AuthService {
             this.syncWithFirestore(this.currentUser);
             this.notify();
           }
+          if (this.isLoggedIn()) {
+            this.startStudentsListener();
+          }
           this.resolveAuthReady(firebaseUser);
         } else if (!firebaseUser) {
-          signInAnonymously(authInstance).then((cred) => {
-            if (this.currentUser && this.currentUser.id !== cred.user.uid) {
-              this.currentUser.id = cred.user.uid;
-              this.saveUserToStorage();
-              this.syncWithFirestore(this.currentUser);
-              this.notify();
-            }
-            this.resolveAuthReady(cred.user);
-          }).catch((err) => {
-            console.warn('[Auth] Anonymous fallback sign-in notice (unauthenticated guest session):', err?.message || err);
-            this.resolveAuthReady(null);
-          });
+          if (this.isLoggedIn()) {
+            this.startStudentsListener();
+          }
+          this.resolveAuthReady(null);
         }
       });
     }
+  }
 
-    // 3. Realtime Firestore sync for logged-in batch members
-    if (db) {
-      try {
-        const studentsCol = collection(db, 'students');
-        onSnapshot(studentsCol, (snapshot) => {
-          const remoteStudents: StudentProfile[] = [];
-          snapshot.forEach((d) => {
-            const data = d.data() as StudentProfile;
-            if (!['user_aarav', 'user_pooja', 'user_rohan', 'user_meera'].includes(d.id)) {
-              remoteStudents.push(data);
-            }
-          });
-
-          const map = new Map<string, StudentProfile>();
-          remoteStudents.forEach(c => map.set(c.id, c));
-          if (this.currentUser) map.set(this.currentUser.id, this.currentUser);
-          this.classmates = Array.from(map.values());
-          this.saveClassmatesToStorage();
-          this.notify();
-        }, (err) => {
-          console.warn('Firestore students sync error:', err);
-        });
-      } catch (err) {
-        console.warn('Firestore sync setup error:', err);
-      }
+  /**
+   * Realtime Firestore sync for classmates (strictly starts ONLY after user is authenticated)
+   */
+  public startStudentsListener(): void {
+    if (!this.isLoggedIn() || !db || this.studentsUnsubscribe) {
+      return;
     }
+
+    try {
+      const studentsCol = collection(db, 'students');
+      this.studentsUnsubscribe = onSnapshot(studentsCol, (snapshot) => {
+        const remoteStudents: StudentProfile[] = [];
+        snapshot.forEach((d) => {
+          const data = d.data() as StudentProfile;
+          if (!['user_aarav', 'user_pooja', 'user_rohan', 'user_meera'].includes(d.id)) {
+            remoteStudents.push(data);
+          }
+        });
+
+        const map = new Map<string, StudentProfile>();
+        remoteStudents.forEach(c => map.set(c.id, c));
+        if (this.currentUser) map.set(this.currentUser.id, this.currentUser);
+        this.classmates = Array.from(map.values());
+        this.saveClassmatesToStorage();
+        this.notify();
+      }, (err) => {
+        console.warn('Firestore students sync error:', err);
+      });
+    } catch (err) {
+      console.warn('Firestore sync setup error:', err);
+    }
+  }
+
+  /**
+   * Teardown classmates listener and reset list on sign out
+   */
+  public stopStudentsListener(): void {
+    if (this.studentsUnsubscribe) {
+      this.studentsUnsubscribe();
+      this.studentsUnsubscribe = null;
+    }
+    this.classmates = [...DEFAULT_CLASSMATES];
+    this.notify();
   }
 
   private handleFirebaseUserLogin(firebaseUser: FirebaseUser, method: 'google' | 'phone_otp' = 'google') {
@@ -602,6 +617,7 @@ class AuthService {
     this.saveUserToStorage();
     this.syncClassmateList(profile);
     this.syncWithFirestore(profile);
+    this.startStudentsListener();
     this.notify();
     return profile;
   }
@@ -751,6 +767,7 @@ class AuthService {
   }
 
   public async signOut(): Promise<void> {
+    this.stopStudentsListener();
     try {
       if (auth) {
         await firebaseSignOut(auth);

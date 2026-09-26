@@ -24,12 +24,15 @@ import {
   type MoodProfileSetting 
 } from './services/moodQuizService';
 import { nonRepeatingQuizEngine } from './data/foodMovieQuestions1000';
-import { RefreshCw, Trophy, Clock, Film, Play, Pause, Volume2, VolumeX, Sparkles } from 'lucide-react';
+import { RefreshCw, Trophy, Clock, Film, Play, Pause, Volume2, VolumeX, Sparkles, Loader2 } from 'lucide-react';
+import { AuthScreen } from './components/AuthScreen';
 import confetti from 'canvas-confetti';
 import heroBannerVideoSrc from './assets/Hero Banner video.mp4';
 
 export function App() {
   const [, setAuthTick] = useState(0);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(authService.isLoggedIn());
 
   const [player, setPlayer] = useState(gameState.getPlayer());
   const [currentScreen, setCurrentScreen] = useState<ScreenState>('home');
@@ -60,53 +63,27 @@ export function App() {
   });
 
   useEffect(() => {
-    return authService.subscribe(() => {
+    let isCancelled = false;
+
+    const unsubscribe = authService.subscribe(() => {
+      const loggedIn = authService.isLoggedIn();
+      setIsAuthenticated(loggedIn);
       setAuthTick(t => t + 1);
-      const user = authService.getCurrentUser();
-      if (user && (user.isGoogleVerified || (user.email && user.email.includes('@')))) {
+      if (loggedIn) {
         setShowGoogleSignIn(false);
       }
     });
-  }, []);
 
-  // 1. Check authentication state on app load:
-  // If user is already logged in (has valid session/profile), skip sign-in popup entirely.
-  // If NOT logged in, show Google Sign-In popup prompting them to sign in.
-  useEffect(() => {
-    let isCancelled = false;
-
-    authService.waitForAuthReady().then((fbUser) => {
-      if (isCancelled) return;
-
-      const currentUser = authService.getCurrentUser();
-      const isAlreadyLoggedIn = Boolean(
-        (fbUser && !fbUser.isAnonymous) ||
-        authService.isGoogleAuthenticated() ||
-        authService.isMailIdAuthenticated() ||
-        (currentUser && currentUser.email && currentUser.email.includes('@'))
-      );
-
-      // Skip sign-in popup entirely if user has an active session/profile
-      if (isAlreadyLoggedIn) {
-        setShowGoogleSignIn(false);
-        return;
-      }
-
-      // Only show if user is NOT logged in and hasn't dismissed yet this session
-      const hasPrompted = sessionStorage.getItem('marisol_prompted_login');
-      if (!hasPrompted) {
-        sessionStorage.setItem('marisol_prompted_login', 'true');
-        const timer = setTimeout(() => {
-          if (!isCancelled) {
-            setShowGoogleSignIn(true);
-          }
-        }, 500);
-        return () => clearTimeout(timer);
+    authService.waitForAuthReady().then(() => {
+      if (!isCancelled) {
+        setIsAuthReady(true);
+        setIsAuthenticated(authService.isLoggedIn());
       }
     });
 
     return () => {
       isCancelled = true;
+      unsubscribe();
     };
   }, []);
 
@@ -317,6 +294,37 @@ export function App() {
   };
 
   const quizStats = nonRepeatingQuizEngine.getStats();
+
+  // -------------------------------------------------------------
+  // Top-Level Full-Screen Authentication Gate
+  // -------------------------------------------------------------
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-screen w-full bg-gradient-to-b from-rose-50 via-pink-50/50 to-amber-50/40 flex flex-col items-center justify-center p-4 select-none">
+        <div className="flex flex-col items-center gap-4 text-center animate-fade-in">
+          <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-400 flex items-center justify-center shadow-lg shadow-rose-200/80 animate-pulse">
+            <span className="text-3xl">👑</span>
+          </div>
+          <div className="space-y-1">
+            <h1 className="font-display font-black text-xl text-stone-900 tracking-tight">
+              MARISOL: FACTORY OF FUN
+            </h1>
+            <p className="font-display text-[10px] text-rose-600 font-extrabold tracking-widest uppercase">
+              KRITIKA'S COMFORT SPACE
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-rose-500 text-xs font-semibold pt-1">
+            <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
+            <span>Verifying session security...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AuthScreen onSuccess={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <div className={`bg-[#FAF8F5] text-stone-900 font-sans antialiased selection:bg-pink-200 ${

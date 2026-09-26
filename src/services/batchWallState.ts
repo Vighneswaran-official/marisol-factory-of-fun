@@ -332,13 +332,19 @@ class BatchWallService {
   private broadcastChannel: BroadcastChannel | null = null;
 
   // Real-Time Group Chat State
-  private chatConnectionStatus: 'connecting' | 'connected' | 'offline' | 'error' = 'connecting';
+  private chatConnectionStatus: 'connecting' | 'connected' | 'offline' | 'error' = 'offline';
   private chatErrorMessage: string | null = null;
   private chatUnsubscribe: (() => void) | null = null;
+  private deletedUnsubscribe: (() => void) | null = null;
+  private postsUnsubscribe: (() => void) | null = null;
+  private instaUnsubscribe: (() => void) | null = null;
+  private isFirestoreSyncActive: boolean = false;
 
   constructor() {
     this.cleanLegacyStorage();
-    this.loadFromStorage();
+    if (authService.isLoggedIn()) {
+      this.loadFromStorage();
+    }
 
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => this.handleOnline());
@@ -381,15 +387,13 @@ class BatchWallService {
       } catch {}
     }
 
-    this.initFirestoreSync();
-
-    // Auto-update chat stream when user logs in, switches accounts, or profile updates
+    // NEVER start Firestore sync on boot regardless of auth state.
+    // Strictly subscribe to authService state changes to start/stop sync.
     authService.subscribe(() => {
       if (authService.isLoggedIn()) {
-        const cur = authService.getCurrentUser();
-        this.initChatListener(cur?.joinedAt, cur?.isNewUser);
+        this.startFirestoreSync();
       } else {
-        this.clearChatCache();
+        this.stopFirestoreSync();
       }
     });
   }
@@ -403,161 +407,203 @@ class BatchWallService {
     } catch {}
   }
 
-  private initFirestoreSync() {
-    if (db) {
-      try {
-        // 0. Shared Deleted Posts Registry Listener (guarantees real-time complete deletion for all batch members)
-        const deletedQuery = collection(db, 'deleted_posts');
-        onSnapshot(deletedQuery, (snapshot) => {
-          let hasNewDeletions = false;
-          snapshot.forEach((docSnap) => {
-            if (!this.deletedPostIds.has(docSnap.id)) {
-              this.deletedPostIds.add(docSnap.id);
-              hasNewDeletions = true;
-            }
-          });
-          if (hasNewDeletions) {
-            this.saveDeletedPostsToStorage();
-            this.posts = this.posts.filter(p => !this.deletedPostIds.has(p.id));
-            this.instagramPosts = this.instagramPosts.filter(p => !this.deletedPostIds.has(p.id));
-            this.saveToStorage();
-            this.saveInstaToStorage();
-            this.notify();
+  /**
+   * Starts Firestore subscriptions across deleted_posts, batch_updates, instagram_posts, and group_chat.
+   * Strictly called ONLY AFTER user authentication is confirmed.
+   */
+  public startFirestoreSync(): void {
+    if (!authService.isLoggedIn() || !db) {
+      return;
+    }
+
+    if (this.isFirestoreSyncActive) {
+      return;
+    }
+
+    this.isFirestoreSyncActive = true;
+    this.loadFromStorage();
+
+    try {
+      // 0. Shared Deleted Posts Registry Listener
+      if (this.deletedUnsubscribe) {
+        this.deletedUnsubscribe();
+        this.deletedUnsubscribe = null;
+      }
+      const deletedQuery = collection(db, 'deleted_posts');
+      this.deletedUnsubscribe = onSnapshot(deletedQuery, (snapshot) => {
+        let hasNewDeletions = false;
+        snapshot.forEach((docSnap) => {
+          if (!this.deletedPostIds.has(docSnap.id)) {
+            this.deletedPostIds.add(docSnap.id);
+            hasNewDeletions = true;
           }
-        }, (err) => {
-          console.warn('[BatchWall] Firestore deleted_posts listener notice:', err);
         });
-
-        // 1. Bulletin Corkboard Posts Listener
-        const postsQuery = query(
-          collection(db, 'batch_updates'),
-          orderBy('createdAt', 'desc')
-        );
-        onSnapshot(postsQuery, (snapshot) => {
-          const postMap = new Map<string, BatchUpdatePost>();
-
-          // Preserve existing posts in memory
-          this.posts.forEach(p => {
-            if (!this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone) {
-              postMap.set(p.id, p);
-            }
-          });
-
-          // Authoritatively merge all documents from Firestore snapshot
-          snapshot.docs.forEach((docSnap) => {
-            const data = docSnap.data() as BatchUpdatePost;
-            const postId = docSnap.id;
-            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(postId)) {
-              if (!this.deletedPostIds.has(postId)) {
-                this.deletedPostIds.add(postId);
-                this.saveDeletedPostsToStorage();
-              }
-              postMap.delete(postId);
-              return;
-            }
-            postMap.set(postId, {
-              ...data,
-              id: postId,
-              createdAt: data.createdAt || (typeof data.timestamp === 'number' ? data.timestamp : Date.now()),
-              replies: Array.isArray(data.replies) ? data.replies : []
-            });
-          });
-
-          this.posts = Array.from(postMap.values())
-            .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone)
-            .sort((a, b) => {
-              if (a.isPinned && !b.isPinned) return -1;
-              if (!a.isPinned && b.isPinned) return 1;
-              return (b.createdAt || 0) - (a.createdAt || 0);
-            });
+        if (hasNewDeletions) {
+          this.saveDeletedPostsToStorage();
+          this.posts = this.posts.filter(p => !this.deletedPostIds.has(p.id));
+          this.instagramPosts = this.instagramPosts.filter(p => !this.deletedPostIds.has(p.id));
           this.saveToStorage();
-          this.notify();
-        }, (err) => {
-          console.warn('[BatchWall] Firestore posts sync notice:', err);
-        });
-
-        // 2. Authoritative Group Chat Listener
-        // Wait for Firebase Auth session to be confirmed; only attach listener if user is logged in
-        authService.waitForAuthReady().then(() => {
-          if (authService.isLoggedIn()) {
-            const cur = authService.getCurrentUser();
-            this.initChatListener(cur?.joinedAt, cur?.isNewUser);
-          }
-        });
-
-        // 3. Instagram / Photo Wall Posts Listener (Merging full collection into postMap to never overwrite other users' posts)
-        const instaQuery = query(
-          collection(db, 'instagram_posts'),
-          orderBy('createdAt', 'desc')
-        );
-        onSnapshot(instaQuery, (snapshot) => {
-          const postMap = new Map<string, InstagramPost>();
-
-          // Step A: Seed foundational default posts (unless explicitly deleted)
-          DEFAULT_INSTAGRAM_POSTS.forEach(dp => {
-            if (!this.deletedPostIds.has(dp.id)) {
-              postMap.set(dp.id, dp);
-            }
-          });
-
-          // Step B: Preserve existing in-memory posts (including optimistic / local posts)
-          this.instagramPosts.forEach(p => {
-            if (!this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone) {
-              postMap.set(p.id, p);
-            }
-          });
-
-          // Step C: Authoritatively merge all documents from Firestore snapshot
-          snapshot.docs.forEach((docSnap) => {
-            const data = docSnap.data() as InstagramPost;
-            const postId = docSnap.id;
-
-            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(postId)) {
-              if (!this.deletedPostIds.has(postId)) {
-                this.deletedPostIds.add(postId);
-                this.saveDeletedPostsToStorage();
-              }
-              postMap.delete(postId);
-              return;
-            }
-
-            const mergedPost: InstagramPost = {
-              ...data,
-              id: postId,
-              createdAt: data.createdAt || (typeof data.timestamp === 'number' ? data.timestamp : Date.now()),
-              images: data.images && data.images.length > 0 ? data.images : (data.imageUrl ? [data.imageUrl] : []),
-              comments: Array.isArray(data.comments) ? data.comments : [],
-              reactions: data.reactions || {},
-              reactedUsers: data.reactedUsers || {},
-              likedByUsers: Array.isArray(data.likedByUsers) ? data.likedByUsers : [],
-              likedByMembers: Array.isArray(data.likedByMembers) ? data.likedByMembers : []
-            };
-
-            postMap.set(postId, mergedPost);
-          });
-
-          this.instagramPosts = Array.from(postMap.values())
-            .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone)
-            .sort((a, b) => {
-              if (a.isPinned && !b.isPinned) return -1;
-              if (!a.isPinned && b.isPinned) return 1;
-              return (b.createdAt || 0) - (a.createdAt || 0);
-            });
-
           this.saveInstaToStorage();
           this.notify();
-        }, (err) => {
-          console.warn('[BatchWall] Firestore insta listener notice:', err);
+        }
+      }, (err) => {
+        console.warn('[BatchWall] Firestore deleted_posts listener notice:', err);
+      });
+
+      // 1. Bulletin Corkboard Posts Listener
+      if (this.postsUnsubscribe) {
+        this.postsUnsubscribe();
+        this.postsUnsubscribe = null;
+      }
+      const postsQuery = query(
+        collection(db, 'batch_updates'),
+        orderBy('createdAt', 'desc')
+      );
+      this.postsUnsubscribe = onSnapshot(postsQuery, (snapshot) => {
+        const postMap = new Map<string, BatchUpdatePost>();
+
+        this.posts.forEach(p => {
+          if (!this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone) {
+            postMap.set(p.id, p);
+          }
         });
 
-      } catch (err) {
-        console.warn('[BatchWall] Firestore sync setup error:', err);
+        snapshot.docs.forEach((docSnap) => {
+          const data = docSnap.data() as BatchUpdatePost;
+          const postId = docSnap.id;
+          if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(postId)) {
+            if (!this.deletedPostIds.has(postId)) {
+              this.deletedPostIds.add(postId);
+              this.saveDeletedPostsToStorage();
+            }
+            postMap.delete(postId);
+            return;
+          }
+          postMap.set(postId, {
+            ...data,
+            id: postId,
+            createdAt: data.createdAt || (typeof data.timestamp === 'number' ? data.timestamp : Date.now()),
+            replies: Array.isArray(data.replies) ? data.replies : []
+          });
+        });
+
+        this.posts = Array.from(postMap.values())
+          .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone)
+          .sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return (b.createdAt || 0) - (a.createdAt || 0);
+          });
+        this.saveToStorage();
+        this.notify();
+      }, (err) => {
+        console.warn('[BatchWall] Firestore posts sync notice:', err);
+      });
+
+      // 2. Authoritative Group Chat Listener
+      const cur = authService.getCurrentUser();
+      this.initChatListener(cur?.joinedAt, cur?.isNewUser);
+
+      // 3. Instagram / Photo Wall Posts Listener
+      if (this.instaUnsubscribe) {
+        this.instaUnsubscribe();
+        this.instaUnsubscribe = null;
       }
-    } else {
-      this.chatConnectionStatus = 'offline';
-      this.chatErrorMessage = 'Firebase Firestore is not configured.';
-      this.notify();
+      const instaQuery = query(
+        collection(db, 'instagram_posts'),
+        orderBy('createdAt', 'desc')
+      );
+      this.instaUnsubscribe = onSnapshot(instaQuery, (snapshot) => {
+        const postMap = new Map<string, InstagramPost>();
+
+        DEFAULT_INSTAGRAM_POSTS.forEach(dp => {
+          if (!this.deletedPostIds.has(dp.id)) {
+            postMap.set(dp.id, dp);
+          }
+        });
+
+        this.instagramPosts.forEach(p => {
+          if (!this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone) {
+            postMap.set(p.id, p);
+          }
+        });
+
+        snapshot.docs.forEach((docSnap) => {
+          const data = docSnap.data() as InstagramPost;
+          const postId = docSnap.id;
+
+          if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(postId)) {
+            if (!this.deletedPostIds.has(postId)) {
+              this.deletedPostIds.add(postId);
+              this.saveDeletedPostsToStorage();
+            }
+            postMap.delete(postId);
+            return;
+          }
+
+          const mergedPost: InstagramPost = {
+            ...data,
+            id: postId,
+            createdAt: data.createdAt || (typeof data.timestamp === 'number' ? data.timestamp : Date.now()),
+            images: data.images && data.images.length > 0 ? data.images : (data.imageUrl ? [data.imageUrl] : []),
+            comments: Array.isArray(data.comments) ? data.comments : [],
+            reactions: data.reactions || {},
+            reactedUsers: data.reactedUsers || {},
+            likedByUsers: Array.isArray(data.likedByUsers) ? data.likedByUsers : [],
+            likedByMembers: Array.isArray(data.likedByMembers) ? data.likedByMembers : []
+          };
+
+          postMap.set(postId, mergedPost);
+        });
+
+        this.instagramPosts = Array.from(postMap.values())
+          .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone)
+          .sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return (b.createdAt || 0) - (a.createdAt || 0);
+          });
+
+        this.saveInstaToStorage();
+        this.notify();
+      }, (err) => {
+        console.warn('[BatchWall] Firestore insta listener notice:', err);
+      });
+
+    } catch (err) {
+      console.warn('[BatchWall] Firestore sync setup error:', err);
     }
+  }
+
+  /**
+   * Unsubscribes and tears down all active Firestore listeners on sign out or session termination.
+   */
+  public stopFirestoreSync(): void {
+    this.isFirestoreSyncActive = false;
+
+    if (this.deletedUnsubscribe) {
+      this.deletedUnsubscribe();
+      this.deletedUnsubscribe = null;
+    }
+    if (this.postsUnsubscribe) {
+      this.postsUnsubscribe();
+      this.postsUnsubscribe = null;
+    }
+    if (this.instaUnsubscribe) {
+      this.instaUnsubscribe();
+      this.instaUnsubscribe = null;
+    }
+    if (this.chatUnsubscribe) {
+      this.chatUnsubscribe();
+      this.chatUnsubscribe = null;
+    }
+
+    this.posts = [];
+    this.instagramPosts = [];
+    this.chatMessages = [];
+    this.chatConnectionStatus = 'offline';
+    this.chatErrorMessage = null;
+    this.notify();
   }
 
   /**
@@ -1371,6 +1417,9 @@ class BatchWallService {
   // =========================================================================
 
   public getPosts(onlyCurrentUser?: boolean, currentUserId?: string): BatchUpdatePost[] {
+    if (!authService.isLoggedIn()) {
+      return [];
+    }
     let list = this.posts.filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone);
     if (onlyCurrentUser && currentUserId) {
       list = list.filter(p => p.userId === currentUserId);
@@ -1405,6 +1454,9 @@ class BatchWallService {
   }
 
   public getInstagramPosts(): InstagramPost[] {
+    if (!authService.isLoggedIn()) {
+      return [];
+    }
     const postMap = new Map<string, InstagramPost>();
 
     DEFAULT_INSTAGRAM_POSTS.forEach(dp => {
