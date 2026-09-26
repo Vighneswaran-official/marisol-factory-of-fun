@@ -1262,7 +1262,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   type="button"
                   onClick={() => {
                     audioEngine.playSfx('click');
-                    batchWallService.initChatListener();
+                    batchWallService.initChatListener(currentUser?.joinedAt, currentUser?.isNewUser);
                   }}
                   className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-[10px] cursor-pointer transition-colors flex items-center gap-1 shrink-0"
                 >
@@ -1294,7 +1294,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                       <p className="text-xs text-rose-700">Please check your internet connection.</p>
                       <button
                         type="button"
-                        onClick={() => batchWallService.initChatListener()}
+                        onClick={() => batchWallService.initChatListener(currentUser?.joinedAt, currentUser?.isNewUser)}
                         className="mt-2 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
                       >
                         Retry Connection

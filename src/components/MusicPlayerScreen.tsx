@@ -9,15 +9,15 @@ import { audioEngine } from '../services/synthAudioEngine';
 import { 
   Search, Play, Pause, SkipBack, SkipForward, 
   Volume2, VolumeX, Sparkles, Music2, Disc3,
-  Radio, ArrowLeft, RefreshCw, Headphones
+  Radio, RefreshCw, Headphones
 } from 'lucide-react';
 import type { ScreenState } from '../types/game';
 
 interface MusicPlayerScreenProps {
-  onNavigate: (screen: ScreenState) => void;
+  onNavigate?: (screen: ScreenState) => void;
 }
 
-export const MusicPlayerScreen: React.FC<MusicPlayerScreenProps> = ({ onNavigate }) => {
+export const MusicPlayerScreen: React.FC<MusicPlayerScreenProps> = ({ onNavigate: _onNavigate }) => {
   const [playerState, setPlayerState] = useState<PlayerState>(musicStreamingService.getState());
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Track[]>(CURATED_NEW_RELEASES);
@@ -70,30 +70,15 @@ export const MusicPlayerScreen: React.FC<MusicPlayerScreenProps> = ({ onNavigate
     <div className="min-h-screen bg-[#FAF8F5] p-3 sm:p-6 pb-32 text-stone-900">
       <div className="max-w-2xl mx-auto space-y-4 sm:space-y-5">
 
-        {/* 1. TOP HEADER & BACK NAVIGATION */}
-        <div className="flex items-center justify-between gap-2 border-b border-stone-200/80 pb-3">
-          <button
-            onClick={() => {
-              audioEngine.playSfx('click');
-              onNavigate('home');
-            }}
-            className="py-1.5 px-3 bg-white border border-stone-200 rounded-xl flex items-center gap-1.5 shadow-xs text-xs font-display font-bold hover:bg-stone-50 transition-all cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>HOME</span>
-          </button>
-
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-1.5 text-[11px] font-display font-black text-rose-600 uppercase tracking-wider">
-              <Headphones className="w-3.5 h-3.5 animate-pulse text-rose-500" />
-              <span>PURE AUDIO STREAMER</span>
-            </div>
-            <h1 className="font-display text-xl sm:text-2xl font-black text-stone-900">
-              Comfort Audio Lounge 🎵✨
-            </h1>
+        {/* 1. TOP HEADER */}
+        <div className="border-b border-stone-200/80 pb-3 text-center">
+          <div className="flex items-center justify-center gap-1.5 text-[11px] font-display font-black text-rose-600 uppercase tracking-wider">
+            <Headphones className="w-3.5 h-3.5 animate-pulse text-rose-500" />
+            <span>PURE AUDIO STREAMER</span>
           </div>
-
-          <div className="w-16" /> {/* Spacer */}
+          <h1 className="font-display text-xl sm:text-2xl font-black text-stone-900">
+            Comfort Audio Lounge 🎵✨
+          </h1>
         </div>
 
         {/* 2. SEARCH BAR (Connects to Internet Music Search) */}

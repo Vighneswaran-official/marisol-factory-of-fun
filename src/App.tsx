@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { ScreenState, Question } from './types/game';
 import { gameState } from './services/gameState';
 import { audioEngine } from './services/synthAudioEngine';
 import { authService } from './services/authService';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { Navbar } from './components/Navbar';
 import { HomeScreen } from './components/HomeScreen';
 import { QuestionCard } from './components/QuestionCard';
@@ -22,65 +24,101 @@ import {
   type MoodProfileSetting 
 } from './services/moodQuizService';
 import { nonRepeatingQuizEngine } from './data/foodMovieQuestions1000';
-import { ArrowLeft, RefreshCw, Trophy, Clock, Film, Play, Pause, Volume2, VolumeX, Sparkles } from 'lucide-react';
+import { RefreshCw, Trophy, Clock, Film, Play, Pause, Volume2, VolumeX, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import heroBannerVideoSrc from './assets/Hero Banner video.mp4';
 
 export function App() {
   const [, setAuthTick] = useState(0);
 
-  useEffect(() => {
-    return authService.subscribe(() => {
-      setAuthTick(t => t + 1);
-    });
-  }, []);
-
   const [player, setPlayer] = useState(gameState.getPlayer());
   const [currentScreen, setCurrentScreen] = useState<ScreenState>('home');
   const [activeNavTab, setActiveNavTab] = useState<MainNavTab>('home');
+  const [wallInitialMode, setWallInitialMode] = useState<'chat' | 'posts' | 'bulletin'>('chat');
+  const [quizFinished, setQuizFinished] = useState(false);
+
   const [showGoogleSignIn, setShowGoogleSignIn] = useState(false);
   const [showInstallApp, setShowInstallApp] = useState(false);
   const [showMoodHistory, setShowMoodHistory] = useState(false);
   const [showComfortShelf, setShowComfortShelf] = useState(false);
 
-  // Auto pop-up Google sign-in modal on startup if not signed in
+  // References for native back button event handlers
+  const currentScreenRef = useRef<ScreenState>(currentScreen);
+  const wallInitialModeRef = useRef<'chat' | 'posts' | 'bulletin'>(wallInitialMode);
+  const showGoogleSignInRef = useRef(showGoogleSignIn);
+  const showInstallAppRef = useRef(showInstallApp);
+  const showMoodHistoryRef = useRef(showMoodHistory);
+  const showComfortShelfRef = useRef(showComfortShelf);
+
   useEffect(() => {
-    const hasPrompted = sessionStorage.getItem('marisol_prompted_login');
-    if (!authService.isAuthenticated() && !hasPrompted) {
-      sessionStorage.setItem('marisol_prompted_login', 'true');
-      const timer = setTimeout(() => {
-        setShowGoogleSignIn(true);
-      }, 500);
-      return () => clearTimeout(timer);
+    currentScreenRef.current = currentScreen;
+    wallInitialModeRef.current = wallInitialMode;
+    showGoogleSignInRef.current = showGoogleSignIn;
+    showInstallAppRef.current = showInstallApp;
+    showMoodHistoryRef.current = showMoodHistory;
+    showComfortShelfRef.current = showComfortShelf;
+  });
+
+  useEffect(() => {
+    return authService.subscribe(() => {
+      setAuthTick(t => t + 1);
+      const user = authService.getCurrentUser();
+      if (user && (user.isGoogleVerified || (user.email && user.email.includes('@')))) {
+        setShowGoogleSignIn(false);
+      }
+    });
+  }, []);
+
+  // 1. Check authentication state on app load:
+  // If user is already logged in (has valid session/profile), skip sign-in popup entirely.
+  // If NOT logged in, show Google Sign-In popup prompting them to sign in.
+  useEffect(() => {
+    let isCancelled = false;
+
+    authService.waitForAuthReady().then((fbUser) => {
+      if (isCancelled) return;
+
+      const currentUser = authService.getCurrentUser();
+      const isAlreadyLoggedIn = Boolean(
+        (fbUser && !fbUser.isAnonymous) ||
+        authService.isGoogleAuthenticated() ||
+        authService.isMailIdAuthenticated() ||
+        (currentUser && currentUser.email && currentUser.email.includes('@'))
+      );
+
+      // Skip sign-in popup entirely if user has an active session/profile
+      if (isAlreadyLoggedIn) {
+        setShowGoogleSignIn(false);
+        return;
+      }
+
+      // Only show if user is NOT logged in and hasn't dismissed yet this session
+      const hasPrompted = sessionStorage.getItem('marisol_prompted_login');
+      if (!hasPrompted) {
+        sessionStorage.setItem('marisol_prompted_login', 'true');
+        const timer = setTimeout(() => {
+          if (!isCancelled) {
+            setShowGoogleSignIn(true);
+          }
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  // 2. Initialize browser history state for home screen on boot
+  useEffect(() => {
+    if (!window.history.state || !window.history.state.screen) {
+      window.history.replaceState({ screen: 'home', wallMode: 'chat' }, '', '#home');
     }
   }, []);
 
-  // Active Mood State
-  const [activeMoodId, setActiveMoodId] = useState<string>('happy');
-
-  // Active Quiz Round State
-  const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
-  const [currentQIndex, setCurrentQIndex] = useState(0);
-  const [roundScore, setRoundScore] = useState(0);
-  const [showLearningCard, setShowLearningCard] = useState(false);
-  const [lastAnswer, setLastAnswer] = useState<{ option: string; isCorrect: boolean } | null>(null);
-  const [quizFinished, setQuizFinished] = useState(false);
-
-  // Quiz Celebration Video State
-  const quizVideoRef = useRef<HTMLVideoElement | null>(null);
-  const [quizVideoPlaying, setQuizVideoPlaying] = useState(true);
-  const [quizVideoMuted, setQuizVideoMuted] = useState(false);
-
-  // Active Mood Details
-  const currentMoodSetting: MoodProfileSetting = 
-    KRITIKA_STICKER_MOODS.find(m => m.id === activeMoodId) || KRITIKA_STICKER_MOODS[0];
-  const currentMacaroni = getMoodMacaroni(activeMoodId);
-
-  // Batch wall initial mode ('chat' | 'posts' | 'bulletin')
-  const [wallInitialMode, setWallInitialMode] = useState<'chat' | 'posts' | 'bulletin'>('chat');
-
-  // Screen navigation handler
-  const handleNavigate = (screen: ScreenState, wallMode?: 'chat' | 'posts' | 'bulletin') => {
+  // Internal screen applicator (updates React state without pushing to history)
+  const applyScreenState = useCallback((screen: ScreenState, wallMode?: 'chat' | 'posts' | 'bulletin') => {
     if (wallMode) {
       setWallInitialMode(wallMode);
     }
@@ -92,13 +130,123 @@ export function App() {
     } else if (screen === 'music') {
       setActiveNavTab('music');
     } else if (screen === 'batch_wall') {
-      const mode = wallMode || wallInitialMode;
+      const mode = wallMode || wallInitialModeRef.current;
       setActiveNavTab(mode === 'posts' ? 'posts' : 'chat');
       setQuizFinished(false);
     } else if (screen === 'quiz') {
       setActiveNavTab('quiz');
     }
-  };
+  }, []);
+
+  // 3. Native Screen Navigation Handler (pushes to browser history)
+  const handleNavigate = useCallback((screen: ScreenState, wallMode?: 'chat' | 'posts' | 'bulletin') => {
+    const targetMode = wallMode || wallInitialModeRef.current;
+    if (currentScreenRef.current === screen && (!wallMode || wallMode === wallInitialModeRef.current)) {
+      return;
+    }
+
+    applyScreenState(screen, targetMode);
+
+    const stateObj = { screen, wallMode: targetMode };
+    const hash = `#${screen}${wallMode ? `-${wallMode}` : ''}`;
+    window.history.pushState(stateObj, '', hash);
+  }, [applyScreenState]);
+
+  // 4. Browser / Gesture PopState Event Listener
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      // If any modal is open, dismiss it first on back
+      if (showGoogleSignInRef.current) {
+        setShowGoogleSignIn(false);
+        return;
+      }
+      if (showInstallAppRef.current) {
+        setShowInstallApp(false);
+        return;
+      }
+      if (showMoodHistoryRef.current) {
+        setShowMoodHistory(false);
+        return;
+      }
+      if (showComfortShelfRef.current) {
+        setShowComfortShelf(false);
+        return;
+      }
+
+      // Navigate back one screen according to history state
+      const state = event.state as { screen?: ScreenState; wallMode?: 'chat' | 'posts' | 'bulletin' } | null;
+      const targetScreen = state?.screen || 'home';
+      const targetWallMode = state?.wallMode || 'chat';
+
+      applyScreenState(targetScreen, targetWallMode);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [applyScreenState]);
+
+  // 5. Capacitor Native Android Hardware/Gesture Back Button Listener
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let cleanup: (() => void) | undefined;
+
+    CapacitorApp.addListener('backButton', () => {
+      // Dismiss any open modal first
+      if (showGoogleSignInRef.current) {
+        setShowGoogleSignIn(false);
+        return;
+      }
+      if (showInstallAppRef.current) {
+        setShowInstallApp(false);
+        return;
+      }
+      if (showMoodHistoryRef.current) {
+        setShowMoodHistory(false);
+        return;
+      }
+      if (showComfortShelfRef.current) {
+        setShowComfortShelf(false);
+        return;
+      }
+
+      // If on a sub-screen, go back one screen in history
+      if (currentScreenRef.current !== 'home') {
+        window.history.back();
+      } else {
+        // When on home screen with nowhere left to go, exit app
+        CapacitorApp.exitApp();
+      }
+    }).then((handle) => {
+      cleanup = () => handle.remove();
+    });
+
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, []);
+
+  // Active Mood State
+  const [activeMoodId, setActiveMoodId] = useState<string>('happy');
+
+  // Active Quiz Round State
+  const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
+  const [currentQIndex, setCurrentQIndex] = useState(0);
+  const [roundScore, setRoundScore] = useState(0);
+  const [showLearningCard, setShowLearningCard] = useState(false);
+  const [lastAnswer, setLastAnswer] = useState<{ option: string; isCorrect: boolean } | null>(null);
+
+  // Quiz Celebration Video State
+  const quizVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [quizVideoPlaying, setQuizVideoPlaying] = useState(true);
+  const [quizVideoMuted, setQuizVideoMuted] = useState(false);
+
+  // Active Mood Details
+  const currentMoodSetting: MoodProfileSetting = 
+    KRITIKA_STICKER_MOODS.find(m => m.id === activeMoodId) || KRITIKA_STICKER_MOODS[0];
+  const currentMacaroni = getMoodMacaroni(activeMoodId);
 
   // Bottom Navigation tab click handler (Home, Chat, Post, Music, Quiz)
   const handleBottomTabSelect = (tab: MainNavTab) => {
@@ -126,9 +274,10 @@ export function App() {
     setRoundScore(0);
     setShowLearningCard(false);
     setQuizFinished(false);
-    setCurrentScreen('quiz');
-    setActiveNavTab('quiz');
     audioEngine.startMusic('quiz');
+
+    applyScreenState('quiz');
+    window.history.pushState({ screen: 'quiz' }, '', '#quiz');
   };
 
   // Handle Question Answer
@@ -210,15 +359,7 @@ export function App() {
           <div className="max-w-xl mx-auto p-4 sm:p-6 pb-28 space-y-4">
             {/* Quiz Top Action Bar */}
             <div className="flex items-center justify-between gap-2 border-b border-stone-200 pb-3">
-              <button
-                onClick={() => handleNavigate('home')}
-                className="py-1.5 px-3 bg-white border border-stone-200 rounded-xl flex items-center gap-1.5 shadow-xs text-xs font-display font-bold hover:bg-stone-50 transition-all cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>HOME</span>
-              </button>
-
-              <div className="text-center">
+              <div>
                 <span className="font-display font-black text-xs uppercase text-rose-600 tracking-wider">
                   #{currentMoodSetting.scaleNumber} {currentMoodSetting.emoji} Food & Movie Quiz
                 </span>
@@ -227,7 +368,7 @@ export function App() {
                 </h2>
               </div>
 
-              <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full text-xs font-display font-black text-amber-900 shadow-2xs">
+              <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full text-xs font-display font-black text-amber-900 shadow-2xs shrink-0">
                 <span>🔥 Streak:</span>
                 <span>{player.streak}</span>
               </div>

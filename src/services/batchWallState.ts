@@ -473,7 +473,11 @@ class BatchWallService {
         });
 
         // 2. Authoritative Group Chat Listener
-        this.initChatListener();
+        // Wait for Firebase Auth session to be confirmed before attaching chat listener to prevent permission race conditions
+        authService.waitForAuthReady().then(() => {
+          const cur = authService.getCurrentUser();
+          this.initChatListener(cur?.joinedAt, cur?.isNewUser);
+        });
 
         // 3. Instagram / Photo Wall Posts Listener (Merging full collection into postMap to never overwrite other users' posts)
         const instaQuery = query(
@@ -555,7 +559,13 @@ class BatchWallService {
    * If called again, cleans up previous listener to prevent duplicates.
    * Enforces New User Privacy at the Firestore query level when userJoinedAt and isNewUser are set.
    */
-  public initChatListener(userJoinedAt?: number, isNewUser?: boolean) {
+  /**
+   * Initializes exactly ONE authoritative group-chat Firestore listener.
+   * If called again, cleans up previous listener to prevent duplicates.
+   * Guarantees Firebase Auth session is fully established before querying Firestore.
+   * Validates userJoinedAt and enforces New User Privacy at the Firestore query level with client-side fallback.
+   */
+  public async initChatListener(userJoinedAt?: number, isNewUser?: boolean): Promise<void> {
     if (this.chatUnsubscribe) {
       this.chatUnsubscribe();
       this.chatUnsubscribe = null;
@@ -568,85 +578,123 @@ class BatchWallService {
       return;
     }
 
-    // Auto-detect from active auth session if not supplied explicitly
-    if (userJoinedAt === undefined || isNewUser === undefined) {
-      const cur = authService.getCurrentUser();
-      if (cur) {
-        userJoinedAt = userJoinedAt ?? cur.joinedAt;
-        isNewUser = isNewUser ?? cur.isNewUser;
-      }
-    }
-
-    // New User Privacy: immediately clear any stale cached messages prior to joinedAt
-    if (isNewUser && userJoinedAt && userJoinedAt > 0) {
-      this.chatMessages = this.chatMessages.filter(m => (m.createdAt || 0) >= userJoinedAt!);
-      this.saveChatToStorage();
-    }
-
     this.chatConnectionStatus = 'connecting';
     this.chatErrorMessage = null;
     this.notify();
+
+    // 1. Wait for Firebase Auth session confirmation before attaching listener
+    await authService.waitForAuthReady();
+
+    // 2. Resolve currentUser profile & validate userJoinedAt
+    const cur = authService.getCurrentUser();
+    const effectiveIsNewUser = isNewUser !== undefined ? isNewUser : (cur?.isNewUser ?? false);
+
+    let effectiveJoinedAt: number = 0;
+    if (effectiveIsNewUser) {
+      // Must never run with a missing, null, NaN, or non-positive userJoinedAt value
+      const candidate = userJoinedAt !== undefined ? userJoinedAt : cur?.joinedAt;
+      if (typeof candidate === 'number' && !isNaN(candidate) && candidate > 0) {
+        effectiveJoinedAt = candidate;
+      } else if (cur?.createdAt && typeof cur.createdAt === 'number' && !isNaN(cur.createdAt) && cur.createdAt > 0) {
+        effectiveJoinedAt = cur.createdAt;
+      } else {
+        effectiveJoinedAt = Date.now();
+        if (cur) {
+          cur.joinedAt = effectiveJoinedAt;
+          if (!cur.createdAt) cur.createdAt = effectiveJoinedAt;
+        }
+      }
+    } else {
+      effectiveJoinedAt = 0; // Existing member / founder sees full history
+    }
+
+    // 3. New User Privacy: immediately clear any stale cached messages prior to joinedAt
+    if (effectiveIsNewUser && effectiveJoinedAt > 0) {
+      this.chatMessages = this.chatMessages.filter(m => (m.createdAt || 0) >= effectiveJoinedAt);
+      this.saveChatToStorage();
+    }
 
     try {
       const messagesCol = collection(db, 'group_chat_messages');
       let chatQuery;
 
-      if (isNewUser && userJoinedAt && userJoinedAt > 0) {
-        // Enforce New User Privacy at the Firestore query level:
-        // Older messages prior to user.joinedAt are NEVER downloaded or delivered to client.
+      if (effectiveIsNewUser && effectiveJoinedAt > 0) {
         chatQuery = query(
           messagesCol,
-          where('createdAt', '>=', userJoinedAt),
+          where('createdAt', '>=', effectiveJoinedAt),
           orderBy('createdAt', 'asc')
         );
       } else {
-        // Older/existing users query the full history
         chatQuery = query(
           messagesCol,
           orderBy('createdAt', 'asc')
         );
       }
 
-      this.chatUnsubscribe = onSnapshot(
-        chatQuery,
-        (snapshot) => {
-          const remoteChat: GroupChatMessage[] = [];
+      const attachListener = (q: any, isFallback: boolean = false) => {
+        return onSnapshot(
+          q,
+          (snapshot: any) => {
+            const remoteChat: GroupChatMessage[] = [];
 
-          snapshot.forEach((docSnap) => {
-            remoteChat.push({
-              ...(docSnap.data() as GroupChatMessage),
-              id: docSnap.id,
+            snapshot.forEach((docSnap: any) => {
+              remoteChat.push({
+                ...(docSnap.data() as GroupChatMessage),
+                id: docSnap.id,
+              });
             });
-          });
 
-          remoteChat.sort(
-            (a, b) => (a.createdAt || 0) - (b.createdAt || 0)
-          );
+            remoteChat.sort(
+              (a, b) => (a.createdAt || 0) - (b.createdAt || 0)
+            );
 
-          // Overwrite local chat state unconditionally — authoritative from Firestore
-          this.chatMessages = remoteChat;
-          this.chatConnectionStatus = 'connected';
-          this.chatErrorMessage = null;
+            // If fallback mode (base query without where clause), enforce client-side privacy filtering
+            let finalChat = remoteChat;
+            if (isFallback && effectiveIsNewUser && effectiveJoinedAt > 0) {
+              finalChat = remoteChat.filter(m => (m.createdAt || 0) >= effectiveJoinedAt);
+            }
 
-          this.saveChatToStorage();
-          this.notify();
-        },
-        (error) => {
-          console.error('[Batch 41 Group Chat] Firestore listener error:', {
-            code: error?.code,
-            message: error?.message,
-            userJoinedAt,
-            isNewUser
-          });
-          this.chatConnectionStatus = 'error';
-          this.chatErrorMessage = error?.code === 'permission-denied'
-            ? 'Permission denied: Chat access restricted by Firestore security rules.'
-            : 'Unable to connect to the group chat. Please check your internet connection.';
-          this.notify();
-        }
-      );
+            this.chatMessages = finalChat;
+            this.chatConnectionStatus = 'connected';
+            this.chatErrorMessage = null;
+
+            this.saveChatToStorage();
+            this.notify();
+          },
+          (error: any) => {
+            console.error('[Batch 41 Group Chat Debug] Firestore listener error:', {
+              code: error?.code,
+              message: error?.message,
+              effectiveJoinedAt,
+              effectiveIsNewUser,
+              isFallback
+            });
+
+            // Resilient Privacy Fallback:
+            // If range query failed (e.g. index issue or rule condition on range filter),
+            // fallback to base query with client-side filter so chat never breaks for new users
+            if (!isFallback && effectiveIsNewUser && (error?.code === 'permission-denied' || error?.code === 'failed-precondition')) {
+              console.warn('[Batch 41 Group Chat Debug] Range query encountered error, falling back to base query with client-side filter...');
+              if (this.chatUnsubscribe) {
+                this.chatUnsubscribe();
+              }
+              const fallbackQuery = query(messagesCol, orderBy('createdAt', 'asc'));
+              this.chatUnsubscribe = attachListener(fallbackQuery, true);
+              return;
+            }
+
+            this.chatConnectionStatus = 'error';
+            this.chatErrorMessage = error?.code === 'permission-denied'
+              ? 'Permission denied: Chat access restricted by Firestore security rules.'
+              : 'Unable to connect to the group chat. Please check your internet connection.';
+            this.notify();
+          }
+        );
+      };
+
+      this.chatUnsubscribe = attachListener(chatQuery, false);
     } catch (err: any) {
-      console.error('[Batch 41 Group Chat] Firestore init error:', {
+      console.error('[Batch 41 Group Chat Debug] Firestore init error:', {
         code: err?.code,
         message: err?.message,
         error: err
@@ -797,7 +845,8 @@ class BatchWallService {
     }
 
     // Re-establish authoritative chat listener
-    this.initChatListener();
+    const cur = authService.getCurrentUser();
+    this.initChatListener(cur?.joinedAt, cur?.isNewUser);
     this.notify();
   }
 

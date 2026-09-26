@@ -150,8 +150,27 @@ class AuthService {
   private listeners: Set<() => void> = new Set();
   public isFirebaseEnabled = isFirebaseConfigured;
   private recaptchaVerifier: RecaptchaVerifier | null = null;
+  private authReadyPromise: Promise<FirebaseUser | null>;
+  private resolveAuthReady!: (user: FirebaseUser | null) => void;
+  private isAuthReadyResolved: boolean = false;
 
   constructor() {
+    this.authReadyPromise = new Promise<FirebaseUser | null>((resolve) => {
+      this.resolveAuthReady = (user: FirebaseUser | null) => {
+        if (!this.isAuthReadyResolved) {
+          this.isAuthReadyResolved = true;
+          resolve(user);
+        }
+      };
+    });
+
+    // Safety timeout: Ensure auth ready never hangs indefinitely (e.g. offline/network delay)
+    setTimeout(() => {
+      if (!this.isAuthReadyResolved) {
+        this.resolveAuthReady(auth?.currentUser || null);
+      }
+    }, 2500);
+
     this.cleanLegacyStorage();
     this.loadFromStorage();
     this.initFirebaseListeners();
@@ -165,6 +184,11 @@ class AuthService {
   }
 
   private initFirebaseListeners() {
+    if (!auth) {
+      this.resolveAuthReady(null);
+      return;
+    }
+
     if (auth) {
       const authInstance = auth;
       // 1. Check for Mobile Redirect Sign-In Result on Boot (Essential for mobile browsers)
@@ -184,6 +208,7 @@ class AuthService {
       onAuthStateChanged(authInstance, (firebaseUser: FirebaseUser | null) => {
         if (firebaseUser && !firebaseUser.isAnonymous) {
           this.handleFirebaseUserLogin(firebaseUser, firebaseUser.phoneNumber ? 'phone_otp' : 'google');
+          this.resolveAuthReady(firebaseUser);
         } else if (firebaseUser && firebaseUser.isAnonymous) {
           // Anonymous user session active: align profile ID with actual request.auth.uid
           if (this.currentUser && this.currentUser.id !== firebaseUser.uid) {
@@ -192,6 +217,7 @@ class AuthService {
             this.syncWithFirestore(this.currentUser);
             this.notify();
           }
+          this.resolveAuthReady(firebaseUser);
         } else if (!firebaseUser) {
           signInAnonymously(authInstance).then((cred) => {
             if (this.currentUser && this.currentUser.id !== cred.user.uid) {
@@ -200,8 +226,10 @@ class AuthService {
               this.syncWithFirestore(this.currentUser);
               this.notify();
             }
+            this.resolveAuthReady(cred.user);
           }).catch((err) => {
-            console.warn('[Auth] Anonymous fallback sign-in notice:', err);
+            console.warn('[Auth] Anonymous fallback sign-in notice (unauthenticated guest session):', err?.message || err);
+            this.resolveAuthReady(null);
           });
         }
       });
@@ -285,10 +313,21 @@ class AuthService {
       const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
       if (storedUser) {
         this.currentUser = JSON.parse(storedUser);
-        // Ensure joinedAt is set on stored profiles
-        if (this.currentUser && this.currentUser.joinedAt === undefined) {
-          this.currentUser.joinedAt = this.currentUser.isNewUser ? (this.currentUser.createdAt || Date.now()) : 0;
-          this.saveUserToStorage();
+        // Ensure joinedAt and createdAt are valid numbers on stored profiles
+        if (this.currentUser) {
+          if (this.currentUser.isNewUser) {
+            if (typeof this.currentUser.joinedAt !== 'number' || isNaN(this.currentUser.joinedAt) || this.currentUser.joinedAt <= 0) {
+              const fallback = (typeof this.currentUser.createdAt === 'number' && !isNaN(this.currentUser.createdAt) && this.currentUser.createdAt > 0)
+                ? this.currentUser.createdAt
+                : Date.now();
+              this.currentUser.joinedAt = fallback;
+              if (!this.currentUser.createdAt) this.currentUser.createdAt = fallback;
+              this.saveUserToStorage();
+            }
+          } else if (this.currentUser.joinedAt === undefined) {
+            this.currentUser.joinedAt = 0;
+            this.saveUserToStorage();
+          }
         }
       }
 
@@ -447,6 +486,39 @@ class AuthService {
       console.warn('[Auth] Anonymous sign-in error:', err);
       return auth.currentUser || null;
     }
+  }
+
+  /**
+   * Returns a promise that resolves once the initial Firebase Auth state
+   * (existing session or anonymous fallback) is confirmed.
+   * Guarantees queries/listeners never race before auth finishes initializing.
+   */
+  public async waitForAuthReady(): Promise<FirebaseUser | null> {
+    if (!auth) return null;
+    return this.authReadyPromise;
+  }
+
+  /**
+   * Returns a guaranteed valid numeric joinedAt timestamp for a user.
+   * For new users, ensures joinedAt > 0. For existing members/founders, returns 0.
+   */
+  public getJoinedAt(user?: StudentProfile | null): number {
+    const profile = user !== undefined ? user : this.currentUser;
+    if (!profile) return 0;
+    if (profile.isNewUser) {
+      if (typeof profile.joinedAt === 'number' && !isNaN(profile.joinedAt) && profile.joinedAt > 0) {
+        return profile.joinedAt;
+      }
+      if (typeof profile.createdAt === 'number' && !isNaN(profile.createdAt) && profile.createdAt > 0) {
+        return profile.createdAt;
+      }
+      const now = Date.now();
+      profile.joinedAt = now;
+      profile.createdAt = now;
+      this.saveUserToStorage();
+      return now;
+    }
+    return 0; // Existing member / founder sees full history
   }
 
   /**
@@ -680,11 +752,6 @@ class AuthService {
     this.currentUser = null;
     this.saveUserToStorage();
     this.notify();
-  }
-
-  public getJoinedAt(): number {
-    if (!this.currentUser) return 0;
-    return this.currentUser.joinedAt ?? (this.currentUser.isNewUser ? (this.currentUser.createdAt || 0) : 0);
   }
 
   public subscribe(listener: () => void) {

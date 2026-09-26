@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { ScreenState, AudioSettings } from '../types/game';
 import { audioEngine } from '../services/synthAudioEngine';
 import { 
-  ArrowLeft, Menu, X, Volume2, UserCheck, CheckCircle2, Smartphone
+  Menu, X, Volume2, UserCheck, CheckCircle2, Smartphone
 } from 'lucide-react';
 import { authService } from '../services/authService';
 
@@ -95,22 +95,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                 </p>
               </div>
             </button>
-
-            {/* Back button indicator when on sub-pages */}
-            {currentScreen !== 'home' && (
-              <button 
-                type="button"
-                onClick={() => {
-                  audioEngine.playSfx('click');
-                  onNavigate('home');
-                }}
-                className="ml-1 py-1 px-2 bg-stone-100 hover:bg-stone-200 border border-stone-200 rounded-lg flex items-center gap-1 text-[10px] font-display font-bold text-stone-700 transition-colors cursor-pointer shrink-0"
-                title="Return to Home"
-              >
-                <ArrowLeft className="w-3 h-3" />
-                <span className="hidden sm:inline">Home</span>
-              </button>
-            )}
           </div>
 
           {/* Center: Desktop Navigation Links (Visible on md/lg screens) */}
