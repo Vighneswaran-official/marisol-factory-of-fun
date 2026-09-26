@@ -25,20 +25,30 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
   const [nameInput, setNameInput] = useState('');
 
   // Handle direct Sign In with Mail ID
-  const handleSignInSubmit = (e: React.FormEvent) => {
+  const handleSignInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanEmail = emailInput.trim();
     if (!cleanEmail) return;
 
-    // Derived or entered name
-    const derivedName = nameInput.trim() || authService.formatEmailName(cleanEmail) || 'New User';
-    const finalUser = authService.loginStudentProfile(derivedName, cleanEmail.includes('@') ? cleanEmail : `${cleanEmail}@gmail.com`);
+    setIsLoading(true);
+    setErrorMessage(null);
 
-    audioEngine.playSfx('fanfare');
-    confetti({ particleCount: 85, spread: 75, origin: { y: 0.6 } });
-    setTick(t => t + 1);
-    if (onSuccess) onSuccess(finalUser);
-    onClose();
+    try {
+      // Derived or entered name
+      const derivedName = nameInput.trim() || authService.formatEmailName(cleanEmail) || 'New User';
+      const finalUser = await authService.loginStudentProfile(derivedName, cleanEmail.includes('@') ? cleanEmail : `${cleanEmail}@gmail.com`);
+
+      audioEngine.playSfx('fanfare');
+      confetti({ particleCount: 85, spread: 75, origin: { y: 0.6 } });
+      setTick(t => t + 1);
+      if (onSuccess) onSuccess(finalUser);
+      onClose();
+    } catch (err: any) {
+      console.error('[Sign In with Mail ID] Error establishing session:', err);
+      setErrorMessage(err?.message || 'Authentication error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Google OAuth Sign In
@@ -245,10 +255,15 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-display font-black text-xs uppercase rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer mt-1"
+                disabled={isLoading}
+                className="w-full py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-display font-black text-xs uppercase rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer mt-1 disabled:opacity-60"
               >
-                <Sparkles className="w-3.5 h-3.5 fill-white" />
-                <span>Sign In as New User & Chat</span>
+                {isLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5 fill-white" />
+                )}
+                <span>{isLoading ? 'Connecting session...' : 'Sign In as New User & Chat'}</span>
               </button>
             </form>
 

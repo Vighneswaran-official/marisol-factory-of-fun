@@ -37,6 +37,7 @@ export interface StudentProfile {
   isNewUser?: boolean;
   userTag?: string; // e.g. "New User"
   createdAt?: number;
+  joinedAt?: number; // Timestamp when user first joined (for new user chat privacy)
 }
 
 export const DEFAULT_CLASSMATES: StudentProfile[] = [
@@ -53,6 +54,7 @@ export const DEFAULT_CLASSMATES: StudentProfile[] = [
     isGoogleVerified: true,
     loginMethod: 'email',
     isNewUser: false,
+    joinedAt: 0, // Foundation member - sees full chat history
     userTag: 'Founder 👑'
   },
   {
@@ -68,6 +70,7 @@ export const DEFAULT_CLASSMATES: StudentProfile[] = [
     isGoogleVerified: true,
     loginMethod: 'email',
     isNewUser: false,
+    joinedAt: 0,
     userTag: 'Classmate'
   },
   {
@@ -83,6 +86,7 @@ export const DEFAULT_CLASSMATES: StudentProfile[] = [
     isGoogleVerified: true,
     loginMethod: 'email',
     isNewUser: false,
+    joinedAt: 0,
     userTag: 'Classmate'
   },
   {
@@ -98,6 +102,7 @@ export const DEFAULT_CLASSMATES: StudentProfile[] = [
     isGoogleVerified: true,
     loginMethod: 'email',
     isNewUser: false,
+    joinedAt: 0,
     userTag: 'Classmate'
   }
 ];
@@ -179,8 +184,23 @@ class AuthService {
       onAuthStateChanged(authInstance, (firebaseUser: FirebaseUser | null) => {
         if (firebaseUser && !firebaseUser.isAnonymous) {
           this.handleFirebaseUserLogin(firebaseUser, firebaseUser.phoneNumber ? 'phone_otp' : 'google');
+        } else if (firebaseUser && firebaseUser.isAnonymous) {
+          // Anonymous user session active: align profile ID with actual request.auth.uid
+          if (this.currentUser && this.currentUser.id !== firebaseUser.uid) {
+            this.currentUser.id = firebaseUser.uid;
+            this.saveUserToStorage();
+            this.syncWithFirestore(this.currentUser);
+            this.notify();
+          }
         } else if (!firebaseUser) {
-          signInAnonymously(authInstance).catch((err) => {
+          signInAnonymously(authInstance).then((cred) => {
+            if (this.currentUser && this.currentUser.id !== cred.user.uid) {
+              this.currentUser.id = cred.user.uid;
+              this.saveUserToStorage();
+              this.syncWithFirestore(this.currentUser);
+              this.notify();
+            }
+          }).catch((err) => {
             console.warn('[Auth] Anonymous fallback sign-in notice:', err);
           });
         }
@@ -221,6 +241,19 @@ class AuthService {
       ? firebaseUser.displayName
       : (emailName || (firebaseUser.phoneNumber ? `Student (${firebaseUser.phoneNumber.slice(-4)})` : 'Batch 41 Member'));
 
+    const existing = this.classmates.find(c => 
+      c.id === firebaseUser.uid || 
+      (firebaseUser.email && c.email.toLowerCase() === firebaseUser.email.toLowerCase())
+    );
+
+    const now = Date.now();
+    const joinedAt = existing?.joinedAt !== undefined 
+      ? existing.joinedAt 
+      : (this.currentUser?.joinedAt !== undefined ? this.currentUser.joinedAt : now);
+    const isNewUser = existing?.isNewUser !== undefined 
+      ? existing.isNewUser 
+      : (this.currentUser?.isNewUser !== undefined ? this.currentUser.isNewUser : true);
+
     const profile: StudentProfile = {
       id: firebaseUser.uid,
       name: resolvedName,
@@ -234,9 +267,10 @@ class AuthService {
       lastUpdated: 'Just now',
       isGoogleVerified: true,
       loginMethod: method,
-      isNewUser: true,
-      userTag: 'New User',
-      createdAt: Date.now()
+      isNewUser,
+      userTag: existing?.userTag || (isNewUser ? 'New User' : 'Classmate'),
+      createdAt: existing?.createdAt || this.currentUser?.createdAt || now,
+      joinedAt
     };
 
     this.currentUser = profile;
@@ -251,6 +285,11 @@ class AuthService {
       const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
       if (storedUser) {
         this.currentUser = JSON.parse(storedUser);
+        // Ensure joinedAt is set on stored profiles
+        if (this.currentUser && this.currentUser.joinedAt === undefined) {
+          this.currentUser.joinedAt = this.currentUser.isNewUser ? (this.currentUser.createdAt || Date.now()) : 0;
+          this.saveUserToStorage();
+        }
       }
 
       const storedClassmates = localStorage.getItem(CLASSMATES_STORAGE_KEY);
@@ -374,13 +413,50 @@ class AuthService {
   }
 
   /**
+   * Ensures an active, verified Firebase Auth session exists so request.auth is never null.
+   * If auth.currentUser exists, refreshes token; otherwise signs in anonymously as fallback.
+   */
+  public async ensureFirebaseAuthSession(): Promise<FirebaseUser | null> {
+    if (!auth) return null;
+
+    if (auth.currentUser) {
+      try {
+        await auth.currentUser.getIdToken(false);
+        return auth.currentUser;
+      } catch (err) {
+        console.warn('[Auth] Token check failed, attempting forced refresh:', err);
+        try {
+          await auth.currentUser.getIdToken(true);
+          return auth.currentUser;
+        } catch (refreshErr) {
+          console.warn('[Auth] Forced refresh failed, re-authenticating anonymously:', refreshErr);
+        }
+      }
+    }
+
+    try {
+      const cred = await signInAnonymously(auth);
+      if (this.currentUser && this.currentUser.id !== cred.user.uid) {
+        this.currentUser.id = cred.user.uid;
+        this.saveUserToStorage();
+        this.syncWithFirestore(this.currentUser);
+        this.notify();
+      }
+      return cred.user;
+    } catch (err) {
+      console.warn('[Auth] Anonymous sign-in error:', err);
+      return auth.currentUser || null;
+    }
+  }
+
+  /**
    * Direct Sign In with Mail ID / Email.
    * Whoever signs in with their mail ID is registered as a "New User" and allowed to chat.
    */
-  public loginWithEmail(email: string, name?: string): StudentProfile {
+  public async loginWithEmail(email: string, name?: string): Promise<StudentProfile> {
     const trimmedEmail = email.trim().toLowerCase();
     const formattedName = name?.trim() || formatNameFromEmail(trimmedEmail) || 'New User';
-    return this.loginStudentProfile(formattedName, trimmedEmail);
+    return await this.loginStudentProfile(formattedName, trimmedEmail);
   }
 
   public getFirebaseUser(): FirebaseUser | null {
@@ -388,9 +464,10 @@ class AuthService {
   }
 
   /**
-   * Multi-User: Add or Login Student / Mail Profile
+   * Multi-User: Add or Login Student / Mail Profile.
+   * Confirms Firebase Auth session before returning so request.auth is never null.
    */
-  public loginStudentProfile(name: string, email?: string): StudentProfile {
+  public async loginStudentProfile(name: string, email?: string): Promise<StudentProfile> {
     const trimmed = name.trim() || 'Batch 41 Student';
     const isKritika = trimmed.toLowerCase().includes('kritika') || trimmed.toLowerCase().includes('marisol');
     const existing = this.classmates.find(c => 
@@ -398,15 +475,27 @@ class AuthService {
       c.name.toLowerCase() === trimmed.toLowerCase()
     );
 
-    const resolvedId = auth?.currentUser?.uid || (email 
+    const now = Date.now();
+    const joinedAt = existing?.joinedAt !== undefined 
+      ? existing.joinedAt 
+      : (this.currentUser?.joinedAt !== undefined ? this.currentUser.joinedAt : now);
+    const isNewUser = existing?.isNewUser !== undefined 
+      ? existing.isNewUser 
+      : (this.currentUser?.isNewUser !== undefined ? this.currentUser.isNewUser : true);
+
+    // CRITICAL: Await Firebase Auth session completion so request.auth is NEVER null when user writes to Firestore
+    const fbUser = await this.ensureFirebaseAuthSession();
+    const resolvedId = fbUser?.uid || auth?.currentUser?.uid || (email 
       ? `user_${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
-      : `student_${Date.now()}`);
+      : `student_${now}`);
 
     const profile: StudentProfile = existing ? {
       ...existing,
+      id: resolvedId,
       name: trimmed !== 'Student' && trimmed !== 'Batch 41 Student' ? trimmed : existing.name,
-      isNewUser: existing.isNewUser ?? true,
-      userTag: existing.userTag || 'New User',
+      isNewUser,
+      joinedAt,
+      userTag: existing.userTag || (isNewUser ? 'New User' : 'Classmate'),
       loginMethod: existing.loginMethod || (email ? 'email' : 'google')
     } : {
       id: resolvedId,
@@ -424,7 +513,8 @@ class AuthService {
       loginMethod: 'email',
       isNewUser: true,
       userTag: 'New User',
-      createdAt: Date.now()
+      createdAt: now,
+      joinedAt: now
     };
 
     this.currentUser = profile;
@@ -590,6 +680,11 @@ class AuthService {
     this.currentUser = null;
     this.saveUserToStorage();
     this.notify();
+  }
+
+  public getJoinedAt(): number {
+    if (!this.currentUser) return 0;
+    return this.currentUser.joinedAt ?? (this.currentUser.isNewUser ? (this.currentUser.createdAt || 0) : 0);
   }
 
   public subscribe(listener: () => void) {

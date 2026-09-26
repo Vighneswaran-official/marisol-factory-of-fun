@@ -26,6 +26,7 @@
     deploy-pages.yml
 .gitignore
 .oxlintrc.json
+CHAT_WITH_CLAUDE.md
 CLAUDE.md
 CLAUDE_CODEBASE_BUNDLE.md
 CLAUDE_MOOD_RECOMMENDATION_PROMPT.md
@@ -102,6 +103,7 @@ public/
   maskable-icon.png
   sw.js
 scripts/
+  chat_with_claude.cjs
   generate_bundle.cjs
   process_all_11_images.cjs
   slice_poses.cjs
@@ -132,6 +134,7 @@ src/
     ComfortCornerModal.tsx
     ComfortShelfModal.tsx
     DailyChallenge.tsx
+    ErrorBoundary.tsx
     FloatingMusicBar.tsx
     FloatingVideoPlayer.tsx
     GameMap.tsx
@@ -183,6 +186,7 @@ src/
     musicStreamingService.ts
     synthAudioEngine.ts
     videoPlaybackService.ts
+    voiceRoomService.ts
     wellnessState.ts
   types/
     canvas-confetti.d.ts
@@ -339,6 +343,15 @@ marisol-factory-of-fun/
 - Tracks trivia streak, scores, levels cleared, cucumber sandwich tokens, and unlocked secrets.
 - Celebrations trigger `canvas-confetti` bursts and hero video modals.
 
+### E. Discord-Style Real-Time Voice Room (`voiceRoomService.ts`)
+- **WebRTC Peer-to-Peer**: Live multi-user voice mesh connecting active Batch 41 members with STUN signaling through Firestore.
+- **Audio Isolation**: Zero audio bleed — only users who explicitly click "Join Voice Room" receive or broadcast microphone streams.
+- **Speaking Activity & Cheer SFX**: Web Audio Analyser monitors volume for active glow indicators; synchronized cheer sound-effects broadcast across all participants.
+
+### F. Chat Privacy & Message Isolation
+- **Strict New User Privacy**: When a new batch member signs up, `batchWallState.ts` filters out older historical messages prior to their registration date (`userCreatedAt`).
+- **Post Interaction & Reactions**: Wall posts feature threaded comments, 5 reaction emojis (❤️, 👏, 🔥, 😂, 🌸), unique likes list modal, and share count tracking.
+
 ---
 
 ## 5. Development Commands & Workflow
@@ -355,6 +368,9 @@ npm run build
 
 # Preview production build locally
 npm run preview
+
+# Chat directly with Claude in your terminal (requires ANTHROPIC_API_KEY in .env)
+node scripts/chat_with_claude.cjs
 
 # Generate updated CLAUDE_CODEBASE_BUNDLE.md with all recent code
 node scripts/generate_bundle.cjs
@@ -373,6 +389,9 @@ node scripts/generate_bundle.cjs
    - Never allow unverified or blank-email users to post messages. Always route them through `authService.isUserAllowedToChat()`.
 4. **Preserve Single Group Chat & Pinned Highlights**:
    - Do not re-introduce 1-on-1 private messaging. All conversation belongs in the shared group lounge, with critical items highlighted in the Pinned section.
+5. **Chatting with Claude**:
+   - Upload [CHAT_WITH_CLAUDE.md](file:///c:/Users/VIGHNESWARAN/.gemini/antigravity-ide/scratch/marisol-factory-of-fun/CHAT_WITH_CLAUDE.md) to [Claude.ai](https://claude.ai) or Claude Projects to start any session.
+
 
 ```
 
@@ -594,13 +613,17 @@ export default config;
     <title>MARISOL: Factory of Fun | Kritika's Comfort Space</title>
     <meta name="description" content="A playful, motivational digital comfort and wellness adventure designed specially for Kritika!" />
     
+    <meta name="color-scheme" content="light" />
+    
     <!-- PWA Manifest for Android & Desktop -->
     <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#F43F5E" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <!-- iOS Apple Touch Icon & Fullscreen Standalone App Configuration -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-touch-fullscreen" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Marisol" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -612,36 +635,68 @@ export default config;
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700&family=Kalam:wght@400;700&family=Outfit:wght@500;600;700;800&family=Patrick+Hand&display=swap" rel="stylesheet">
+
+    <!-- Mobile Stale Chunk Recovery Handler: Prevents blank screen on redeployments -->
+    <script>
+      window.addEventListener('error', function(e) {
+        if (e && e.message) {
+          var msg = e.message.toLowerCase();
+          if (msg.indexOf('failed to fetch') !== -1 || msg.indexOf('importing a module script failed') !== -1 || msg.indexOf('unexpected token') !== -1) {
+            if (!sessionStorage.getItem('marisol_sw_purged')) {
+              sessionStorage.setItem('marisol_sw_purged', 'true');
+              if ('caches' in window) {
+                caches.keys().then(function(keys) {
+                  return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+                }).then(function() {
+                  window.location.reload();
+                });
+              } else {
+                window.location.reload();
+              }
+            }
+          }
+        }
+      }, true);
+    </script>
   </head>
-  <body class="bg-paper-50 text-ink antialiased overflow-x-hidden selection:bg-doodleGold/30 selection:text-ink">
-    <div id="root"></div>
+  <body class="bg-paper-50 text-ink antialiased overflow-x-hidden selection:bg-doodleGold/30 selection:text-ink" style="background-color: #FFFDF7;">
+    <div id="root">
+      <!-- Instant branded loader displayed while JavaScript bundle compiles/loads on mobile -->
+      <div id="marisol-initial-loader" style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #FFFDF7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 24px;">
+        <div style="width: 76px; height: 76px; border-radius: 50%; padding: 3px; background: linear-gradient(135deg, #F43F5E, #FB7185, #FBBF24); box-shadow: 0 10px 25px rgba(244,63,94,0.3); margin-bottom: 16px;">
+          <img src="/icon-192.png" alt="Marisol" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: white;" />
+        </div>
+        <h2 style="margin: 0; font-size: 20px; font-weight: 900; color: #1C1917; letter-spacing: -0.02em;">MARISOL ✨</h2>
+        <p style="margin: 4px 0 0 0; font-size: 13px; font-weight: 700; color: #E11D48;">Kritika's Factory of Fun</p>
+        <div style="margin-top: 18px; display: inline-flex; align-items: center; gap: 8px; background: #FFF1F2; border: 1px solid #FECDD3; padding: 6px 16px; border-radius: 9999px; font-size: 11px; font-weight: 700; color: #E11D48;">
+          Loading comfort space...
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
 
     <!-- Register PWA Service Worker for Offline & Install Capability (Auto-Busted on Dev) -->
     <script>
       if ('serviceWorker' in navigator) {
-        // On localhost dev, unregister any stale SW & purge caches so Vite HMR always reflects instantly
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
           navigator.serviceWorker.getRegistrations().then((registrations) => {
             for (const registration of registrations) {
               registration.unregister();
-              console.log('[Dev] Unregistered stale service worker:', registration.scope);
             }
           });
           if ('caches' in window) {
             caches.keys().then((names) => {
               for (const name of names) {
                 caches.delete(name);
-                console.log('[Dev] Cleared stale cache:', name);
               }
             });
           }
         } else {
           window.addEventListener('load', () => {
             navigator.serviceWorker.register('/sw.js').then((reg) => {
-              console.log('[PWA] Service Worker registered successfully:', reg.scope);
+              console.log('[PWA] Service Worker active:', reg.scope);
             }).catch((err) => {
-              console.log('[PWA] Service Worker registration failed:', err);
+              console.warn('[PWA] Service Worker registration notice:', err);
             });
           });
         }
@@ -888,11 +943,12 @@ export default {
 ### File: `public/sw.js`
 
 ```js
-const CACHE_NAME = 'marisol-cache-v3';
+const CACHE_NAME = 'marisol-cache-v5';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
+  '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
   '/apple-touch-icon.png',
@@ -903,7 +959,11 @@ self.addEventListener('install', (event) => {
   // Activate new SW immediately
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_ASSETS))
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
+        console.warn('[SW] Non-fatal precache error:', err);
+      });
+    })
   );
 });
 
@@ -913,7 +973,7 @@ self.addEventListener('activate', (event) => {
       Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
-            console.log('[SW] Deleting stale cache:', key);
+            console.log('[SW] Deleting old/stale cache:', key);
             return caches.delete(key);
           }
         })
@@ -931,7 +991,8 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/')) return;
   if (url.origin !== self.location.origin) return;
 
-  // Network-first strategy for HTML / navigation requests so users always get the latest build
+  // Network-first strategy for navigation requests (HTML)
+  // Ensures mobile users always receive the latest deploy with correct script hashes
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
@@ -947,7 +1008,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Stale-while-revalidate for static assets
+  // Network-first for JavaScript and CSS bundles to avoid stale chunk mismatches
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Stale-while-revalidate for static images and fonts
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request)
@@ -1179,6 +1256,7 @@ import { FloatingMusicBar } from './components/FloatingMusicBar';
 import { GoogleSignInModal } from './components/GoogleSignInModal';
 import { MoodHistoryModal } from './components/MoodHistoryModal';
 import { ComfortShelfModal } from './components/ComfortShelfModal';
+import { InstallAppModal } from './components/InstallAppModal';
 import { BottomNavigationDock, type MainNavTab } from './components/BottomNavigationDock';
 import { 
   getQuestionsForMood, 
@@ -1204,6 +1282,7 @@ export function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenState>('home');
   const [activeNavTab, setActiveNavTab] = useState<MainNavTab>('home');
   const [showGoogleSignIn, setShowGoogleSignIn] = useState(false);
+  const [showInstallApp, setShowInstallApp] = useState(false);
   const [showMoodHistory, setShowMoodHistory] = useState(false);
   const [showComfortShelf, setShowComfortShelf] = useState(false);
 
@@ -1334,16 +1413,23 @@ export function App() {
   const quizStats = nonRepeatingQuizEngine.getStats();
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-stone-900 font-sans antialiased selection:bg-pink-200">
+    <div className={`bg-[#FAF8F5] text-stone-900 font-sans antialiased selection:bg-pink-200 ${
+      currentScreen === 'batch_wall' ? 'h-[100dvh] max-h-[100dvh] flex flex-col overflow-hidden' : 'min-h-screen'
+    }`}>
       {/* Top Navbar */}
       <Navbar
         currentScreen={currentScreen}
         onNavigate={handleNavigate}
+        onOpenInstallApp={() => setShowInstallApp(true)}
         onOpenGoogleSignIn={() => setShowGoogleSignIn(true)}
       />
 
       {/* Main Content Area */}
-      <main className="animate-fade-in pb-20">
+      <main className={`animate-fade-in ${
+        currentScreen === 'batch_wall' 
+          ? 'flex-1 min-h-0 flex flex-col overflow-hidden pb-0' 
+          : 'pb-20'
+      }`}>
         
         {/* 1. HOME SCREEN: Hero Video, 1-9 Mood Selector & Macaroni Preview */}
         {currentScreen === 'home' && (
@@ -1574,19 +1660,26 @@ export function App() {
       </main>
 
       {/* Floating Mini Music Player Bar (Active when browsing other screens) */}
-      {currentScreen !== 'music' && (
+      {currentScreen !== 'music' && currentScreen !== 'batch_wall' && (
         <FloatingMusicBar onOpenMusicScreen={() => handleNavigate('music')} />
       )}
 
       {/* Floating Bottom Navigation Dock (Home | Music | 1000+ Quiz | Chat & Wall) */}
-      <BottomNavigationDock
-        activeTab={activeNavTab}
-        onTabSelect={handleBottomTabSelect}
-      />
+      {currentScreen !== 'batch_wall' && (
+        <BottomNavigationDock
+          activeTab={activeNavTab}
+          onTabSelect={handleBottomTabSelect}
+        />
+      )}
 
       {/* Clean Google Sign-In & Student Profile Modal */}
       {showGoogleSignIn && (
         <GoogleSignInModal onClose={() => setShowGoogleSignIn(false)} />
+      )}
+
+      {/* Install as App Modal (iPhone Safari & Android Chrome Guide) */}
+      {showInstallApp && (
+        <InstallAppModal onClose={() => setShowInstallApp(false)} />
       )}
 
       {/* Mood History & 14-Day Heatmap Modal */}
@@ -1729,9 +1822,9 @@ export const BaseModal: React.FC<BaseModalProps> = ({
 ### File: `src/components/BatchUpdatesWall.tsx`
 
 ```tsx
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { ScreenState } from '../types/game';
-import { batchWallService, type InstagramPost, type GroupChatMessage, formatChatTimestamp } from '../services/batchWallState';
+import { batchWallService, type InstagramPost, type GroupChatMessage, type LikedMember, formatChatTimestamp } from '../services/batchWallState';
 import { authService, type StudentProfile } from '../services/authService';
 import { STICKERS } from '../data/stickers';
 import { gameState } from '../services/gameState';
@@ -1740,13 +1833,14 @@ import {
   Plus, Sparkles, Send, X, UserCheck, Heart, 
   MessageCircle, MessagesSquare, Pin, Camera, Paperclip, Smile,
   Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check,
-  Reply, BarChart2, AtSign, Video, Phone, MoreVertical, Mic,
+  Reply, BarChart2, AtSign, MoreVertical, Mic, Volume2, VolumeX, Headphones, MicOff, PhoneOff,
   Trash2, ChevronDown, Ban, Globe, Lock, Clock,
-  Filter, AlertCircle, RefreshCw
+  AlertCircle, RefreshCw, Video, Phone, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { BaseModal } from './BaseModal';
 import { GoogleSignInModal } from './GoogleSignInModal';
+import { voiceRoomService } from '../services/voiceRoomService';
 
 interface BatchUpdatesWallProps {
   onNavigate?: (screen: ScreenState) => void;
@@ -1859,7 +1953,7 @@ const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
             return (
               <span 
                 key={tokIdx} 
-                className={`font-bold ${isCurrentUser ? 'text-amber-200 underline' : 'text-rose-600 bg-rose-50/90 px-1 py-0.5 rounded'} hover:underline cursor-pointer`}
+                className={`font-bold ${isCurrentUser ? 'text-rose-700 bg-white/80 px-1 py-0.5 rounded shadow-2xs' : 'text-rose-600 bg-rose-50/90 px-1 py-0.5 rounded'} hover:underline cursor-pointer`}
               >
                 {token}
               </span>
@@ -1869,7 +1963,7 @@ const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
             return (
               <span 
                 key={tokIdx} 
-                className={`font-bold underline cursor-pointer ${isCurrentUser ? 'text-amber-100' : 'text-rose-600'}`}
+                className={`font-bold underline cursor-pointer ${isCurrentUser ? 'text-stone-900 hover:text-rose-600' : 'text-rose-600'}`}
               >
                 {token}
               </span>
@@ -1877,7 +1971,7 @@ const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
           }
           if (/^(?:GRAND FESTIVE SALE|Start Date|End Date):?$/.test(token)) {
             return (
-              <span key={tokIdx} className={isCurrentUser ? 'font-black text-white' : 'font-black text-stone-900'}>
+              <span key={tokIdx} className="font-black text-stone-900">
                 {token}
               </span>
             );
@@ -1889,11 +1983,50 @@ const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
   });
 };
 
+const getInitials = (name?: string): string => {
+  if (!name) return 'U';
+  const clean = name.replace(/👑|🌸|✨|♡|⭐|🎉|🔥/g, '').trim();
+  const words = clean.split(/\s+/).filter(w => w.length > 0 && /^[A-Za-z0-9]/.test(w));
+  if (words.length === 0) {
+    const fallbackLetters = clean.replace(/[^A-Za-z0-9]/g, '');
+    return fallbackLetters.slice(0, 2).toUpperCase() || 'U';
+  }
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+};
+
+const getInitialsBgColor = (name?: string): string => {
+  const colors = [
+    'bg-rose-500 text-white',
+    'bg-purple-600 text-white',
+    'bg-indigo-600 text-white',
+    'bg-emerald-600 text-white',
+    'bg-amber-600 text-white',
+    'bg-teal-600 text-white',
+    'bg-sky-600 text-white',
+    'bg-fuchsia-600 text-white',
+  ];
+  if (!name) return colors[0];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+};
+
 export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: _onNavigate, initialMode }) => {
   const [, setTick] = useState(0);
   const player = gameState.getPlayer();
   const currentUser = authService.getCurrentUser();
   const isAuthenticated = authService.isAuthenticated();
+
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
+
+  const currentUserProfilePic = currentUser?.avatarUrl || authService.getFirebaseUser()?.photoURL || '';
+  const currentProfileName = currentUser?.name || player.nickname || 'Student';
+  const hasValidAvatarPic = Boolean(currentUserProfilePic && failedAvatarUrl !== currentUserProfilePic);
 
   // Mode Switcher: 'chat' | 'posts' | 'bulletin'
   const [activeMode, setActiveMode] = useState<'chat' | 'posts' | 'bulletin'>(initialMode || 'chat');
@@ -1946,6 +2079,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const [editingPost, setEditingPost] = useState<InstagramPost | null>(null);
   const [editingPostCaption, setEditingPostCaption] = useState('');
   const [activePostMenuId, setActivePostMenuId] = useState<string | null>(null);
+  const [deleteConfirmPost, setDeleteConfirmPost] = useState<{ id: string; type: 'photo' | 'bulletin'; title?: string } | null>(null);
+  const [isDeletingPost, setIsDeletingPost] = useState(false);
 
   // Group Poll Creation State
   const [pollQuestion, setPollQuestion] = useState('');
@@ -1958,9 +2093,14 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
   const [heartBurstId, setHeartBurstId] = useState<string | null>(null);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const [activePostImgIndex, setActivePostImgIndex] = useState<Record<string, number>>({});
+  const [showLikedByModalPost, setShowLikedByModalPost] = useState<InstagramPost | null>(null);
+  const [activeReactionPickerPostId, setActiveReactionPickerPostId] = useState<string | null>(null);
 
-  // New Photo Post Form State
+  // New Photo Post Form State (Supports Multiple Photos in one poster)
   const [newPostImage, setNewPostImage] = useState<string | null>(null);
+  const [newPostImages, setNewPostImages] = useState<string[]>([]);
+  const [activeCreatePreviewIndex, setActiveCreatePreviewIndex] = useState(0);
   const [newPostCaption, setNewPostCaption] = useState('');
   const [newPostLocation, setNewPostLocation] = useState('Comfort Lounge 🌸');
   const [newPostFilter, setNewPostFilter] = useState('none');
@@ -1983,29 +2123,85 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   // Data state
   const allBulletinPosts = batchWallService.getPosts();
-  const chatMessages = batchWallService.getChatMessages(currentUser?.id);
+  const chatMessages = batchWallService.getChatMessages(currentUser?.id, currentUser?.joinedAt, currentUser?.isNewUser);
   const chatStatus = batchWallService.getChatConnectionStatus();
   const photoPosts = batchWallService.getInstagramPosts();
   const network = batchWallService.getNetworkStatus();
   const classmates = authService.getClassmates();
 
-  // Group Chat Subtabs: 'group' (One unified group where everyone chats) | 'pinned' (Dedicated section for important & pinned items)
-  const [chatSubTab, setChatSubTab] = useState<'group' | 'pinned'>('group');
-  const [showPinAnnouncementModal, setShowPinAnnouncementModal] = useState(false);
-  const [pinNoticeText, setPinNoticeText] = useState('');
-  const [pinNoticeCategory, setPinNoticeCategory] = useState<'📢 Announcement' | '⚠️ Important' | '🌸 Special Notice' | '📌 Pinned'>('📢 Announcement');
+  // Sync authoritative Firestore chat listener with active user privacy scope
+  useEffect(() => {
+    batchWallService.initChatListener(currentUser?.joinedAt, currentUser?.isNewUser);
+  }, [currentUser?.id, currentUser?.joinedAt, currentUser?.isNewUser]);
 
-  // Matched Message Table & Session Inspection State
-  const [chatFilterMode, setChatFilterMode] = useState<'all' | 'my_messages'>('all');
+  // ==================== DISCORD-STYLE VOICE ROOM STATE ====================
+  const [, setVoiceTick] = useState(0);
+  const [showVoiceRoomModal, setShowVoiceRoomModal] = useState(false);
 
-  // Compute matched session user data by querying the message table
-  const userMatchedSessionData = useMemo(() => {
-    return batchWallService.getUserMatchedChatData({
-      id: currentUser?.id,
-      email: currentUser?.email,
-      name: currentUser?.name || profileNameInput || studentName
+  useEffect(() => {
+    const unsubVoice = voiceRoomService.subscribe(() => setVoiceTick(t => t + 1));
+    const unsubCheer = voiceRoomService.onCheer((cheer) => {
+      setShareToast(`🎉 ${cheer.senderName} sent voice cheer: ${cheer.emoji} ${cheer.label}!`);
+      setTimeout(() => setShareToast(null), 2500);
     });
-  }, [currentUser, profileNameInput, studentName, chatMessages]);
+    return () => {
+      unsubVoice();
+      unsubCheer();
+    };
+  }, []);
+
+  const isVoiceRoomConnected = voiceRoomService.getIsJoined();
+  const isVoiceMuted = voiceRoomService.getIsMuted();
+  const isVoiceDeafened = voiceRoomService.getIsDeafened();
+  const userIsSpeaking = voiceRoomService.getIsSpeaking();
+  const voiceParticipants = voiceRoomService.getParticipants();
+
+  const handleJoinVoiceRoom = async () => {
+    audioEngine.playSfx('levelup');
+    const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
+    const email = currentUser?.email || authService.getFirebaseUser()?.email || undefined;
+    const avatar = currentUser?.avatarUrl || profileAvatarInput || '/marisol/avatars/01_brighter_ideas.png';
+    const uid = currentUser?.id || authService.getFirebaseUser()?.uid || `user_${player.nickname || 'Student'}`;
+
+    await voiceRoomService.joinRoom({
+      id: uid,
+      name,
+      email,
+      avatarUrl: avatar
+    });
+
+    setShowVoiceRoomModal(true);
+    setShareToast('Joined Batch 41 Voice Room 🔊✨');
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  const toggleVoiceRoomMute = () => {
+    const muted = voiceRoomService.toggleMute();
+    setShareToast(muted ? 'Microphone Muted 🔇' : 'Microphone Live 🎙️');
+    setTimeout(() => setShareToast(null), 1800);
+  };
+
+  const toggleVoiceRoomDeafen = () => {
+    const deafened = voiceRoomService.toggleDeafen();
+    setShareToast(deafened ? 'Audio Deafened 🎧' : 'Audio Active 🔊');
+    setTimeout(() => setShareToast(null), 1800);
+  };
+
+  const handleDisconnectVoiceRoom = () => {
+    voiceRoomService.leaveRoom();
+    setShowVoiceRoomModal(false);
+    setShareToast('Left Voice Room 📞');
+    setTimeout(() => setShareToast(null), 2000);
+  };
+
+  const handleSendVoiceCheer = (emoji: string, label: string, sfx: 'fanfare' | 'pop' | 'powerup' | 'levelup') => {
+    voiceRoomService.sendCheer(emoji, label, sfx);
+    if (label === 'Cheer') {
+      confetti({ particleCount: 40, spread: 50, origin: { y: 0.6 } });
+    }
+    setShareToast(`Sent voice cheer: ${emoji} ${label}!`);
+    setTimeout(() => setShareToast(null), 1800);
+  };
 
   useEffect(() => {
     const unsubWall = batchWallService.subscribe(() => setTick(t => t + 1));
@@ -2018,9 +2214,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   useEffect(() => {
     if (activeMode === 'chat') {
-      if (chatSubTab === 'group') {
-        chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
       const userToMark = currentUser ? {
         userId: currentUser.id,
         userName: currentUser.name,
@@ -2033,7 +2227,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       };
       batchWallService.markAllMessagesAsSeen(userToMark);
     }
-  }, [activeMode, chatSubTab, currentUser]);
+  }, [activeMode, currentUser]);
 
   useEffect(() => {
     if (currentUser?.name) {
@@ -2053,53 +2247,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     }
   }, [currentUser]);
 
-  // Post an Important Pinned Notice into the group and pinned section
-  const handleCreatePinnedAnnouncement = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!authService.isUserAllowedToChat()) {
-      setShowGoogleModal(true);
-      setShareToast('Please connect with your Email ID to pin announcements! 🔒');
-      setTimeout(() => setShareToast(null), 3000);
-      return;
-    }
-    if (!pinNoticeText.trim()) return;
-
-    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
-    if (!senderId) {
-      setShowGoogleModal(true);
-      return;
-    }
-
-    audioEngine.playSfx('fanfare');
-    const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
-    const email = currentUser?.email;
-    const avatar = currentUser?.avatarUrl || profileAvatarInput;
-
-    try {
-      await batchWallService.sendGroupChatMessage({
-        senderId,
-        senderName: name,
-        senderEmail: email,
-        avatarUrl: avatar,
-        senderIsNewUser: currentUser?.isNewUser ?? true,
-        senderUserTag: currentUser?.userTag || 'New User',
-        text: `${pinNoticeCategory}: ${pinNoticeText.trim()}`,
-        isPinned: true,
-        pinnedBy: senderId,
-        pinnedAt: Date.now()
-      });
-
-      setPinNoticeText('');
-      setShowPinAnnouncementModal(false);
-      setShareToast('Important announcement posted & pinned to new section! 📌✨');
-      setChatSubTab('pinned');
-      setTimeout(() => setShareToast(null), 3000);
-    } catch (err) {
-      setShareToast('Unable to post pinned announcement to Firestore. Check connection.');
-      setTimeout(() => setShareToast(null), 3000);
-    }
-  };
-
   // Chat Image Upload
   const handleChatImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2114,13 +2261,23 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     if (chatFileInputRef.current) chatFileInputRef.current.value = '';
   };
 
-  // Photo Post Image Upload
+  // Photo Post Image Upload (Supports uploading multiple photos in one poster)
   const handlePhotoPostImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     try {
-      const compressed = await compressImageFile(file, 1080, 0.8);
-      setNewPostImage(compressed);
+      const compressedList: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const compressed = await compressImageFile(files[i], 1080, 0.8);
+        compressedList.push(compressed);
+      }
+      setNewPostImages(prev => {
+        const updated = [...prev, ...compressedList];
+        if (!newPostImage && updated.length > 0) {
+          setNewPostImage(updated[0]);
+        }
+        return updated;
+      });
       audioEngine.playSfx('pop');
     } catch (err) {
       console.warn('Image processing failed:', err);
@@ -2192,10 +2349,20 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       return;
     }
 
-    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    // Ensure Firebase Auth session is active before sending
+    let fbUser = authService.getFirebaseUser();
+    if (!fbUser && authService.isFirebaseEnabled) {
+      try {
+        fbUser = await authService.ensureFirebaseAuthSession();
+      } catch (authErr) {
+        console.warn('[Batch 41 Group Chat] Auth session initialization failed:', authErr);
+      }
+    }
+
+    const senderId = fbUser?.uid || currentUser?.id;
     if (!senderId) {
       setShowGoogleModal(true);
-      setShareToast('Authentication required. Please sign in to chat! 🔒');
+      setShareToast('🔑 Authentication required. Please sign in to chat!');
       setTimeout(() => setShareToast(null), 3000);
       return;
     }
@@ -2206,9 +2373,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     setIsSendingChat(true);
     audioEngine.playSfx('fanfare');
 
-    const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
-    const email = currentUser?.email;
-    const avatar = currentUser?.avatarUrl || profileAvatarInput;
+    const name = currentUser?.name || fbUser?.displayName || profileNameInput || studentName || 'Batch 41 Student';
+    const email = fbUser?.email || currentUser?.email || undefined;
+    const avatar = fbUser?.photoURL || currentUser?.avatarUrl || profileAvatarInput;
     const isKritika = name.toLowerCase().includes('kritika') || 
                       (email && email.toLowerCase().includes('kritika')) ||
                       name.toLowerCase().includes('marisol');
@@ -2242,9 +2409,29 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       setTimeout(() => {
         chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
-    } catch (err) {
-      setShareToast('Unable to send message to Firestore. Check connection.');
-      setTimeout(() => setShareToast(null), 3000);
+    } catch (err: any) {
+      const errCode = err?.code || 'unknown';
+      console.error('[Batch 41 Group Chat] Error sending message:', {
+        code: errCode,
+        message: err?.message,
+        error: err
+      });
+
+      let errorMsg = 'Failed to send message.';
+      if (errCode === 'permission-denied') {
+        errorMsg = '🔒 Permission denied: Chat access restricted by Firestore security rules.';
+      } else if (errCode === 'unauthenticated') {
+        errorMsg = '🔑 Login expired or not established. Please sign in again.';
+      } else if (errCode === 'unavailable' || errCode === 'deadline-exceeded') {
+        errorMsg = '📡 Network unavailable. Message saved offline and will sync once reconnected.';
+      } else if (errCode === 'resource-exhausted') {
+        errorMsg = '⏳ Rate limit or quota exceeded. Please wait a moment.';
+      } else if (err?.message) {
+        errorMsg = `Error [${errCode}]: ${err.message}`;
+      }
+
+      setShareToast(errorMsg);
+      setTimeout(() => setShareToast(null), 5000);
     } finally {
       setIsSendingChat(false);
     }
@@ -2272,19 +2459,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     setTimeout(() => setShareToast(null), 2500);
   };
 
-  const handleTogglePinMessage = async (msg: GroupChatMessage) => {
-    audioEngine.playSfx('pop');
-    if (msg.isPinned) {
-      await batchWallService.unpinChatMessage(msg.id);
-      setShareToast('Message unpinned 📌');
-    } else {
-      const pinner = currentUser?.id || authService.getFirebaseUser()?.uid || currentUser?.name || 'Classmate';
-      await batchWallService.pinChatMessage(msg.id, pinner);
-      setShareToast('Message pinned to top 📌✨');
-    }
-    setActiveActionMenuMsgId(null);
-    setTimeout(() => setShareToast(null), 2500);
-  };
 
   const handleJumpToMessage = (messageId: string) => {
     const el = document.getElementById(`chat-msg-${messageId}`);
@@ -2360,19 +2534,43 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     setTimeout(() => setShareToast(null), 2500);
   };
 
-  const handleDeletePost = async (post: InstagramPost) => {
+  const handleDeletePost = (post: InstagramPost) => {
     audioEngine.playSfx('pop');
-    const result = await batchWallService.deleteInstagramPost(post.id, {
+    setActivePostMenuId(null);
+    setDeleteConfirmPost({
+      id: post.id,
+      type: 'photo',
+      title: post.caption ? `"${post.caption.slice(0, 35)}..."` : 'Photo Post'
+    });
+  };
+
+  const handleConfirmDeletePost = async () => {
+    if (!deleteConfirmPost) return;
+    setIsDeletingPost(true);
+    audioEngine.playSfx('pop');
+
+    const deleter = {
       id: currentUser?.id,
       email: currentUser?.email,
       name: currentUser?.name || profileNameInput
-    });
+    };
+
+    let result: { success: boolean; error?: string };
+    if (deleteConfirmPost.type === 'photo') {
+      result = await batchWallService.deleteInstagramPost(deleteConfirmPost.id, deleter);
+    } else {
+      result = await batchWallService.deletePost(deleteConfirmPost.id, deleter);
+    }
+
+    setIsDeletingPost(false);
+    setDeleteConfirmPost(null);
+    setActivePostMenuId(null);
+
     if (!result.success) {
       setShareToast(result.error || 'Failed to delete post');
     } else {
-      setShareToast('Post deleted 🗑️');
+      setShareToast('Post completely deleted 🗑️');
     }
-    setActivePostMenuId(null);
     setTimeout(() => setShareToast(null), 2500);
   };
 
@@ -2386,7 +2584,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       return;
     }
 
-    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+    const fbUser = authService.getFirebaseUser();
+    const senderId = fbUser?.uid || currentUser?.id;
     if (!senderId) {
       setShowGoogleModal(true);
       return;
@@ -2395,9 +2594,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     if (!pollQuestion.trim() || !pollOption1.trim() || !pollOption2.trim()) return;
 
     audioEngine.playSfx('fanfare');
-    const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
-    const email = currentUser?.email;
-    const avatar = currentUser?.avatarUrl || profileAvatarInput;
+    const name = currentUser?.name || fbUser?.displayName || profileNameInput || studentName || 'Batch 41 Student';
+    const email = fbUser?.email || currentUser?.email || undefined;
+    const avatar = fbUser?.photoURL || currentUser?.avatarUrl || profileAvatarInput;
 
     const options = [
       { id: 'opt_1', text: pollOption1.trim(), votes: [] },
@@ -2428,9 +2627,27 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       setTimeout(() => {
         chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
-    } catch (err) {
-      setShareToast('Failed to create poll in Firestore.');
-      setTimeout(() => setShareToast(null), 3000);
+    } catch (err: any) {
+      const errCode = err?.code || 'unknown';
+      console.error('[Batch 41 Group Chat] Error creating poll:', {
+        code: errCode,
+        message: err?.message,
+        error: err
+      });
+      let errorMsg = 'Failed to create poll.';
+      if (errCode === 'permission-denied') {
+        errorMsg = '🔒 Permission denied: Creating polls restricted by Firestore rules.';
+      } else if (errCode === 'unauthenticated') {
+        errorMsg = '🔑 Login expired. Please sign in again.';
+      } else if (errCode === 'unavailable' || errCode === 'deadline-exceeded') {
+        errorMsg = '📡 Network unavailable. Please check your connection.';
+      } else if (errCode === 'resource-exhausted') {
+        errorMsg = '⏳ Rate limit or quota exceeded. Please wait a moment.';
+      } else if (err?.message) {
+        errorMsg = `Error [${errCode}]: ${err.message}`;
+      }
+      setShareToast(errorMsg);
+      setTimeout(() => setShareToast(null), 5000);
     }
   };
 
@@ -2455,16 +2672,63 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const handleDoubleTapPost = (post: InstagramPost) => {
     audioEngine.playSfx('fanfare');
     setHeartBurstId(post.id);
-    batchWallService.likeInstagramPost(post.id, currentUser?.name);
+    batchWallService.likeInstagramPost(post.id, {
+      id: currentUser?.id,
+      name: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
+      email: currentUser?.email,
+      avatarUrl: currentUser?.avatarUrl || profileAvatarInput
+    });
     confetti({ particleCount: 40, spread: 50, origin: { y: 0.6 } });
     setTimeout(() => setHeartBurstId(null), 900);
   };
 
-  // Submit Photo Post
+  const handleToggleLikePost = (post: InstagramPost) => {
+    audioEngine.playSfx('pop');
+    batchWallService.likeInstagramPost(post.id, {
+      id: currentUser?.id,
+      name: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
+      email: currentUser?.email,
+      avatarUrl: currentUser?.avatarUrl || profileAvatarInput
+    });
+  };
+
+  const handleReactToPost = (postId: string, emoji: string) => {
+    audioEngine.playSfx('pop');
+    batchWallService.reactToInstagramPost(postId, emoji, {
+      id: currentUser?.id,
+      name: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
+      email: currentUser?.email
+    });
+    setActiveReactionPickerPostId(null);
+  };
+
+  const handleLikeComment = (postId: string, commentId: string) => {
+    audioEngine.playSfx('pop');
+    const name = currentUser?.name || profileNameInput || studentName || 'Batch 41 Student';
+    batchWallService.likeInstagramComment(postId, commentId, name);
+  };
+
+  const handleSharePost = async (post: InstagramPost) => {
+    audioEngine.playSfx('pop');
+    const updatedCount = await batchWallService.shareInstagramPost(post.id, {
+      id: currentUser?.id,
+      name: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student'
+    });
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(window.location.href);
+    }
+
+    setShareToast(`Link copied! Shared ${updatedCount} time${updatedCount > 1 ? 's' : ''} 🚀✨`);
+    setTimeout(() => setShareToast(null), 2500);
+  };
+
+  // Submit Photo Post (Supports multi-photo poster)
   const handleCreatePhotoPost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPostImage) {
-      alert('Please upload or select a photo for your post!');
+    const imagesToPublish = newPostImages.length > 0 ? newPostImages : (newPostImage ? [newPostImage] : []);
+    if (imagesToPublish.length === 0) {
+      alert('Please upload or select at least one photo for your poster!');
       return;
     }
     setIsPublishingPost(true);
@@ -2477,13 +2741,16 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       authorName: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
       authorAvatarUrl: currentUser?.avatarUrl || profileAvatarInput,
       location: newPostLocation,
-      imageUrl: newPostImage,
+      imageUrl: imagesToPublish[0],
+      images: imagesToPublish,
       filter: newPostFilter,
       caption: newPostCaption.trim(),
       hashtags: selectedTags
     });
 
+    setNewPostImages([]);
     setNewPostImage(null);
+    setActiveCreatePreviewIndex(0);
     setNewPostCaption('');
     setNewPostFilter('none');
     setSelectedTags(['#Batch41', '#ComfortVibes']);
@@ -2567,16 +2834,19 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     setExpandedReplies(prev => ({ ...prev, [postId]: true }));
   };
 
-  const handleShareClick = (title: string) => {
-    audioEngine.playSfx('pop');
-    navigator.clipboard?.writeText(window.location.href);
-    setShareToast(`Link for "${title || 'Post'}" copied to clipboard! ✨`);
-    setTimeout(() => setShareToast(null), 2500);
-  };
+  const displayedChatMessages = chatMessages;
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] p-2.5 sm:p-5 pb-28 text-stone-900">
-      <div className="max-w-4xl lg:max-w-5xl mx-auto space-y-3 sm:space-y-4">
+    <div className={`bg-[#FAF8F5] text-stone-900 w-full ${
+      activeMode === 'chat' 
+        ? 'h-full flex-1 min-h-0 flex flex-col overflow-hidden p-1.5 sm:p-2.5 pb-1' 
+        : 'min-h-screen p-2.5 sm:p-5 pb-20'
+    }`}>
+      <div className={`max-w-4xl lg:max-w-5xl mx-auto w-full ${
+        activeMode === 'chat' 
+          ? 'h-full flex-1 min-h-0 flex flex-col overflow-hidden' 
+          : 'space-y-3 sm:space-y-4'
+      }`}>
 
         {/* Sync Toast Notification */}
         {network.syncToast && (
@@ -2610,97 +2880,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           </div>
         )}
 
-        {/* 1. MULTI-PERSON ACTIVE USER BAR WITH SESSION USER DATA & MESSAGE TABLE MATCH */}
-        <div className="bg-white border border-stone-200/90 rounded-2xl p-2.5 px-3.5 shadow-2xs flex items-center justify-between gap-2.5 flex-wrap">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="relative w-8 h-8 rounded-full overflow-hidden border-2 border-rose-400 shrink-0 bg-rose-50 shadow-2xs">
-              <img 
-                src={currentUser?.avatarUrl || profileAvatarInput || AVATAR_PRESETS[0].url} 
-                alt="Your Avatar" 
-                className="w-full h-full object-cover" 
-              />
-            </div>
-            <div className="min-w-0 text-left">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-display font-black text-rose-600 uppercase tracking-wider">
-                  You are active as:
-                </span>
-                {currentUser?.isGoogleVerified && (
-                  <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.2 rounded-full">
-                    Google Verified ✓
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <h4 className="font-display font-black text-xs sm:text-sm text-stone-900 truncate">
-                  {currentUser?.name || profileNameInput || 'Batch 41 Member'}
-                </h4>
-                {/* Session User ID Tag */}
-                <span 
-                  className="font-mono text-[9px] sm:text-[10px] bg-stone-100 text-stone-700 px-1.5 py-0.2 rounded border border-stone-300 font-bold"
-                  title="Current Session User ID"
-                >
-                  UID: {userMatchedSessionData.userId}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Current Message for User Snippet (Quick Jump) */}
-          {userMatchedSessionData.currentMessage ? (
-            <button
-              type="button"
-              onClick={() => handleJumpToMessage(userMatchedSessionData.currentMessage!.id)}
-              className="hidden md:flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-900 px-2.5 py-1 rounded-xl text-xs font-medium cursor-pointer transition-colors max-w-[240px] lg:max-w-[320px] truncate"
-              title={`Current message: "${userMatchedSessionData.currentMessage.text}". Click to jump.`}
-            >
-              <span className="font-bold text-rose-700 text-[10px] uppercase shrink-0">Current Msg:</span>
-              <span className="truncate italic">"{userMatchedSessionData.currentMessage.text.slice(0, 30)}..."</span>
-              <span className="text-rose-600 text-[10px] font-bold underline shrink-0">Jump ↗</span>
-            </button>
-          ) : (
-            <span className="hidden md:inline text-[11px] text-stone-400 italic">No messages sent in table yet</span>
-          )}
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Pinned & Important Quick Button */}
-            <button
-              type="button"
-              onClick={() => {
-                audioEngine.playSfx('click');
-                setActiveMode('chat');
-                setChatSubTab('pinned');
-              }}
-              className="py-1.5 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl text-xs font-display font-bold flex items-center gap-1 transition-colors cursor-pointer border border-amber-200"
-              title="View Pinned Notices & Important Highlights"
-            >
-              <Pin className="w-3.5 h-3.5 text-amber-600" />
-              <span>Pinned ({batchWallService.getPinnedMessages().length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowProfileModal(true)}
-              className="py-1.5 px-3 bg-stone-100 hover:bg-rose-50 hover:text-rose-600 text-stone-700 rounded-xl text-xs font-display font-bold flex items-center gap-1 transition-colors cursor-pointer border border-stone-200"
-              title="Switch user profile or test as different batch member"
-            >
-              <UserCheck className="w-3.5 h-3.5 text-rose-500" />
-              <span>Switch Profile</span>
-            </button>
-            {!authService.isUserAllowedToChat() && (
-              <button
-                type="button"
-                onClick={() => setShowGoogleModal(true)}
-                className="py-1.5 px-3 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white rounded-xl text-xs font-display font-black flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
-              >
-                <span>Sign In With Mail</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* 2. UNIFIED COHESIVE TAB SWITCHER */}
-        <div className="grid grid-cols-3 gap-1 bg-stone-200/70 p-1 rounded-2xl border border-stone-300/80">
+        {/* UNIFIED COHESIVE TAB SWITCHER */}
+        <div className="grid grid-cols-3 gap-1 bg-stone-200/70 p-1 rounded-2xl border border-stone-300/80 mb-1.5 shrink-0">
           <button
             onClick={() => {
               audioEngine.playSfx('click');
@@ -2747,214 +2928,160 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           </button>
         </div>
 
-        {/* ==================== 1. BATCH LOUNGE & DIRECT CHAT ==================== */}
+        {/* ==================== 1. BATCH LOUNGE (Real-Time Group Chat) ==================== */}
         {activeMode === 'chat' && (
-          <div className="bg-white border border-stone-200/90 rounded-3xl overflow-hidden shadow-xs flex flex-col h-[580px] sm:h-[650px] lg:h-[700px] animate-fade-in relative">
-            
-            {/* 2-Way Tab Selector: 💬 Group Chat | 📌 Important & Pinned */}
-            <div className="bg-stone-100/90 border-b border-stone-200/90 p-1.5 px-3 flex items-center justify-between gap-2 shrink-0 flex-wrap">
-              <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-stone-200/90 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playSfx('click');
-                    setChatSubTab('group');
-                  }}
-                  className={`px-3 py-1.5 rounded-lg font-display font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
-                    chatSubTab === 'group'
-                      ? 'bg-rose-600 text-white shadow-xs'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
-                  }`}
-                >
-                  <MessagesSquare className="w-3.5 h-3.5" />
-                  <span>💬 Group Chat</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                    chatSubTab === 'group' ? 'bg-rose-800 text-white' : 'bg-stone-100 text-stone-600'
-                  }`}>
-                    {chatMessages.length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playSfx('click');
-                    setChatSubTab('pinned');
-                  }}
-                  className={`px-3 py-1.5 rounded-lg font-display font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
-                    chatSubTab === 'pinned'
-                      ? 'bg-amber-500 text-white shadow-xs'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
-                  }`}
-                >
-                  <Pin className="w-3.5 h-3.5 fill-current" />
-                  <span>📌 Important & Pinned</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                    chatSubTab === 'pinned' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-900'
-                  }`}>
-                    {chatMessages.filter(m => m.isPinned).length}
-                  </span>
-                </button>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                {currentUser?.email ? (
-                  <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-2xs">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
-                    <span className="truncate max-w-[140px] sm:max-w-none">{currentUser.email}</span>
-                    <span className="bg-emerald-600 text-white text-[7px] font-black uppercase px-1 rounded">CONNECTED</span>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowGoogleModal(true)}
-                    className="inline-flex items-center gap-1.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-[10px] font-display font-bold px-2.5 py-1 rounded-full cursor-pointer transition-all shadow-2xs active:scale-95"
-                  >
-                    <Lock className="w-3 h-3" />
-                    <span>Connect with Email to Chat</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* A. BATCH CONNECTED GROUP CHAT */}
-            {chatSubTab === 'group' && (
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                {/* Clean Modern Lounge Top Bar */}
-                <div className="bg-white border-b border-stone-200/80 text-stone-900 p-2.5 px-4 flex items-center justify-between shrink-0 shadow-2xs">
-              <div 
-                onClick={() => setShowProfileModal(true)}
-                className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-85 transition-opacity"
-              >
-                <div className="relative shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-200 overflow-hidden flex items-center justify-center text-lg font-bold shadow-2xs">
-                    🌸
-                  </div>
-                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-display font-black text-sm text-stone-900 leading-tight truncate">
-                      Batch 41 Connected Group Chat
-                    </h3>
-                    {/* Real-time Status Badge */}
-                    {chatStatus.status === 'connecting' && (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
-                        <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping" />
-                        <span>Connecting to Batch 41...</span>
-                      </span>
-                    )}
-                    {chatStatus.status === 'connected' && (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                        <span>Connected ✓</span>
-                      </span>
-                    )}
-                    {chatStatus.status === 'offline' && (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded-full border border-stone-200 shrink-0">
-                        <span className="w-1.5 h-1.5 bg-stone-400 rounded-full" />
-                        <span>Offline — showing cached messages</span>
-                      </span>
-                    )}
-                    {chatStatus.status === 'error' && (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 shrink-0">
-                        <AlertCircle className="w-3 h-3 text-rose-500" />
-                        <span>Connection issue</span>
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-stone-500 font-medium truncate">
-                    {currentUser?.email ? `Chatting as ${currentUser.name} (${currentUser.email})` : 'Connected email users chatting together'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Chat Message Table Filter (All vs My Messages Matched) */}
-              <div className="flex items-center gap-1 bg-stone-100 p-0.5 rounded-xl border border-stone-200 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playSfx('click');
-                    setChatFilterMode('all');
-                  }}
-                  className={`px-2 py-1 rounded-lg font-display font-bold text-[10px] sm:text-[11px] transition-colors cursor-pointer ${
-                    chatFilterMode === 'all'
-                      ? 'bg-white text-stone-900 shadow-2xs'
-                      : 'text-stone-500 hover:text-stone-800'
-                  }`}
-                  title="Show all messages in the chat lounge"
-                >
-                  All ({chatMessages.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playSfx('click');
-                    setChatFilterMode('my_messages');
-                  }}
-                  className={`px-2 py-1 rounded-lg font-display font-bold text-[10px] sm:text-[11px] transition-colors cursor-pointer flex items-center gap-1 ${
-                    chatFilterMode === 'my_messages'
-                      ? 'bg-purple-600 text-white shadow-2xs'
-                      : 'text-stone-500 hover:text-stone-800'
-                  }`}
-                  title={`Show only messages matching your session User ID: ${userMatchedSessionData.userId}`}
-                >
-                  <span>My Messages</span>
-                  <span className={`text-[9px] px-1 rounded-full ${
-                    chatFilterMode === 'my_messages' ? 'bg-purple-800 text-white' : 'bg-stone-200 text-stone-700'
-                  }`}>
-                    {userMatchedSessionData.totalMatched}
-                  </span>
-                </button>
-              </div>
-
-              {/* Action Icons */}
-              <div className="flex items-center gap-1 text-stone-600">
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playSfx('pop');
-                    setShareToast('Video room connection ready 📹');
-                    setTimeout(() => setShareToast(null), 2000);
-                  }}
-                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
-                  title="Video Call"
-                >
-                  <Video className="w-4.5 h-4.5" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playSfx('pop');
-                    setShareToast('Voice lounge active 📞');
-                    setTimeout(() => setShareToast(null), 2000);
-                  }}
-                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
-                  title="Voice Call"
-                >
-                  <Phone className="w-4.5 h-4.5" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowCreatePollModal(true)}
-                  className="p-1.5 hover:bg-stone-100 hover:text-rose-600 rounded-full cursor-pointer text-stone-600 transition-colors"
-                  title="Group Poll"
-                >
-                  <BarChart2 className="w-4.5 h-4.5" />
-                </button>
-
+          <div className="bg-white border border-stone-200/90 rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm flex flex-col flex-1 min-h-0 animate-fade-in relative">
+            {/* Clean Chat Top Bar: [ User Avatar / Initials ] [ All (X) ]  📹  📞  📊  ⋮ */}
+            <div className="bg-white border-b border-stone-200/80 text-stone-900 px-3 sm:px-4 py-2 flex items-center justify-between shrink-0 shadow-2xs">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                {/* User Avatar with Green Online Dot */}
                 <button
                   type="button"
                   onClick={() => setShowProfileModal(true)}
-                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full cursor-pointer transition-colors"
+                  className="relative shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                  title="View Profile / Group Info"
+                >
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-stone-200/90 overflow-hidden flex items-center justify-center shadow-2xs bg-stone-100">
+                    {hasValidAvatarPic ? (
+                      <img
+                        src={currentUserProfilePic}
+                        alt={currentProfileName}
+                        className="w-full h-full object-cover"
+                        onError={() => setFailedAvatarUrl(currentUserProfilePic)}
+                      />
+                    ) : (
+                      <div className={`w-full h-full flex items-center justify-center font-display font-bold text-xs sm:text-sm select-none ${getInitialsBgColor(currentProfileName)}`}>
+                        {getInitials(currentProfileName)}
+                      </div>
+                    )}
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
+                </button>
+
+                {/* Chat Count Tab: All (X) */}
+                <div className="bg-stone-100/90 border border-stone-200/80 rounded-full p-0.5 sm:p-1 flex items-center shadow-2xs">
+                  <div className="bg-white text-stone-900 px-3 py-1 rounded-full text-xs sm:text-[13px] font-display font-bold shadow-xs">
+                    All ({chatMessages.length})
+                  </div>
+                </div>
+              </div>
+
+              {/* 4 Clean Action Icons: Video, Phone, Poll/Chart, More */}
+              <div className="flex items-center gap-2 sm:gap-3 text-stone-600 shrink-0">
+                {/* Video Call Icon */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('pop');
+                    if (!isVoiceRoomConnected) {
+                      handleJoinVoiceRoom();
+                    } else {
+                      setShowVoiceRoomModal(true);
+                    }
+                  }}
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full transition-colors cursor-pointer"
+                  title="Voice & Video Room"
+                >
+                  <Video className="w-5 h-5 text-stone-600 hover:text-stone-900" />
+                </button>
+
+                {/* Phone Call Icon */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('pop');
+                    if (!isVoiceRoomConnected) {
+                      handleJoinVoiceRoom();
+                    } else {
+                      setShowVoiceRoomModal(true);
+                    }
+                  }}
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full transition-colors cursor-pointer"
+                  title="Audio Call"
+                >
+                  <Phone className="w-5 h-5 text-stone-600 hover:text-stone-900" />
+                </button>
+
+                {/* Poll / BarChart Icon */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setShowCreatePollModal(true);
+                  }}
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full transition-colors cursor-pointer"
+                  title="Create Group Poll"
+                >
+                  <BarChart2 className="w-5 h-5 text-stone-600 hover:text-stone-900" />
+                </button>
+
+                {/* More Options / Profile Info Icon */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioEngine.playSfx('click');
+                    setShowProfileModal(true);
+                  }}
+                  className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full transition-colors cursor-pointer"
                   title="Group Info & Profile"
                 >
-                  <MoreVertical className="w-4.5 h-4.5" />
+                  <MoreVertical className="w-5 h-5 text-stone-600 hover:text-stone-900" />
                 </button>
               </div>
             </div>
+
+            {/* Discord-Style Persistent Active Voice Bar (Speak anytime while chatting) */}
+            {isVoiceRoomConnected && (
+              <div className="bg-[#2B2D31] text-white px-3 py-1.5 flex items-center justify-between text-xs shrink-0 shadow-xs border-b border-[#1E1F22] animate-fade-in">
+                <div 
+                  onClick={() => setShowVoiceRoomModal(true)}
+                  className="flex items-center gap-2 min-w-0 cursor-pointer hover:opacity-90 transition-opacity"
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <div className="min-w-0">
+                    <span className="font-display font-bold text-[11px] sm:text-xs text-emerald-400 block truncate">
+                      🔊 Voice Connected • Batch 41 Voice Room
+                    </span>
+                    <span className="text-[10px] text-stone-300 block truncate">
+                      {userIsSpeaking ? '🎙️ You are speaking...' : isVoiceMuted ? '🔇 You are muted' : '🎙️ Mic live (Speak anytime)'} • Tap for stage
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={toggleVoiceRoomMute}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      isVoiceMuted ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30'
+                    }`}
+                    title={isVoiceMuted ? 'Unmute Microphone' : 'Mute Microphone'}
+                  >
+                    {isVoiceMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={toggleVoiceRoomDeafen}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      isVoiceDeafened ? 'bg-rose-500/20 text-rose-400' : 'bg-stone-700 text-stone-300 hover:bg-stone-600'
+                    }`}
+                    title={isVoiceDeafened ? 'Undeafen Audio' : 'Deafen Audio'}
+                  >
+                    {isVoiceDeafened ? <VolumeX className="w-3.5 h-3.5" /> : <Headphones className="w-3.5 h-3.5" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDisconnectVoiceRoom}
+                    className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors cursor-pointer ml-1"
+                    title="Disconnect from Voice Room"
+                  >
+                    <PhoneOff className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Error Banner with Retry Button */}
             {chatStatus.status === 'error' && (
@@ -2977,96 +3104,14 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               </div>
             )}
 
-            {/* Interactive Pinned Message Banner leading to Important Section */}
-            {(() => {
-              const pinnedCount = chatMessages.filter(m => m.isPinned).length;
-              if (pinnedCount === 0) return null;
-              const latestPinned = chatMessages.slice().reverse().find(m => m.isPinned);
-
-              return (
-                <div 
-                  onClick={() => {
-                    audioEngine.playSfx('click');
-                    setChatSubTab('pinned');
-                  }}
-                  className="bg-gradient-to-r from-amber-50 via-rose-50 to-pink-50 border-b border-amber-200/90 px-3.5 py-2 flex items-center justify-between gap-2.5 z-20 shadow-xs cursor-pointer hover:bg-amber-100/60 transition-colors"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
-                      <Pin className="w-3.5 h-3.5 fill-white" />
-                    </div>
-                    <div className="min-w-0 text-left">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-display font-black text-[11px] text-amber-900 truncate">
-                          📌 {pinnedCount} Important Notice{pinnedCount > 1 ? 's' : ''} in Pinned Section
-                        </span>
-                        {latestPinned && (
-                          <span className="text-[10px] text-stone-500 truncate">
-                            • Latest: {latestPinned.senderName}
-                          </span>
-                        )}
-                      </div>
-                      <p className="font-sans text-xs text-stone-700 truncate max-w-md">
-                        {latestPinned?.text || 'Tap to view all important pinned items'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      onClick={() => setChatSubTab('pinned')}
-                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-[10px] font-display font-black shadow-2xs transition-all cursor-pointer flex items-center gap-1"
-                    >
-                      <span>View All ({pinnedCount}) →</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
-
             {/* Clean Stream Area (Pure, Clean Minimal Surface) */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin bg-[#FAFAFA]">
-              {/* Active Filter Notice if in my_messages mode */}
-              {chatFilterMode === 'my_messages' && (
-                <div className="bg-purple-50 border border-purple-200 text-purple-900 px-3 py-2 rounded-2xl flex items-center justify-between text-xs mb-2 shadow-2xs">
-                  <div className="flex items-center gap-2">
-                    <Filter className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                    <span>Showing <strong>{userMatchedSessionData.totalMatched}</strong> message(s) matched for User ID: <code className="bg-white px-1.5 py-0.5 rounded border border-purple-200 font-mono text-[11px] font-bold text-purple-950">{userMatchedSessionData.userId}</code></span>
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => setChatFilterMode('all')}
-                    className="text-xs font-bold text-purple-700 hover:text-purple-950 underline cursor-pointer shrink-0 ml-2"
-                  >
-                    Show All
-                  </button>
-                </div>
-              )}
+            <div className="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-3 space-y-3.5 scrollbar-thin overscroll-contain bg-[#FAFAFA]">
+              
 
-              {/* Empty state if my_messages has 0 items */}
-              {chatFilterMode === 'my_messages' && userMatchedSessionData.matchedMessages.length === 0 && (
-                <div className="p-8 text-center space-y-2.5 my-8">
-                  <div className="w-12 h-12 rounded-full bg-purple-50 text-purple-600 mx-auto flex items-center justify-center font-bold text-xl border border-purple-200">
-                    💬
-                  </div>
-                  <h4 className="font-display font-black text-sm text-stone-800">No Messages Matched in Table</h4>
-                  <p className="text-xs text-stone-500 max-w-sm mx-auto">
-                    No messages found matching your session User ID: <code className="font-mono bg-stone-100 px-1 py-0.5 rounded">{userMatchedSessionData.userId}</code>.
-                    Send a message below and it will immediately match!
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setChatFilterMode('all')}
-                    className="mt-2 py-1.5 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    View All Messages
-                  </button>
-                </div>
-              )}
+              
 
-              {/* Empty / Loading State for All Messages */}
-              {chatFilterMode === 'all' && chatMessages.length === 0 && (
+              {/* Empty / Loading State for Messages */}
+              {displayedChatMessages.length === 0 && (
                 <div className="p-12 text-center space-y-3 my-8">
                   {chatStatus.status === 'connecting' ? (
                     <div className="space-y-2.5">
@@ -3102,7 +3147,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               )}
 
               {/* Date Separators & Chat Stream */}
-              {(chatFilterMode === 'my_messages' ? userMatchedSessionData.matchedMessages : chatMessages).map((msg, index) => {
+              {displayedChatMessages.map((msg, index) => {
                 const isCurrentUser = Boolean(
                   (currentUser?.id && msg.senderId && currentUser.id === msg.senderId) ||
                   (currentUser?.email && msg.senderEmail && currentUser.email.trim().toLowerCase() === msg.senderEmail.trim().toLowerCase())
@@ -3145,24 +3190,15 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                         </div>
                       )}
 
-                      {/* Speech Bubble Card */}
+                      {/* Speech Bubble Card: Light Grey for Yours Chat, Clean White for Others */}
                       <div className="relative max-w-[85%] sm:max-w-[75%] space-y-1">
                         <div
                           className={`p-2.5 px-3 rounded-2xl shadow-2xs text-xs sm:text-sm leading-relaxed relative ${
                             isCurrentUser
-                              ? 'bg-rose-500 text-white rounded-tr-xs shadow-xs'
+                              ? 'bg-stone-200 text-stone-900 rounded-tr-xs border border-stone-300/80 shadow-2xs'
                               : 'bg-white text-stone-900 rounded-tl-xs border border-stone-200/80 shadow-2xs'
                           }`}
                         >
-                          {/* Pinned pill if message is pinned */}
-                          {msg.isPinned && (
-                            <div className={`flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full w-fit mb-1 shadow-2xs ${
-                              isCurrentUser ? 'bg-amber-400/30 text-amber-100 border border-amber-300/40' : 'bg-amber-50 text-amber-800 border border-amber-300'
-                            }`}>
-                              <Pin className="w-2.5 h-2.5 fill-current" />
-                              <span>Pinned</span>
-                            </div>
-                          )}
 
                           {/* 1. Distinct Bold Sender Name & Action Dropdown Trigger */}
                           <div className="flex items-center justify-between gap-2 mb-1">
@@ -3171,38 +3207,20 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                                 onClick={() => {
                                   setChatInput((prev: string) => `${prev ? prev + ' ' : ''}@${msg.senderName} `);
                                 }}
-                                className={`font-display font-black text-xs sm:text-[13px] tracking-tight ${isCurrentUser ? 'text-white' : senderColor} hover:underline cursor-pointer truncate`}
+                                className={`font-display font-black text-xs sm:text-[13px] tracking-tight ${isCurrentUser ? 'text-stone-900' : senderColor} hover:underline cursor-pointer truncate`}
                                 title="Click to mention in chat"
                               >
                                 {isCurrentUser ? 'You' : msg.senderName}
                               </span>
                               {msg.isKritika && (
-                                <span className={`${isCurrentUser ? 'bg-white text-rose-600' : 'bg-rose-500 text-white'} font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0`}>
+                                <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0">
                                   👑 QUEEN
                                 </span>
                               )}
                               {msg.senderIsNewUser && (
-                                <span className={`${isCurrentUser ? 'bg-white/20 text-white border border-white/30' : 'bg-gradient-to-r from-rose-500 to-pink-600 text-white'} font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0 flex items-center gap-0.5`}>
+                                <span className="bg-gradient-to-r from-rose-500 to-pink-600 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0 flex items-center gap-0.5">
                                   <span>✨</span>
                                   <span>NEW USER</span>
-                                </span>
-                              )}
-                              {/* Matched User ID badge on bubble */}
-                              {msg.senderId && (
-                                <span 
-                                  className={`font-mono text-[8px] px-1 py-0.2 rounded border font-medium ${
-                                    isCurrentUser
-                                      ? 'bg-white/20 text-white border-white/30'
-                                      : 'bg-stone-100 text-stone-500 border-stone-200'
-                                  }`}
-                                  title={`Message sender User ID: ${msg.senderId}`}
-                                >
-                                  UID: {msg.senderId}
-                                </span>
-                              )}
-                              {isCurrentUser && (
-                                <span className="bg-white/25 text-white font-mono text-[7px] font-black uppercase px-1 py-0.2 rounded shadow-2xs shrink-0">
-                                  MATCHED
                                 </span>
                               )}
                             </div>
@@ -3237,19 +3255,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                                     <span>Reply</span>
                                   </button>
 
-                                  {/* Pin / Unpin to Important Section option */}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      handleTogglePinMessage(msg);
-                                      setShareToast(msg.isPinned ? 'Unpinned from Important section 📌' : 'Pinned to Important section! 📌✨');
-                                      setTimeout(() => setShareToast(null), 2500);
-                                    }}
-                                    className="w-full px-3 py-1.5 text-left hover:bg-amber-50 flex items-center gap-2 text-amber-800 font-bold cursor-pointer"
-                                  >
-                                    <Pin className="w-3.5 h-3.5 text-amber-600 fill-amber-600" />
-                                    <span>{msg.isPinned ? 'Unpin from Important' : 'Pin to Important Section'}</span>
-                                  </button>
 
                                   {/* STRICT AUTHOR-ONLY: Edit message ONLY if isCurrentUser is true */}
                                   {isCurrentUser && !msg.isDeletedForEveryone && (
@@ -3281,9 +3286,11 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
                         {/* Quoted Reply Banner */}
                         {msg.replyTo && !msg.isDeletedForEveryone && (
-                          <div className={`mb-1.5 p-1.5 px-2 rounded-lg border-l-4 text-[11px] ${
+                          <div 
+                            onClick={() => handleJumpToMessage(msg.replyTo!.id)}
+                            className={`mb-1.5 p-1.5 px-2 rounded-lg border-l-4 text-[11px] cursor-pointer hover:opacity-85 transition-opacity ${
                             isCurrentUser
-                              ? 'bg-emerald-50/80 border-[#005C4B] text-emerald-950'
+                              ? 'bg-white/80 border-[#008069] text-stone-800'
                               : 'bg-stone-100 border-[#008069] text-stone-700'
                           }`}>
                             <span className="font-display font-black block text-[10px] text-[#008069]">
@@ -3601,9 +3608,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               </div>
             ) : (
               /* Bottom Input Bar with Pill & Circular Send (Clean Modern Lounge Style) */
-              <form onSubmit={handleSendChatMessage} className="p-2.5 px-3 flex items-center gap-2 shrink-0 bg-white border-t border-stone-200/80">
+              <form onSubmit={handleSendChatMessage} className="p-2 sm:p-2.5 px-2 sm:px-3 flex items-center gap-1.5 sm:gap-2 shrink-0 bg-white border-t border-stone-200/80 w-full max-w-full box-border">
                 {/* Left Rounded Pill Container */}
-                <div className="flex-1 bg-stone-50 focus-within:bg-white focus-within:border-rose-300 rounded-full flex items-center px-2 py-1 shadow-2xs border border-stone-200 transition-all">
+                <div className="flex-1 min-w-0 bg-stone-100/90 focus-within:bg-white focus-within:border-rose-400 focus-within:ring-2 focus-within:ring-rose-100 rounded-full flex items-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 shadow-2xs border border-stone-200 transition-all">
                   {/* Emoji Smile Icon */}
                   <button
                     type="button"
@@ -3623,7 +3630,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     placeholder="Type a message..."
-                    className="flex-1 px-2.5 py-1 text-xs sm:text-sm outline-none bg-transparent text-stone-900"
+                    className="flex-1 min-w-0 px-1.5 sm:px-2 py-1 text-xs sm:text-sm outline-none bg-transparent text-stone-900 placeholder:text-stone-400"
                   />
 
                   {/* @Mention Trigger */}
@@ -3685,249 +3692,25 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   </button>
                 </div>
 
-                {/* Right Floating Circular Send / Mic Button */}
+                {/* Right Circular Send Button (Always Send, Voice Recorder Removed) */}
                 <button
-                  type={chatInput.trim() || chatImageAttachment ? "submit" : "button"}
-                  disabled={isSendingChat}
-                  onClick={() => {
-                    if (!chatInput.trim() && !chatImageAttachment) {
-                      audioEngine.playSfx('fanfare');
-                      setShareToast('Voice cheer sent! 🎙️✨');
-                      setTimeout(() => setShareToast(null), 2000);
-                    }
-                  }}
-                  className={`w-10 h-10 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-full transition-all shadow-sm cursor-pointer shrink-0 flex items-center justify-center ${isSendingChat ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  title={chatInput.trim() || chatImageAttachment ? "Send" : "Hold for voice note"}
+                  type="submit"
+                  disabled={(!chatInput.trim() && !chatImageAttachment) || isSendingChat}
+                  className={`w-9 h-9 sm:w-10 sm:h-10 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white rounded-full transition-all shadow-sm cursor-pointer shrink-0 flex items-center justify-center ${
+                    (!chatInput.trim() && !chatImageAttachment) || isSendingChat ? 'opacity-40 cursor-not-allowed' : ''
+                  }`}
+                  title="Send message"
                 >
-                  {chatInput.trim() || chatImageAttachment ? (
-                    <Send className="w-4.5 h-4.5" />
-                  ) : (
-                    <Mic className="w-4.5 h-4.5" />
-                  )}
+                  <Send className="w-4 h-4 sm:w-4.5 sm:h-4.5 ml-0.5" />
                 </button>
               </form>
             )}
           </div>
         )}
 
-        {/* B. DEDICATED PINNED & IMPORTANT SECTION */}
-        {chatSubTab === 'pinned' && (
-          <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-stone-50/50">
-            {/* Pinned Section Header */}
-            <div className="bg-gradient-to-r from-amber-50 via-rose-50 to-pink-50 border-b border-amber-200/90 p-3 px-4 flex items-center justify-between gap-3 shrink-0 shadow-2xs">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-2xs shrink-0">
-                  <Pin className="w-5 h-5 fill-white" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-display font-black text-xs sm:text-sm text-amber-950 flex items-center gap-1.5 truncate">
-                    <span>📌 Important & Pinned Highlights</span>
-                    <span className="bg-amber-500/20 text-amber-900 text-[10px] px-2 py-0.2 rounded-full font-mono font-bold">
-                      {chatMessages.filter(m => m.isPinned).length}
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-amber-800/80 truncate font-medium">
-                    Critical batch notices, milestone announcements & items pinned by connected members
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!authService.isUserAllowedToChat()) {
-                      setShowGoogleModal(true);
-                      setShareToast('Please connect with your Email ID to pin notices! 🔒');
-                      setTimeout(() => setShareToast(null), 3000);
-                      return;
-                    }
-                    setShowPinAnnouncementModal(true);
-                  }}
-                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-display font-black flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer active:scale-95"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Pin Announcement</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    audioEngine.playSfx('click');
-                    setChatSubTab('group');
-                  }}
-                  className="px-3 py-1.5 bg-white hover:bg-stone-100 text-stone-800 border border-stone-200 rounded-xl text-xs font-display font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1"
-                >
-                  <MessagesSquare className="w-3.5 h-3.5 text-rose-500" />
-                  <span>Back to Group</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Pinned Messages Stream */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin">
-              {(() => {
-                const pinnedList = chatMessages.filter(m => m.isPinned).slice().reverse();
-
-                if (pinnedList.length === 0) {
-                  return (
-                    <div className="text-center py-16 px-4 space-y-3 max-w-md mx-auto">
-                      <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-600 mx-auto flex items-center justify-center text-3xl border border-amber-200 shadow-sm animate-pulse">
-                        📌
-                      </div>
-                      <h4 className="font-display font-black text-sm text-stone-800">
-                        No Important Messages Pinned Yet
-                      </h4>
-                      <p className="text-xs text-stone-500 leading-relaxed">
-                        Whenever an important update, exam alert, or announcement is shared in the group, tap the <strong>Pin</strong> option or click <strong>Pin Announcement</strong> to showcase it here!
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!authService.isUserAllowedToChat()) {
-                            setShowGoogleModal(true);
-                            return;
-                          }
-                          setShowPinAnnouncementModal(true);
-                        }}
-                        className="mt-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs hover:from-amber-600 hover:to-rose-600 transition-all cursor-pointer inline-flex items-center gap-1.5"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Pin First Announcement</span>
-                      </button>
-                    </div>
-                  );
-                }
-
-                return pinnedList.map(msg => {
-                  return (
-                    <div
-                      key={msg.id}
-                      className="bg-white border-2 border-amber-300/80 rounded-2xl p-4 shadow-xs space-y-3 relative overflow-hidden transition-all hover:border-amber-400 group"
-                    >
-                      {/* Top Ribbon */}
-                      <div className="flex items-center justify-between gap-2 border-b border-amber-100 pb-2.5">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] font-display font-black uppercase px-2 py-0.5 rounded-full border border-amber-300">
-                            <Pin className="w-3 h-3 fill-amber-700 text-amber-700" />
-                            <span>Pinned Highlight</span>
-                          </span>
-                          <span className="text-[11px] text-stone-500 font-medium truncate">
-                            Pinned by <strong className="text-stone-800">{msg.pinnedBy || 'Connected Member'}</strong>
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleTogglePinMessage(msg);
-                              setShareToast('Unpinned notice 📌');
-                              setTimeout(() => setShareToast(null), 2500);
-                            }}
-                            className="px-2 py-1 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
-                            title="Unpin this notice"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Unpin</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Author Card Info */}
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full overflow-hidden border border-stone-200 shrink-0">
-                          <img
-                            src={msg.avatarUrl || '/marisol/avatars/01_brighter_ideas.png'}
-                            alt={msg.senderName}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-display font-bold text-xs text-stone-900">
-                              {msg.senderName}
-                            </span>
-                            {msg.senderIsNewUser && (
-                              <span className="bg-gradient-to-r from-amber-400 to-rose-400 text-white font-mono text-[7px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs shrink-0">
-                                NEW USER
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-stone-400 block font-medium">
-                            {msg.senderEmail || 'Connected Member'} • {msg.timestamp}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Content */}
-                      <div className="text-xs sm:text-sm text-stone-800 leading-relaxed font-sans font-medium whitespace-pre-wrap pl-1">
-                        {msg.text}
-                      </div>
-
-                      {/* Attached Photo if exists */}
-                      {msg.imageUrl && (
-                        <div className="rounded-xl overflow-hidden border border-stone-200 max-h-64 cursor-pointer group/img relative">
-                          <img
-                            src={msg.imageUrl}
-                            alt="Pinned attachment"
-                            onClick={() => setLightboxImage({ url: msg.imageUrl!, caption: msg.text })}
-                            className="w-full h-full object-cover hover:scale-101 transition-transform"
-                          />
-                        </div>
-                      )}
-
-                      {/* Poll View if exists */}
-                      {msg.poll && (
-                        <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-2">
-                          <span className="font-display font-black text-xs text-stone-900 flex items-center gap-1.5">
-                            <BarChart2 className="w-4 h-4 text-emerald-600" />
-                            <span>{msg.poll.question}</span>
-                          </span>
-                          <div className="space-y-1 pt-1">
-                            {msg.poll.options.map(opt => (
-                              <div
-                                key={opt.id}
-                                onClick={() => handleVotePoll(msg.id, opt.id)}
-                                className="p-2 rounded-lg bg-white border border-stone-200 text-xs flex items-center justify-between cursor-pointer hover:border-emerald-500"
-                              >
-                                <span>{opt.text}</span>
-                                <span className="font-bold text-[10px] text-stone-500">{opt.votes.length} votes</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Bottom Jump-to-Chat Button */}
-                      <div className="pt-2 border-t border-stone-100 flex items-center justify-between gap-2">
-                        <span className="text-[10px] text-stone-400 font-medium">
-                          Visible to everyone in Batch 41
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setChatSubTab('group');
-                            setTimeout(() => handleJumpToMessage(msg.id), 120);
-                          }}
-                          className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-display font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <MessagesSquare className="w-3.5 h-3.5 text-amber-700" />
-                          <span>Jump to in Group Chat →</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-        )}
-      </div>
-    )}
-
         {/* ==================== 2. CONCISE POST FEED ==================== */}
         {activeMode === 'posts' && (
-          <div className="space-y-3.5 animate-fade-in">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pb-8 scrollbar-thin animate-fade-in pr-0.5">
             {/* Story Mood Rings Bar */}
             <div className="bg-white border border-stone-200/90 rounded-2xl p-3 shadow-2xs space-y-2">
               <div className="flex items-center justify-between text-xs px-1">
@@ -4011,7 +3794,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
                 const postAuthorName = (post.authorName || '').replace(' 👑', '').trim().toLowerCase();
                 const isPostAuthor = Boolean(
-                  (currentUser?.id && post.userId && currentUser.id === post.userId) ||
+                  (currentUser?.id && (post.userId || post.authorId) && (currentUser.id === post.userId || currentUser.id === post.authorId)) ||
                   (currentUser?.email && (post.userEmail || post.authorEmail) && currentUser.email.toLowerCase().trim() === (post.userEmail || post.authorEmail)?.toLowerCase().trim()) ||
                   (currentUserName !== '' && currentUserName === postAuthorName)
                 );
@@ -4116,68 +3899,245 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                       </div>
                     </div>
 
-                    <div 
-                      className="relative w-full aspect-4/3 sm:aspect-16/10 bg-stone-950 overflow-hidden cursor-pointer select-none group"
-                      onDoubleClick={() => handleDoubleTapPost(post)}
-                    >
-                      <img
-                        src={post.imageUrl}
-                        alt="Post visual"
-                        style={{ filter: filterDef.style }}
-                        className="w-full h-full object-cover group-hover:scale-101 transition-transform duration-300"
-                      />
+                    {/* 9:16 Aspect Ratio Photo Container with Multi-Photo Carousel */}
+                    {(() => {
+                      const allImages = (post.images && post.images.length > 0) ? post.images : [post.imageUrl];
+                      const currentIdx = activePostImgIndex[post.id] || 0;
+                      const activeImg = allImages[currentIdx] || post.imageUrl;
 
-                      {heartBurstId === post.id && (
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-scale-up">
-                          <Heart className="w-20 h-20 text-white fill-rose-500 drop-shadow-lg" />
+                      return (
+                        <div 
+                          className="relative w-full aspect-[9/16] max-h-[580px] bg-stone-950 overflow-hidden cursor-pointer select-none group flex items-center justify-center"
+                          onDoubleClick={() => handleDoubleTapPost(post)}
+                        >
+                          <img
+                            src={activeImg}
+                            alt="Post visual"
+                            style={{ filter: filterDef.style }}
+                            className="w-full h-full object-cover group-hover:scale-101 transition-transform duration-300"
+                          />
+
+                          {/* Multi-Photo Carousel Navigation */}
+                          {allImages.length > 1 && (
+                            <>
+                              {/* 1 / N Badge */}
+                              <div className="absolute top-2.5 right-2.5 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs z-10">
+                                {currentIdx + 1}/{allImages.length}
+                              </div>
+
+                              {/* Previous Arrow */}
+                              {currentIdx > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    audioEngine.playSfx('click');
+                                    setActivePostImgIndex(prev => ({
+                                      ...prev,
+                                      [post.id]: Math.max(0, currentIdx - 1)
+                                    }));
+                                  }}
+                                  className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center shadow-md cursor-pointer transition-transform active:scale-90 z-10"
+                                  title="Previous photo"
+                                >
+                                  <ChevronLeft className="w-5 h-5" />
+                                </button>
+                              )}
+
+                              {/* Next Arrow */}
+                              {currentIdx < allImages.length - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    audioEngine.playSfx('click');
+                                    setActivePostImgIndex(prev => ({
+                                      ...prev,
+                                      [post.id]: Math.min(allImages.length - 1, currentIdx + 1)
+                                    }));
+                                  }}
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center shadow-md cursor-pointer transition-transform active:scale-90 z-10"
+                                  title="Next photo"
+                                >
+                                  <ChevronRight className="w-5 h-5" />
+                                </button>
+                              )}
+
+                              {/* Bottom Dot Indicators */}
+                              <div className="absolute bottom-2.5 inset-x-0 flex items-center justify-center gap-1.5 pointer-events-none z-10">
+                                {allImages.map((_, dotIdx) => (
+                                  <span
+                                    key={dotIdx}
+                                    className={`transition-all rounded-full ${
+                                      dotIdx === currentIdx
+                                        ? 'w-2 h-2 bg-white ring-1 ring-black/50'
+                                        : 'w-1.5 h-1.5 bg-white/50'
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                            </>
+                          )}
+
+                          {heartBurstId === post.id && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-scale-up z-20">
+                              <Heart className="w-20 h-20 text-white fill-rose-500 drop-shadow-lg" />
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
 
-                    <div className="px-3.5 pt-0.5 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                    {/* Post Action Bar: Likes, Comments, Reactions, Shares, Bookmark */}
+                    <div className="px-3.5 pt-1 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 sm:gap-3">
+                        {/* Heart / Like Button */}
                         <button
-                          onClick={() => {
-                            audioEngine.playSfx('pop');
-                            batchWallService.likeInstagramPost(post.id, currentUser?.name);
-                          }}
+                          type="button"
+                          onClick={() => handleToggleLikePost(post)}
                           className={`flex items-center gap-1 text-xs font-display font-black transition-transform active:scale-90 cursor-pointer ${
                             post.likedByCurrentUser ? 'text-rose-600' : 'text-stone-600 hover:text-rose-600'
                           }`}
+                          title={post.likedByCurrentUser ? "Unlike post" : "Like post"}
                         >
-                          <Heart className={`w-4.5 h-4.5 ${post.likedByCurrentUser ? 'fill-rose-600' : ''}`} />
-                          <span>{post.likesCount}</span>
+                          <Heart className={`w-5 h-5 transition-colors ${post.likedByCurrentUser ? 'fill-rose-600 text-rose-600' : ''}`} />
+                          <span className="font-mono text-xs">{post.likesCount}</span>
                         </button>
 
+                        {/* Comment Button */}
                         <button
+                          type="button"
                           onClick={() => setExpandedComments(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
                           className="flex items-center gap-1 text-xs font-display font-bold text-stone-600 hover:text-purple-700 transition-transform active:scale-90 cursor-pointer"
+                          title="View & add comments"
                         >
-                          <MessageCircle className="w-4.5 h-4.5" />
-                          <span>{post.comments?.length || 0}</span>
+                          <MessageCircle className="w-5 h-5" />
+                          <span className="font-mono text-xs">{post.comments?.length || 0}</span>
                         </button>
 
+                        {/* Quick Reaction Picker Button */}
                         <button
-                          onClick={() => handleShareClick(post.caption.slice(0, 30))}
-                          className="text-stone-600 hover:text-blue-600 transition-transform active:scale-90 cursor-pointer"
+                          type="button"
+                          onClick={() => setActiveReactionPickerPostId(activeReactionPickerPostId === post.id ? null : post.id)}
+                          className={`flex items-center gap-1 text-xs font-display font-bold p-1 rounded-lg transition-all cursor-pointer ${
+                            activeReactionPickerPostId === post.id 
+                              ? 'bg-amber-100 text-amber-800 scale-105 shadow-2xs' 
+                              : 'text-stone-600 hover:text-amber-600'
+                          }`}
+                          title="Add an emoji reaction"
                         >
-                          <Share2 className="w-4.5 h-4.5" />
+                          <Smile className="w-5 h-5" />
+                        </button>
+
+                        {/* Share Button with Live Share Count */}
+                        <button
+                          type="button"
+                          onClick={() => handleSharePost(post)}
+                          className="flex items-center gap-1 text-stone-600 hover:text-blue-600 transition-transform active:scale-90 cursor-pointer group/share"
+                          title={`Share post (${post.sharesCount || 0} shares so far)`}
+                        >
+                          <Share2 className="w-5 h-5 group-hover/share:text-blue-600" />
+                          <span className="font-mono text-xs font-bold text-stone-700 group-hover/share:text-blue-600">
+                            {post.sharesCount || 0}
+                          </span>
                         </button>
                       </div>
 
+                      {/* Bookmark Button */}
                       <button
+                        type="button"
                         onClick={() => {
                           audioEngine.playSfx('pop');
                           batchWallService.toggleBookmarkInstagramPost(post.id);
                         }}
                         className={`transition-transform active:scale-90 cursor-pointer ${
-                          post.saved ? 'text-amber-500' : 'text-stone-500 hover:text-stone-900'
+                          post.saved ? 'text-amber-500' : 'text-stone-400 hover:text-stone-800'
                         }`}
+                        title={post.saved ? "Remove bookmark" : "Save post"}
                       >
-                        <Bookmark className={`w-4.5 h-4.5 ${post.saved ? 'fill-amber-500' : ''}`} />
+                        <Bookmark className={`w-5 h-5 ${post.saved ? 'fill-amber-500' : ''}`} />
                       </button>
                     </div>
 
+                    {/* Floating Quick Reaction Emoji Bar */}
+                    {activeReactionPickerPostId === post.id && (
+                      <div className="mx-3.5 bg-white border border-stone-200/90 rounded-2xl p-1.5 px-2.5 shadow-md flex items-center gap-1.5 animate-scale-up z-20 overflow-x-auto scrollbar-none">
+                        <span className="text-[10px] font-bold text-stone-400 mr-0.5">React:</span>
+                        {['❤️', '🔥', '👏', '🌸', '😍', '😂', '🎉', '🧁'].map(emoji => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => handleReactToPost(post.id, emoji)}
+                            className="w-7 h-7 hover:scale-125 transition-transform flex items-center justify-center text-base cursor-pointer rounded-lg hover:bg-stone-50"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Reactions Badges Row */}
+                    {post.reactions && Object.keys(post.reactions).length > 0 && (
+                      <div className="px-3.5 flex items-center gap-1.5 flex-wrap pt-0.5">
+                        {Object.entries(post.reactions).map(([emoji, count]) => {
+                          const users = post.reactedUsers?.[emoji] || [];
+                          const myName = (currentUser?.name || profileNameInput || '').toLowerCase().trim();
+                          const hasUserReacted = users.some(u => u.toLowerCase().trim() === myName);
+
+                          return (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => handleReactToPost(post.id, emoji)}
+                              className={`px-2 py-0.5 rounded-full text-xs font-bold border transition-all active:scale-95 flex items-center gap-1 cursor-pointer ${
+                                hasUserReacted
+                                  ? 'bg-rose-100 border-rose-300 text-rose-800 shadow-2xs font-black'
+                                  : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
+                              }`}
+                              title={`Reacted by: ${users.join(', ') || `${count} people`}`}
+                            >
+                              <span>{emoji}</span>
+                              <span className="text-[11px] font-mono">{count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Unique Likers & Hearts Summary Line (Click to see who liked) */}
+                    {(() => {
+                      const uniqueMembers = post.likedByMembers || [];
+                      const uniqueNames = (post.likedByUsers && post.likedByUsers.length > 0)
+                        ? post.likedByUsers
+                        : uniqueMembers.map(m => m.userName);
+                      const totalUniques = Math.max(post.likesCount || 0, uniqueNames.length, uniqueMembers.length);
+
+                      return (
+                        <div className="px-3.5 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setShowLikedByModalPost(post)}
+                            className="text-left text-xs font-display font-medium text-stone-700 hover:text-rose-600 cursor-pointer flex items-center gap-1.5 transition-colors group/likers"
+                            title="Click to see all unique people who liked this post"
+                          >
+                            <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500 group-hover/likers:scale-110 transition-transform shrink-0" />
+                            <span>
+                              {totalUniques === 0 ? (
+                                <span className="text-stone-400">Be the first to heart this</span>
+                              ) : uniqueNames.length === 1 ? (
+                                <span>Liked by <strong className="text-stone-900 font-bold">{uniqueNames[0]}</strong> <span className="text-stone-400 font-normal">({totalUniques} unique like)</span></span>
+                              ) : uniqueNames.length === 2 ? (
+                                <span>Liked by <strong className="text-stone-900 font-bold">{uniqueNames[0]}</strong> and <strong className="text-stone-900 font-bold">{uniqueNames[1]}</strong> <span className="text-stone-400 font-normal">({totalUniques} unique likes)</span></span>
+                              ) : (
+                                <span>Liked by <strong className="text-stone-900 font-bold">{uniqueNames[0]}</strong> and <strong className="text-stone-900 font-bold underline">{totalUniques - 1} other unique members</strong></span>
+                              )}
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Caption & Hashtags */}
                     <div className="px-3.5 space-y-1">
                       <p className="text-xs text-stone-800 font-sans leading-relaxed">
                         <span className="font-display font-black mr-1.5 text-stone-900">
@@ -4205,37 +4165,102 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                       )}
                     </div>
 
+                    {/* Comments Section: Showing WHO commented with avatars, timestamps & like button */}
                     <div className="px-3.5 pb-3 space-y-2">
                       {post.comments && post.comments.length > 0 && (
                         <button
+                          type="button"
                           onClick={() => setExpandedComments(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
-                          className="text-[11px] font-display font-bold text-stone-400 hover:text-stone-600 cursor-pointer block"
+                          className="text-[11px] font-display font-bold text-stone-500 hover:text-stone-800 cursor-pointer flex items-center gap-1"
                         >
-                          {isExpanded
-                            ? 'Hide comments'
-                            : `View all ${post.comments.length} comment${post.comments.length > 1 ? 's' : ''}`}
+                          <MessageCircle className="w-3.5 h-3.5 text-purple-600" />
+                          <span>{isExpanded ? 'Hide comments' : `View all ${post.comments.length} comment${post.comments.length > 1 ? 's' : ''}`}</span>
                         </button>
                       )}
 
                       {isExpanded && post.comments && (
-                        <div className="space-y-1.5 pt-1 border-t border-stone-100">
-                          {post.comments.map(c => (
-                            <div key={c.id} className="text-xs flex items-start gap-1.5">
-                              <span className="font-display font-black text-stone-900 shrink-0">
-                                {c.authorName}:
-                              </span>
-                              <span className="text-stone-700">{c.text}</span>
-                            </div>
-                          ))}
+                        <div className="space-y-2 pt-1 border-t border-stone-100">
+                          {post.comments.map(c => {
+                            const isQueen = c.isKritika || c.authorName.toLowerCase().includes('kritika');
+                            const myName = currentUser?.name || profileNameInput || studentName || 'Student';
+                            const hasLikedComment = c.likedByUsers?.includes(myName);
+
+                            return (
+                              <div key={c.id} className="flex items-start gap-2 bg-stone-50/80 p-2 rounded-xl border border-stone-200/60">
+                                {/* Commenter Avatar */}
+                                <div
+                                  onClick={() => {
+                                    const cm = classmates.find(cl => cl.name.toLowerCase() === c.authorName.toLowerCase().replace(' 👑', ''));
+                                    if (cm) setSelectedClassmateDetail(cm);
+                                  }}
+                                  className="w-7 h-7 rounded-full overflow-hidden border border-stone-200 shrink-0 cursor-pointer hover:scale-105 transition-transform mt-0.5"
+                                  title={`View ${c.authorName}`}
+                                >
+                                  <img
+                                    src={c.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop'}
+                                    alt={c.authorName}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+
+                                {/* Comment Details */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-display font-black text-xs text-stone-900">
+                                        {c.authorName}
+                                      </span>
+                                      {isQueen && (
+                                        <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs">
+                                          👑 QUEEN
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-stone-400 shrink-0">
+                                      {c.timestamp || (c.createdAt ? formatChatTimestamp(c.createdAt) : '')}
+                                    </span>
+                                  </div>
+
+                                  <p className="text-xs text-stone-700 mt-0.5 leading-relaxed break-words font-sans">
+                                    {c.text}
+                                  </p>
+
+                                  {/* Comment Actions: Heart Like */}
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleLikeComment(post.id, c.id)}
+                                      className={`flex items-center gap-1 text-[10px] font-bold cursor-pointer transition-colors ${
+                                        hasLikedComment ? 'text-rose-600' : 'text-stone-400 hover:text-rose-600'
+                                      }`}
+                                      title="Like this comment"
+                                    >
+                                      <Heart className={`w-3 h-3 ${hasLikedComment ? 'fill-rose-600' : ''}`} />
+                                      <span>{(c.likesCount || 0) > 0 ? c.likesCount : 'Like'}</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
 
-                      <div className="pt-1 flex items-center gap-2">
+                      {/* Comment Input with User Avatar */}
+                      <div className="pt-1.5 flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full overflow-hidden border border-stone-300 shrink-0">
+                          <img
+                            src={currentUser?.avatarUrl || profileAvatarInput || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop'}
+                            alt="You"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+
                         <input
                           type="text"
                           value={commentText}
                           onChange={(e) => setPostCommentText(prev => ({ ...prev, [post.id]: e.target.value }))}
-                          placeholder="Add a kind comment..."
+                          placeholder={`Add a comment as ${currentUser?.name || profileNameInput || 'Student'}...`}
                           className="flex-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs outline-none focus:border-rose-500 focus:bg-white transition-colors"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -4244,11 +4269,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                             }
                           }}
                         />
+
                         <button
                           type="button"
                           disabled={!commentText.trim()}
                           onClick={() => handleSendPostComment(post.id)}
-                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl text-xs font-display font-black uppercase cursor-pointer"
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl text-xs font-display font-black uppercase cursor-pointer transition-all active:scale-95"
                         >
                           Post
                         </button>
@@ -4263,7 +4289,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
         {/* ==================== 3. BULLETIN CORKBOARD ==================== */}
         {activeMode === 'bulletin' && (
-          <div className="space-y-3.5 animate-fade-in">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pb-8 scrollbar-thin animate-fade-in pr-0.5">
             <div className="bg-gradient-to-r from-amber-50 via-rose-50 to-purple-50 border border-amber-200/80 rounded-2xl p-3 shadow-2xs flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-xl border border-amber-300 bg-white shadow-2xs shrink-0 flex items-center justify-center text-base">
@@ -4350,9 +4376,42 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                         </div>
                       </div>
 
-                      <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-xs font-handwritten font-bold text-amber-900">
-                        <span>{post.moodEmoji}</span>
-                        <span>{post.mood}</span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-xs font-handwritten font-bold text-amber-900">
+                          <span>{post.moodEmoji}</span>
+                          <span>{post.mood}</span>
+                        </div>
+                        {(() => {
+                          const currentUserName = (currentUser?.name || profileNameInput || '').replace(' 👑', '').trim().toLowerCase();
+                          const studentNameClean = (post.studentName || '').replace(' 👑', '').trim().toLowerCase();
+                          const isBulletinAuthor = Boolean(
+                            (currentUser?.id && post.userId && currentUser.id === post.userId) ||
+                            (currentUser?.email && post.userEmail && currentUser.email.toLowerCase().trim() === post.userEmail.toLowerCase().trim()) ||
+                            (currentUserName !== '' && currentUserName === studentNameClean)
+                          );
+                          const isKritika = currentUserName.includes('kritika') || (currentUser?.email || '').toLowerCase().includes('kritika');
+                          const canDeleteBulletin = isBulletinAuthor || isKritika;
+
+                          if (!canDeleteBulletin) return null;
+
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                audioEngine.playSfx('pop');
+                                setDeleteConfirmPost({
+                                  id: post.id,
+                                  type: 'bulletin',
+                                  title: `Sticky note by ${post.studentName}`
+                                });
+                              }}
+                              className="p-1 hover:bg-rose-50 text-stone-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                              title="Delete sticky note"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -4652,32 +4711,137 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           >
             <form onSubmit={handleCreatePhotoPost} className="space-y-3.5 text-left">
               <div>
-                <label className="font-display font-black text-xs text-stone-700 uppercase block mb-1">
-                  1. Choose / Upload Photo:
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-display font-black text-xs text-stone-700 uppercase">
+                    1. Upload Photos (9:16 Ratio):
+                  </label>
+                  <span className="text-[10px] text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                    {newPostImages.length > 0 ? `${newPostImages.length} Photo${newPostImages.length > 1 ? 's' : ''} Selected` : '9:16 Portrait'}
+                  </span>
+                </div>
+
                 <input
                   ref={photoFileInputRef}
                   type="file"
                   accept="image/*"
+                  multiple
                   onChange={handlePhotoPostImageSelect}
                   className="hidden"
                 />
 
-                {newPostImage ? (
-                  <div className="relative rounded-2xl overflow-hidden border border-stone-300 aspect-4/3 bg-black shadow-xs">
-                    <img
-                      src={newPostImage}
-                      alt="Selected"
-                      style={{ filter: FILTER_STYLES[newPostFilter]?.style }}
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setNewPostImage(null)}
-                      className="absolute top-2 right-2 bg-black/70 hover:bg-black text-white p-1.5 rounded-full cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                {newPostImages.length > 0 ? (
+                  <div className="space-y-2.5">
+                    {/* 9:16 Portrait Poster Preview Container */}
+                    <div className="relative rounded-2xl overflow-hidden border border-stone-300 aspect-[9/16] max-h-72 sm:max-h-80 mx-auto bg-stone-950 shadow-sm flex items-center justify-center group">
+                      <img
+                        src={newPostImages[activeCreatePreviewIndex] || newPostImages[0]}
+                        alt="Selected"
+                        style={{ filter: FILTER_STYLES[newPostFilter]?.style }}
+                        className="w-full h-full object-cover"
+                      />
+
+                      {/* 9:16 Ratio Badge */}
+                      <span className="absolute top-2 left-2 bg-black/60 backdrop-blur-xs text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                        9:16 Ratio
+                      </span>
+
+                      {/* Multi-Photo Slide Counter */}
+                      {newPostImages.length > 1 && (
+                        <span className="absolute top-2 right-10 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          {activeCreatePreviewIndex + 1}/{newPostImages.length}
+                        </span>
+                      )}
+
+                      {/* Remove Current Photo Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewPostImages(prev => {
+                            const next = prev.filter((_, idx) => idx !== activeCreatePreviewIndex);
+                            if (activeCreatePreviewIndex >= next.length) {
+                              setActiveCreatePreviewIndex(Math.max(0, next.length - 1));
+                            }
+                            if (next.length > 0) setNewPostImage(next[0]);
+                            else setNewPostImage(null);
+                            return next;
+                          });
+                        }}
+                        className="absolute top-2 right-2 bg-black/70 hover:bg-rose-600 text-white p-1.5 rounded-full cursor-pointer transition-colors shadow-xs"
+                        title="Remove this photo"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Carousel Arrow Controls */}
+                      {newPostImages.length > 1 && (
+                        <>
+                          {activeCreatePreviewIndex > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveCreatePreviewIndex(i => Math.max(0, i - 1))}
+                              className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center cursor-pointer shadow-md"
+                              title="Previous photo"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                          )}
+                          {activeCreatePreviewIndex < newPostImages.length - 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveCreatePreviewIndex(i => Math.min(newPostImages.length - 1, i + 1))}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center cursor-pointer shadow-md"
+                              title="Next photo"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Thumbnail Strip with "+ Add More Photos" button */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none pt-1">
+                      {newPostImages.map((imgUrl, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => setActiveCreatePreviewIndex(idx)}
+                          className={`relative w-12 h-16 rounded-lg overflow-hidden border-2 shrink-0 cursor-pointer transition-transform ${
+                            idx === activeCreatePreviewIndex ? 'border-rose-600 scale-105 ring-2 ring-rose-200' : 'border-stone-300 opacity-80 hover:opacity-100'
+                          }`}
+                        >
+                          <img src={imgUrl} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setNewPostImages(prev => {
+                                const next = prev.filter((_, i) => i !== idx);
+                                if (activeCreatePreviewIndex >= next.length) {
+                                  setActiveCreatePreviewIndex(Math.max(0, next.length - 1));
+                                }
+                                if (next.length > 0) setNewPostImage(next[0]);
+                                else setNewPostImage(null);
+                                return next;
+                              });
+                            }}
+                            className="absolute top-0.5 right-0.5 bg-black/70 hover:bg-rose-600 text-white p-0.5 rounded-full"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Add More Photos Button */}
+                      <button
+                        type="button"
+                        onClick={() => photoFileInputRef.current?.click()}
+                        className="w-12 h-16 rounded-lg border-2 border-dashed border-rose-300 hover:border-rose-500 bg-rose-50/50 hover:bg-rose-50 text-rose-600 flex flex-col items-center justify-center shrink-0 cursor-pointer transition-colors"
+                        title="Add more photos to this poster"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span className="text-[8px] font-bold mt-0.5">+Photo</span>
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -4689,18 +4853,25 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                         <Camera className="w-5 h-5" />
                       </div>
                       <p className="font-display font-bold text-xs text-rose-900">
-                        Tap to upload from device 📸
+                        Tap to upload photos from device 📸
+                      </p>
+                      <p className="text-[10px] text-stone-500">
+                        9:16 portrait ratio • Multiple photos supported in one poster!
                       </p>
                     </div>
 
                     <div>
-                      <span className="text-[10px] font-bold text-stone-400 block mb-1">Or pick a comfort preset:</span>
+                      <span className="text-[10px] font-bold text-stone-400 block mb-1">Or pick comfort preset photos:</span>
                       <div className="grid grid-cols-3 gap-1.5">
                         {PRESET_PHOTOS.slice(0, 3).map((preset, idx) => (
                           <div
                             key={idx}
-                            onClick={() => setNewPostImage(preset.url)}
-                            className="border border-stone-200 hover:border-rose-400 rounded-xl overflow-hidden cursor-pointer group relative aspect-4/3"
+                            onClick={() => {
+                              setNewPostImages(prev => [...prev, preset.url]);
+                              setNewPostImage(preset.url);
+                              audioEngine.playSfx('pop');
+                            }}
+                            className="border border-stone-200 hover:border-rose-400 rounded-xl overflow-hidden cursor-pointer group relative aspect-[9/16] max-h-28"
                           >
                             <img src={preset.url} alt={preset.label} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                             <span className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[9px] font-bold p-0.5 truncate text-center">
@@ -4714,7 +4885,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 )}
               </div>
 
-              {newPostImage && (
+              {newPostImages.length > 0 && (
                 <div>
                   <label className="font-display font-black text-[11px] text-stone-700 uppercase block mb-1">
                     2. Filter Preset:
@@ -4912,6 +5083,48 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           </BaseModal>
         )}
 
+        {/* MODAL: CONFIRM PERMANENT POST DELETION */}
+        {deleteConfirmPost && (
+          <BaseModal
+            onClose={() => !isDeletingPost && setDeleteConfirmPost(null)}
+            title="DELETE POST PERMANENTLY?"
+            subtitle="This will completely remove the post for all batch members"
+            icon={<Trash2 className="w-5 h-5 text-rose-600" />}
+            maxWidth="max-w-sm"
+          >
+            <div className="space-y-4 text-left">
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <span>⚠️ Permanent Deletion Notice:</span>
+                </p>
+                <p className="text-stone-600 leading-relaxed">
+                  Once deleted, {deleteConfirmPost.title || 'this post'} will be completely removed from the feed and will <strong>no longer be visible to you or any other members</strong>.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={isDeletingPost}
+                  onClick={() => setDeleteConfirmPost(null)}
+                  className="flex-1 py-2 px-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-xs cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingPost}
+                  onClick={handleConfirmDeletePost}
+                  className="flex-1 py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isDeletingPost ? 'Deleting...' : 'Delete for Everyone'}</span>
+                </button>
+              </div>
+            </div>
+          </BaseModal>
+        )}
+
         {/* Lightbox Image Zoom */}
         {lightboxImage && (
           <div
@@ -4967,16 +5180,17 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 <button
                   onClick={() => {
                     audioEngine.playSfx('fanfare');
-                    const senderId = currentUser?.id || authService.getFirebaseUser()?.uid;
+                    const fbUser = authService.getFirebaseUser();
+                    const senderId = fbUser?.uid || currentUser?.id;
                     if (!senderId) {
                       setShowGoogleModal(true);
                       return;
                     }
                     batchWallService.sendGroupChatMessage({
                       senderId,
-                      senderName: currentUser?.name || profileNameInput || studentName || 'Batch 41 Student',
-                      senderEmail: currentUser?.email,
-                      avatarUrl: currentUser?.avatarUrl || profileAvatarInput,
+                      senderName: currentUser?.name || fbUser?.displayName || profileNameInput || studentName || 'Batch 41 Student',
+                      senderEmail: fbUser?.email || currentUser?.email || undefined,
+                      avatarUrl: fbUser?.photoURL || currentUser?.avatarUrl || profileAvatarInput,
                       text: `Sending a big warm cheer to @${selectedClassmateDetail.name}! Keep glowing! ✨💖`
                     });
                     setSelectedClassmateDetail(null);
@@ -5271,77 +5485,141 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           </BaseModal>
         )}
 
-        {/* Modal: Pin Important Announcement */}
-        {showPinAnnouncementModal && (
+        {/* MODAL: POST LIKES & HEARTS (UNIQUE MEMBERS) */}
+        {showLikedByModalPost && (
           <BaseModal
-            isOpen={showPinAnnouncementModal}
-            onClose={() => setShowPinAnnouncementModal(false)}
-            title="📌 Pin Important Announcement"
+            onClose={() => setShowLikedByModalPost(null)}
+            title="LIKES & HEARTS"
+            subtitle="Unique batch members who liked this post"
+            icon={<Heart className="w-5 h-5 fill-rose-500 text-rose-500" />}
+            maxWidth="max-w-md"
           >
-            <form onSubmit={handleCreatePinnedAnnouncement} className="space-y-4">
-              <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-3 text-xs text-amber-900 space-y-1">
-                <p className="font-bold flex items-center gap-1.5">
-                  <Pin className="w-3.5 h-3.5 fill-amber-700 text-amber-700" />
-                  <span>Pinned to Important Section & Group Chat</span>
-                </p>
-                <p className="text-[11px] text-amber-800/80">
-                  This announcement will be displayed prominently in both the group lounge and the dedicated Important Highlights section for all connected members.
-                </p>
-              </div>
+            {(() => {
+              const post = showLikedByModalPost;
+              // Collect unique members from post.likedByMembers and post.likedByUsers
+              const membersMap = new Map<string, { id?: string; name: string; email?: string; avatarUrl?: string; likedAt?: number }>();
 
-              <div className="space-y-1.5">
-                <label className="font-display font-black text-xs text-stone-700 uppercase">
-                  Category Tag
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['📢 Announcement', '⚠️ Important', '🌸 Special Notice', '📌 Pinned'] as const).map(tag => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => setPinNoticeCategory(tag)}
-                      className={`p-2 rounded-xl text-xs font-display font-bold border transition-all cursor-pointer text-left ${
-                        pinNoticeCategory === tag
-                          ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
-                          : 'bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100'
-                      }`}
-                    >
-                      {tag}
-                    </button>
-                  ))}
+              (post.likedByMembers || []).forEach((m: LikedMember) => {
+                const key = (m.userId || m.userName || '').toLowerCase().trim();
+                if (key && !membersMap.has(key)) {
+                  membersMap.set(key, {
+                    id: m.userId,
+                    name: m.userName,
+                    email: m.userEmail,
+                    avatarUrl: m.avatarUrl,
+                    likedAt: m.likedAt
+                  });
+                }
+              });
+
+              (post.likedByUsers || []).forEach(name => {
+                const key = name.toLowerCase().trim();
+                if (key && !membersMap.has(key)) {
+                  const match = classmates.find(cl => cl.name.toLowerCase().trim() === key || cl.name.toLowerCase().includes(key));
+                  membersMap.set(key, {
+                    name,
+                    avatarUrl: match?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+                    likedAt: Date.now()
+                  });
+                }
+              });
+
+              const uniqueList = Array.from(membersMap.values());
+              const totalUniques = Math.max(post.likesCount || 0, uniqueList.length);
+
+              return (
+                <div className="space-y-4 text-left">
+                  {/* Total Unique Likes Banner */}
+                  <div className="p-3 rounded-2xl bg-gradient-to-r from-rose-50 via-pink-50 to-amber-50 border border-rose-200/80 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center text-sm shadow-xs">
+                        ❤️
+                      </div>
+                      <div>
+                        <h4 className="font-display font-black text-xs sm:text-sm text-stone-900">
+                          {totalUniques} Unique {totalUniques === 1 ? 'Person' : 'People'} Liked
+                        </h4>
+                        <p className="text-[11px] text-stone-500">
+                          Each batch member counts once toward unique hearts
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-xs font-mono font-black bg-rose-500 text-white shadow-2xs">
+                      {totalUniques} ❤️
+                    </span>
+                  </div>
+
+                  {/* Likers List */}
+                  <div className="space-y-2">
+                    <h5 className="font-display font-black text-[11px] uppercase tracking-wider text-stone-500">
+                      Who Liked ({uniqueList.length})
+                    </h5>
+
+                    {uniqueList.length === 0 ? (
+                      <div className="p-6 text-center text-stone-400 text-xs italic bg-stone-50 rounded-2xl border border-stone-200">
+                        No likes yet. Be the first to drop a heart!
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 scrollbar-thin">
+                        {uniqueList.map((member, idx) => {
+                          const isQueen = member.name.toLowerCase().includes('kritika');
+                          const isMe = (currentUser?.name || profileNameInput || '').toLowerCase().trim() === member.name.toLowerCase().trim();
+
+                          return (
+                            <div
+                              key={idx}
+                              className="p-2.5 bg-white border border-stone-200/80 hover:border-rose-300 rounded-xl flex items-center justify-between transition-colors shadow-2xs"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-full overflow-hidden border border-rose-200 bg-stone-100 shrink-0">
+                                  <img
+                                    src={member.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop'}
+                                    alt={member.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-display font-black text-xs text-stone-900 truncate">
+                                      {member.name}
+                                    </span>
+                                    {isMe && (
+                                      <span className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded-full">
+                                        You
+                                      </span>
+                                    )}
+                                    {isQueen && (
+                                      <span className="bg-rose-500 text-white font-display text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full shadow-2xs">
+                                        👑 QUEEN
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-stone-400 block truncate">
+                                    {member.likedAt ? `Liked ${new Date(member.likedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : 'Liked post'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <span className="text-sm shrink-0">
+                                ❤️
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowLikedByModalPost(null)}
+                    className="w-full py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-display font-black text-xs uppercase cursor-pointer transition-colors"
+                  >
+                    Close
+                  </button>
                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-display font-black text-xs text-stone-700 uppercase">
-                  Announcement Details
-                </label>
-                <textarea
-                  value={pinNoticeText}
-                  onChange={(e) => setPinNoticeText(e.target.value)}
-                  placeholder="Write the important message, deadline, rule, or batch update..."
-                  rows={4}
-                  required
-                  className="w-full p-3 rounded-2xl border border-stone-200 text-xs text-stone-900 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-200 resize-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPinAnnouncementModal(false)}
-                  className="px-4 py-2 text-xs font-display font-bold text-stone-600 hover:bg-stone-100 rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!pinNoticeText.trim()}
-                  className="px-5 py-2 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white rounded-xl text-xs font-display font-black uppercase shadow-xs transition-all cursor-pointer disabled:opacity-50"
-                >
-                  📌 Pin Announcement
-                </button>
-              </div>
-            </form>
+              );
+            })()}
           </BaseModal>
         )}
 
@@ -5351,7 +5629,219 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
         )}
 
       </div>
-    </div>
+    
+        {/* ==================== DISCORD-STYLE VOICE ROOM STAGE MODAL ==================== */}
+        {showVoiceRoomModal && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-50 bg-[#1E1F22]/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-fade-in"
+            onClick={() => setShowVoiceRoomModal(false)}
+          >
+            <div
+              className="bg-[#313338] text-white w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex flex-col max-h-[92dvh] animate-scale-up"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Discord Modal Header */}
+              <div className="bg-[#2B2D31] p-3 px-4 sm:px-5 border-b border-[#1E1F22] flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                    <Volume2 className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display font-black text-sm sm:text-base text-white truncate">
+                        🔊 Batch 41 Voice Room
+                      </h3>
+                      <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 shrink-0">
+                        LIVE STAGE
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-400 truncate">
+                      Discord-style voice channel • Speak anytime with classmates
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowVoiceRoomModal(false)}
+                    className="p-1.5 text-stone-400 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                    title="Minimize to Chat"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Stage Visual Area: Only Joined Participants */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+                {voiceParticipants.length === 0 ? (
+                  <div className="text-center py-10 px-4 space-y-3">
+                    <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mx-auto flex items-center justify-center text-3xl animate-pulse">
+                      🔊
+                    </div>
+                    <h4 className="font-display font-black text-sm text-white">
+                      No One in the Voice Room Yet
+                    </h4>
+                    <p className="text-xs text-stone-400 max-w-xs mx-auto leading-relaxed">
+                      Only classmates who explicitly join this room can hear and talk with each other. Tap <strong>Join Voice Room</strong> to jump in!
+                    </p>
+                    {!isVoiceRoomConnected && (
+                      <button
+                        type="button"
+                        onClick={handleJoinVoiceRoom}
+                        className="mt-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl text-xs font-display font-black uppercase shadow-md transition-all active:scale-95 cursor-pointer"
+                      >
+                        Join Voice Room
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    {voiceParticipants.map(participant => {
+                      const isMe = currentUser?.id === participant.id || participant.id === authService.getFirebaseUser()?.uid;
+                      const speaking = isMe ? userIsSpeaking : participant.isSpeaking;
+                      const muted = isMe ? isVoiceMuted : participant.isMuted;
+
+                      return (
+                        <div
+                          key={participant.id}
+                          className={`bg-[#2B2D31] border rounded-2xl p-3 sm:p-4 text-center space-y-2 transition-all relative overflow-hidden ${
+                            speaking
+                              ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] bg-gradient-to-b from-[#2B2D31] to-emerald-950/20'
+                              : 'border-white/5'
+                          }`}
+                        >
+                          <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto">
+                            <img
+                              src={participant.avatarUrl || '/marisol/avatars/01_brighter_ideas.png'}
+                              alt={participant.name}
+                              className={`w-full h-full rounded-full object-cover transition-all ${
+                                speaking
+                                  ? 'ring-4 ring-emerald-500 shadow-[0_0_16px_rgba(16,185,129,0.8)] scale-105'
+                                  : 'border-2 border-white/10'
+                              }`}
+                            />
+                            <span className={`absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] border-2 border-[#2B2D31] ${
+                              muted ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-white'
+                            }`}>
+                              {muted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="font-display font-black text-xs sm:text-sm text-white block truncate">
+                              {participant.name} {isMe ? '(You)' : ''}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 ${
+                              speaking 
+                                ? 'bg-emerald-500 text-white animate-pulse' 
+                                : muted 
+                                  ? 'bg-rose-500/20 text-rose-300' 
+                                  : 'bg-white/10 text-stone-300'
+                            }`}>
+                              {speaking ? '🎙️ Speaking...' : muted ? 'Muted' : 'Mic Live'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Live Cheers Soundboard (Strictly heard ONLY by users who joined the room) */}
+                <div className="bg-[#2B2D31] border border-white/5 rounded-2xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-display font-black text-[11px] uppercase tracking-wider text-stone-400 block text-left">
+                      Live Soundboard Cheers:
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-bold">
+                      🔊 Only heard by room members
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { emoji: '👏', label: 'Clap', sfx: 'fanfare' as const },
+                      { emoji: '🎉', label: 'Cheer', sfx: 'fanfare' as const },
+                      { emoji: '💖', label: 'Love', sfx: 'powerup' as const },
+                      { emoji: '🔥', label: 'Fire', sfx: 'pop' as const }
+                    ].map(snd => (
+                      <button
+                        key={snd.label}
+                        type="button"
+                        disabled={!isVoiceRoomConnected}
+                        onClick={() => handleSendVoiceCheer(snd.emoji, snd.label, snd.sfx)}
+                        className={`p-2 bg-white/5 hover:bg-white/15 active:scale-95 border border-white/10 rounded-xl flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
+                          !isVoiceRoomConnected ? 'opacity-40 cursor-not-allowed' : ''
+                        }`}
+                        title={!isVoiceRoomConnected ? 'Join room to cheer' : `Send ${snd.label}`}
+                      >
+                        <span className="text-lg">{snd.emoji}</span>
+                        <span className="text-[10px] font-bold text-stone-300">{snd.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Discord Voice Controls */}
+              <div className="bg-[#2B2D31] p-3 px-4 border-t border-[#1E1F22] flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2">
+                  {/* Mute Button */}
+                  <button
+                    type="button"
+                    onClick={toggleVoiceRoomMute}
+                    className={`px-4 py-2.5 rounded-xl font-display font-bold text-xs flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
+                      isVoiceMuted
+                        ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-sm'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20 shadow-sm'
+                    }`}
+                  >
+                    {isVoiceMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    <span>{isVoiceMuted ? 'Unmute' : 'Mute'}</span>
+                  </button>
+
+                  {/* Deafen Button */}
+                  <button
+                    type="button"
+                    onClick={toggleVoiceRoomDeafen}
+                    className={`p-2.5 rounded-xl transition-all cursor-pointer border ${
+                      isVoiceDeafened
+                        ? 'bg-rose-600 text-white border-rose-500'
+                        : 'bg-white/5 hover:bg-white/10 text-stone-300 border-white/10'
+                    }`}
+                    title={isVoiceDeafened ? 'Undeafen' : 'Deafen'}
+                  >
+                    {isVoiceDeafened ? <VolumeX className="w-4 h-4" /> : <Headphones className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Minimize & Chat */}
+                  <button
+                    type="button"
+                    onClick={() => setShowVoiceRoomModal(false)}
+                    className="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-display font-bold transition-all cursor-pointer"
+                  >
+                    Chat & Speak
+                  </button>
+
+                  {/* Disconnect Button */}
+                  <button
+                    type="button"
+                    onClick={handleDisconnectVoiceRoom}
+                    className="p-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+                    title="Disconnect from Voice Room"
+                  >
+                    <PhoneOff className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+</div>
   );
 };
 
@@ -6848,6 +7338,129 @@ export const DailyChallenge: React.FC<DailyChallengeProps> = ({ onComplete }) =>
 
 ---
 
+### File: `src/components/ErrorBoundary.tsx`
+
+```tsx
+import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { RefreshCw, RotateCcw, AlertCircle, Heart } from 'lucide-react';
+
+interface Props {
+  children: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  error: Error | null;
+  errorInfo: ErrorInfo | null;
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  public state: State = {
+    hasError: false,
+    error: null,
+    errorInfo: null,
+  };
+
+  public static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error, errorInfo: null };
+  }
+
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('[Marisol App ErrorBoundary caught error]:', error, errorInfo);
+    this.setState({ errorInfo });
+  }
+
+  private handleReload = () => {
+    try {
+      if ('caches' in window) {
+        caches.keys().then((keys) => {
+          keys.forEach((key) => caches.delete(key));
+          location.reload();
+        }).catch(() => {
+          location.reload();
+        });
+        return;
+      }
+    } catch {}
+    location.reload();
+  };
+
+  private handleResetAndReload = () => {
+    try {
+      sessionStorage.clear();
+      // Keep user login if possible, clear only temporary locks
+      localStorage.removeItem('marisol_batch_offline_queue_v2');
+      localStorage.removeItem('marisol_chat_offline_queue_v2');
+      if ('caches' in window) {
+        caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+      }
+    } catch {}
+    window.location.href = '/';
+  };
+
+  public render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-[#FFFDF7] flex flex-col items-center justify-center p-4 text-center select-none font-sans">
+          <div className="max-w-md w-full bg-white border-2 border-rose-200 rounded-3xl p-6 sm:p-8 shadow-xl space-y-4 animate-scale-up">
+            <div className="w-16 h-16 rounded-full bg-rose-50 border-2 border-rose-200 flex items-center justify-center mx-auto text-rose-500 shadow-sm">
+              <Heart className="w-8 h-8 fill-rose-500 text-rose-500 animate-pulse" />
+            </div>
+
+            <div className="space-y-1">
+              <h2 className="text-xl font-display font-black text-stone-900">
+                Marisol: Factory of Fun ✨
+              </h2>
+              <p className="text-xs text-rose-600 font-bold uppercase tracking-wide">
+                Comfort Space Recovery Mode
+              </p>
+            </div>
+
+            <p className="text-xs text-stone-600 leading-relaxed font-sans">
+              A little digital bump occurred while loading your comfort adventure. Don't worry, your progress and memories are safe!
+            </p>
+
+            {this.state.error?.message && (
+              <div className="bg-stone-50 border border-stone-200 p-2.5 rounded-xl text-left flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
+                <p className="text-[11px] font-mono text-stone-600 line-clamp-2 break-all">
+                  {this.state.error.message}
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={this.handleReload}
+                className="w-full py-3 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white rounded-2xl font-display font-black text-xs uppercase shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Reload Comfort Space</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={this.handleResetAndReload}
+                className="w-full py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-2xl font-display font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Clear Stale Cache & Reopen</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+```
+
+---
+
 ### File: `src/components/FloatingMusicBar.tsx`
 
 ```tsx
@@ -7654,20 +8267,30 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
   const [nameInput, setNameInput] = useState('');
 
   // Handle direct Sign In with Mail ID
-  const handleSignInSubmit = (e: React.FormEvent) => {
+  const handleSignInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanEmail = emailInput.trim();
     if (!cleanEmail) return;
 
-    // Derived or entered name
-    const derivedName = nameInput.trim() || authService.formatEmailName(cleanEmail) || 'New User';
-    const finalUser = authService.loginStudentProfile(derivedName, cleanEmail.includes('@') ? cleanEmail : `${cleanEmail}@gmail.com`);
+    setIsLoading(true);
+    setErrorMessage(null);
 
-    audioEngine.playSfx('fanfare');
-    confetti({ particleCount: 85, spread: 75, origin: { y: 0.6 } });
-    setTick(t => t + 1);
-    if (onSuccess) onSuccess(finalUser);
-    onClose();
+    try {
+      // Derived or entered name
+      const derivedName = nameInput.trim() || authService.formatEmailName(cleanEmail) || 'New User';
+      const finalUser = await authService.loginStudentProfile(derivedName, cleanEmail.includes('@') ? cleanEmail : `${cleanEmail}@gmail.com`);
+
+      audioEngine.playSfx('fanfare');
+      confetti({ particleCount: 85, spread: 75, origin: { y: 0.6 } });
+      setTick(t => t + 1);
+      if (onSuccess) onSuccess(finalUser);
+      onClose();
+    } catch (err: any) {
+      console.error('[Sign In with Mail ID] Error establishing session:', err);
+      setErrorMessage(err?.message || 'Authentication error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Google OAuth Sign In
@@ -7806,6 +8429,32 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
               </p>
             </div>
 
+            {/* Quick One-Tap Mail ID Suggestions */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wide">
+                Quick 1-Tap Sign In:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { name: 'Kritika Gupta 👑', email: 'kritika.gupta@mlp41.edu' },
+                  { name: 'Priyanshu Sharma', email: 'priyanshu.sharma@mlp41.edu' },
+                  { name: 'Batch 41 Member', email: 'student@mlp41.edu' },
+                ].map(item => (
+                  <button
+                    key={item.email}
+                    type="button"
+                    onClick={() => {
+                      setEmailInput(item.email);
+                      setNameInput(item.name);
+                    }}
+                    className="text-[10px] font-bold px-2 py-0.5 bg-stone-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 border border-stone-200 rounded-lg text-stone-700 transition-colors cursor-pointer"
+                  >
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Mail ID Quick Sign In Form */}
             <form onSubmit={handleSignInSubmit} className="space-y-2.5">
               <div className="space-y-1">
@@ -7848,10 +8497,15 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({ onClose, o
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-display font-black text-xs uppercase rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer mt-1"
+                disabled={isLoading}
+                className="w-full py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-display font-black text-xs uppercase rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer mt-1 disabled:opacity-60"
               >
-                <Sparkles className="w-3.5 h-3.5 fill-white" />
-                <span>Sign In as New User & Chat</span>
+                {isLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5 fill-white" />
+                )}
+                <span>{isLoading ? 'Connecting session...' : 'Sign In as New User & Chat'}</span>
               </button>
             </form>
 
@@ -8541,191 +9195,233 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
 ```tsx
 import React, { useState, useEffect } from 'react';
-import { audioEngine } from '../services/synthAudioEngine';
 import { BaseModal } from './BaseModal';
-import { Download, Smartphone, Share2, PlusSquare, Sparkles, Check, Apple } from 'lucide-react';
+import { Download, Smartphone, CheckCircle } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { audioEngine } from '../services/synthAudioEngine';
 
 interface InstallAppModalProps {
   onClose: () => void;
 }
 
 export const InstallAppModal: React.FC<InstallAppModalProps> = ({ onClose }) => {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isIOS, setIsIOS] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [installedSuccess, setInstalledSuccess] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
-    // Detect if already installed / running standalone
-    const standaloneMode = 
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true;
-    setIsStandalone(standaloneMode);
+    if (typeof window !== 'undefined') {
+      const userAgent = window.navigator.userAgent.toLowerCase();
+      const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
+      const isAndroidDevice = /android/.test(userAgent);
+      setIsIOS(isIosDevice);
+      setIsAndroid(isAndroidDevice);
 
-    // Detect device platform
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
-    const isAndroidDevice = /android/.test(userAgent);
+      // Check if already installed as standalone PWA
+      if (
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true
+      ) {
+        setIsInstalled(true);
+      }
 
-    setIsIOS(isIosDevice);
-    setIsAndroid(isAndroidDevice);
+      // Listen for Android / Chrome install prompt
+      const handleBeforeInstall = (e: Event) => {
+        e.preventDefault();
+        setDeferredPrompt(e);
+      };
 
-    // Listen for Android / Chromium PWA install prompt
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
+      window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+      return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+    }
   }, []);
 
-  const handleInstallAndroid = async () => {
-    audioEngine.playSfx('click');
+  const handleInstallClick = async () => {
     if (deferredPrompt) {
+      audioEngine.playSfx('click');
       deferredPrompt.prompt();
       const choiceResult = await deferredPrompt.userChoice;
       if (choiceResult.outcome === 'accepted') {
-        audioEngine.playSfx('fanfare');
-        setInstalledSuccess(true);
+        confetti({ particleCount: 70, spread: 60 });
+        setIsInstalled(true);
       }
       setDeferredPrompt(null);
-    } else {
-      // Fallback instruction if browser already triggered or in different browser
-      alert("To install on Android:\n1. Tap the three dots (⋮) in your browser menu.\n2. Tap 'Install app' or 'Add to Home screen'.");
     }
   };
 
   return (
     <BaseModal
       onClose={onClose}
+      title="INSTALL MARISOL AS APP"
+      subtitle="Add to your phone's Home Screen for the full screen, fast app experience"
+      icon={<Smartphone className="w-5 h-5 text-rose-500" />}
       maxWidth="max-w-md"
-      icon={
-        <img 
-          src="/icon-192.png" 
-          alt="Marisol App Icon" 
-          className="w-full h-full object-cover rounded-xl"
-        />
-      }
-      title={
-        <span className="flex items-center gap-1.5">
-          <span>DOWNLOAD MARISOL</span>
-          <Sparkles className="w-4 h-4 text-pink-500" />
-        </span>
-      }
-      subtitle="Install on your Android or iPhone Home Screen! 📲"
     >
-      <div className="space-y-4 text-center">
-
-        {/* Already Installed Badge */}
-        {isStandalone || installedSuccess ? (
-          <div className="bg-emerald-50 border-2 border-emerald-400 rounded-2xl p-4 text-center space-y-1.5 shadow-2xs">
-            <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center mx-auto text-xl shadow-xs">
-              <Check className="w-6 h-6 stroke-[3]" />
+      <div className="space-y-4 text-left">
+        {/* App Preview Card */}
+        <div className="p-4 bg-gradient-to-r from-rose-50 via-pink-50 to-amber-50 rounded-2xl border border-rose-200/80 flex items-center gap-3.5">
+          <div className="w-14 h-14 rounded-2xl bg-white p-1 shadow-md border border-rose-200 shrink-0 overflow-hidden">
+            <img 
+              src="/icon-192.png" 
+              alt="Marisol Icon" 
+              className="w-full h-full object-cover rounded-xl"
+            />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-display font-black text-sm text-stone-900 truncate">
+                Marisol: Factory of Fun
+              </h3>
+              <span className="text-[10px] bg-rose-500 text-white font-bold px-1.5 py-0.2 rounded-full shadow-2xs">
+                APP
+              </span>
             </div>
-            <p className="font-display font-black text-sm text-emerald-950">
-              App Installed Successfully! 🎉
-            </p>
-            <p className="font-handwritten text-xs text-emerald-800 font-bold">
-              Marisol is now added to your home screen!
+            <p className="text-xs text-stone-500 mt-0.5">
+              Offline-ready • Fullscreen • Instant launch
             </p>
           </div>
-        ) : (
-          <>
-            {/* Feature Perks */}
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-pink-50 border border-pink-200 rounded-xl p-2">
-                <span className="text-base">⚡</span>
-                <p className="font-display font-bold text-[10px] text-pink-900 mt-0.5">INSTANT LAUNCH</p>
-              </div>
-              <div className="bg-purple-50 border border-purple-200 rounded-xl p-2">
-                <span className="text-base">📱</span>
-                <p className="font-display font-bold text-[10px] text-purple-900 mt-0.5">FULLSCREEN</p>
-              </div>
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-2">
-                <span className="text-base">📶</span>
-                <p className="font-display font-bold text-[10px] text-amber-900 mt-0.5">OFFLINE READY</p>
-              </div>
+        </div>
+
+        {/* Already Installed Notice */}
+        {isInstalled && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2.5 text-xs text-emerald-800 font-bold">
+            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Marisol is already running in app mode on this device! ✨</span>
+          </div>
+        )}
+
+        {/* 1. IPHONE & IPAD (iOS) INSTRUCTIONS */}
+        {isIOS && !isInstalled && (
+          <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-stone-200">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-2">
+              <span className="font-display font-black text-xs text-rose-600 uppercase tracking-wide flex items-center gap-1.5">
+                <span>🍎</span>
+                <span>iPhone / iPad (Safari) Instructions</span>
+              </span>
+              <span className="text-[10px] bg-stone-100 text-stone-600 font-bold px-2 py-0.5 rounded-full">
+                3 Quick Steps
+              </span>
             </div>
 
-            {/* iOS Instructions */}
-            {isIOS ? (
-              <div className="bg-gradient-to-br from-rose-50 to-pink-50 border-2 border-pink-300 rounded-2xl p-4 text-left space-y-3 shadow-2xs">
-                <div className="flex items-center gap-2 text-pink-950 font-display font-black text-xs uppercase tracking-wider">
-                  <Apple className="w-4 h-4 text-ink" />
-                  <span>HOW TO INSTALL ON IPHONE / IPAD:</span>
-                </div>
-
-                <div className="space-y-2 text-xs font-handwritten font-bold text-ink">
-                  <div className="flex items-start gap-2 bg-white/80 p-2 rounded-xl border border-pink-200">
-                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] shrink-0 font-bold">1</span>
-                    <div className="flex-1">
-                      Tap the <strong className="text-pink-900 flex-inline items-center gap-1">Share button <Share2 className="w-3.5 h-3.5 inline text-blue-600" /></strong> at the bottom of Safari.
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-2 bg-white/80 p-2 rounded-xl border border-pink-200">
-                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] shrink-0 font-bold">2</span>
-                    <div className="flex-1">
-                      Scroll down and tap <strong className="text-pink-900 flex-inline items-center gap-1">"Add to Home Screen" <PlusSquare className="w-3.5 h-3.5 inline text-pink-600" /></strong>.
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-2 bg-white/80 p-2 rounded-xl border border-pink-200">
-                    <span className="w-5 h-5 rounded-full bg-pink-500 text-white flex items-center justify-center text-[10px] shrink-0 font-bold">3</span>
-                    <div className="flex-1">
-                      Tap <strong className="text-pink-900">Add</strong> in the top right corner. You're done! 💖
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : isAndroid || deferredPrompt ? (
-              /* Android One-Click Install */
-              <div className="space-y-3">
-                <button
-                  onClick={handleInstallAndroid}
-                  className="sketch-btn-primary w-full py-3.5 text-base font-black uppercase flex items-center justify-center gap-2 shadow-sketch hover:scale-102 active:scale-98 transition-all border-3 border-ink"
-                >
-                  <Download className="w-5 h-5" />
-                  <span>INSTALL ON ANDROID NOW</span>
-                </button>
-
-                <p className="font-handwritten text-xs text-ink-light font-bold">
-                  Installs directly to your home screen with zero storage overhead!
+            <div className="space-y-2.5 text-xs text-stone-700">
+              <div className="flex items-start gap-2.5">
+                <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-600 font-bold flex items-center justify-center shrink-0 text-[11px]">
+                  1
+                </span>
+                <p className="leading-snug">
+                  Tap the <strong className="text-stone-900">Share</strong> button at the bottom of Safari (<span className="inline-block px-1.5 py-0.5 bg-stone-100 rounded text-stone-900 font-mono text-[11px]">⎋ / ⬆</span>).
                 </p>
               </div>
-            ) : (
-              /* Universal Mobile / Desktop Instructions */
-              <div className="space-y-3">
-                <button
-                  onClick={handleInstallAndroid}
-                  className="sketch-btn-primary w-full py-3 text-sm font-black uppercase flex items-center justify-center gap-2 shadow-sketch hover:scale-102 active:scale-98 transition-all border-3 border-ink"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>ADD TO HOME SCREEN / INSTALL</span>
-                </button>
 
-                <div className="bg-pink-50/70 border border-pink-200 rounded-xl p-3 text-left space-y-1.5 text-xs font-handwritten font-bold text-ink-light">
-                  <div className="flex items-center gap-1.5 text-ink font-display font-bold text-[11px]">
-                    <Smartphone className="w-3.5 h-3.5 text-pink-600" />
-                    <span>Quick Steps:</span>
-                  </div>
-                  <p>• <strong>iPhone (Safari):</strong> Tap Share ⎋ ➔ 'Add to Home Screen'</p>
-                  <p>• <strong>Android (Chrome):</strong> Tap Menu ⋮ ➔ 'Install App' or 'Add to Home Screen'</p>
+              <div className="flex items-start gap-2.5">
+                <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-600 font-bold flex items-center justify-center shrink-0 text-[11px]">
+                  2
+                </span>
+                <p className="leading-snug">
+                  Scroll down the menu and tap <strong className="text-stone-900">"Add to Home Screen"</strong> (<span className="inline-block px-1.5 py-0.5 bg-stone-100 rounded text-stone-900 font-mono text-[11px]">⊞ / ⊕</span>).
+                </p>
+              </div>
+
+              <div className="flex items-start gap-2.5">
+                <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-600 font-bold flex items-center justify-center shrink-0 text-[11px]">
+                  3
+                </span>
+                <p className="leading-snug">
+                  Tap <strong className="text-rose-600">"Add"</strong> in the top right corner. The Marisol app icon will immediately appear on your home screen!
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. ANDROID INSTRUCTIONS & 1-TAP INSTALL */}
+        {(!isIOS || isAndroid) && !isInstalled && (
+          <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-stone-200">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-2">
+              <span className="font-display font-black text-xs text-emerald-700 uppercase tracking-wide flex items-center gap-1.5">
+                <span>🤖</span>
+                <span>Android (Chrome) Instructions</span>
+              </span>
+              <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                Fast Install
+              </span>
+            </div>
+
+            {deferredPrompt ? (
+              <button
+                type="button"
+                onClick={handleInstallClick}
+                className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl font-display font-black text-xs uppercase shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Install Marisol on Android Now</span>
+              </button>
+            ) : (
+              <div className="space-y-2 text-xs text-stone-700">
+                <div className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center shrink-0 text-[11px]">
+                    1
+                  </span>
+                  <p className="leading-snug">
+                    Tap the <strong className="text-stone-900">three dots menu (⋮)</strong> at top right of Chrome.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center shrink-0 text-[11px]">
+                    2
+                  </span>
+                  <p className="leading-snug">
+                    Tap <strong className="text-stone-900">"Install app"</strong> or <strong className="text-stone-900">"Add to Home screen"</strong>.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center shrink-0 text-[11px]">
+                    3
+                  </span>
+                  <p className="leading-snug">
+                    Confirm <strong className="text-emerald-700">"Install"</strong>. The app icon will be pinned to your apps and home screen!
+                  </p>
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
 
-        {/* Footer Note */}
-        <div className="bg-pink-100/50 border border-pink-200 rounded-xl p-2.5 font-handwritten text-xs text-pink-900 font-bold">
-          "Now Kritika can carry her comfort zone everywhere in her pocket!" 💖
+        {/* Benefits Checklist */}
+        <div className="bg-stone-50 p-3 rounded-2xl border border-stone-200 space-y-1.5 text-xs text-stone-600">
+          <p className="font-display font-black text-stone-800 text-[11px] uppercase tracking-wide">
+            Why add as an App?
+          </p>
+          <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+            <span className="flex items-center gap-1.5 text-stone-700">
+              <CheckCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+              <span>No browser URL bar</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-stone-700">
+              <CheckCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+              <span>Full screen view</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-stone-700">
+              <CheckCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+              <span>Instant 1-tap open</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-stone-700">
+              <CheckCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+              <span>Works smoothly offline</span>
+            </span>
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-display font-black text-xs uppercase cursor-pointer transition-colors"
+        >
+          Got it
+        </button>
       </div>
     </BaseModal>
   );
@@ -11078,10 +11774,9 @@ export const MusicPlayerScreen: React.FC<MusicPlayerScreenProps> = ({ onNavigate
 ```tsx
 import React, { useState, useEffect } from 'react';
 import type { ScreenState, AudioSettings } from '../types/game';
-import { gameState } from '../services/gameState';
 import { audioEngine } from '../services/synthAudioEngine';
 import { 
-  Flame, ArrowLeft, Menu, X, Sparkles, Volume2, UserCheck, CheckCircle2
+  ArrowLeft, Menu, X, Volume2, UserCheck, CheckCircle2, Smartphone
 } from 'lucide-react';
 import { authService } from '../services/authService';
 
@@ -11092,7 +11787,7 @@ interface NavbarProps {
   onOpenGoogleSignIn?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpenGoogleSignIn }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpenInstallApp, onOpenGoogleSignIn }) => {
   const [, setAuthTick] = useState(0);
 
   useEffect(() => {
@@ -11101,7 +11796,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
     });
   }, []);
 
-  const player = gameState.getPlayer();
   const currentUser = authService.getCurrentUser();
   const isAuthenticated = authService.isAuthenticated();
   const [audioState, setAudioState] = useState<AudioSettings>(audioEngine.getSettings());
@@ -11124,52 +11818,71 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur-md border-b border-stone-200/80 px-2 sm:px-6 py-2 shadow-xs">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-1 sm:gap-2">
+      <header className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur-md border-b border-stone-200/80 px-3 sm:px-6 py-2 shadow-xs">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
           
-          {/* Left: Custom Logo or Back Button */}
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            {currentScreen !== 'home' ? (
-              <button 
-                onClick={() => {
-                  audioEngine.playSfx('click');
-                  onNavigate('home');
-                }}
-                className="py-1 px-2.5 sm:py-1.5 sm:px-3 bg-white border border-stone-200 rounded-xl flex items-center gap-1 shadow-xs text-xs sm:text-sm font-display font-black text-stone-800 hover:bg-stone-50 transition-all cursor-pointer shrink-0"
-                title="Return to Home Screen"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>HOME</span>
-              </button>
-            ) : (
-              <button 
-                onClick={() => {
-                  audioEngine.playSfx('click');
-                  onNavigate('home');
-                }}
-                className="flex items-center gap-2 group text-left cursor-pointer min-w-0"
-              >
-                {/* Custom Brand 'M' Logo Badge */}
-                <div className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-400 p-[2px] shadow-xs group-hover:scale-105 transition-transform flex items-center justify-center shrink-0">
-                  <div className="w-full h-full bg-white rounded-full flex items-center justify-center relative overflow-hidden">
-                    <span className="font-display font-black text-rose-600 text-sm leading-none tracking-tight">M</span>
-                  </div>
-                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-400 rounded-full flex items-center justify-center shadow-2xs">
-                    <Sparkles className="w-1.5 h-1.5 text-white fill-white" />
-                  </span>
-                </div>
+          {/* Left: Profile Picture in Left Corner + Brand Title */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            {/* Profile Avatar Button on the Far Left Corner */}
+            <button
+              type="button"
+              onClick={() => {
+                audioEngine.playSfx('pop');
+                if (onOpenGoogleSignIn) {
+                  onOpenGoogleSignIn();
+                } else {
+                  onNavigate('batch_wall');
+                }
+              }}
+              className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full p-[2px] bg-gradient-to-tr from-rose-500 via-pink-400 to-amber-300 shadow-xs hover:scale-105 transition-transform cursor-pointer shrink-0"
+              title={isAuthenticated && currentUser ? `Signed in as ${currentUser.name} (Click for Profile)` : "Your Profile (Click to Connect)"}
+            >
+              <div className="w-full h-full rounded-full overflow-hidden bg-white border border-white">
+                <img
+                  src={currentUser?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop'}
+                  alt={currentUser?.name || "Profile"}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full shadow-2xs" />
+            </button>
 
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1">
-                    <h1 className="font-display font-black text-sm sm:text-base tracking-tight leading-none text-stone-900 group-hover:text-rose-600 transition-colors">
-                      MARISOL
-                    </h1>
-                    <span className="text-rose-500 font-black text-[10px] sm:text-xs">✨</span>
-                  </div>
-                  <p className="font-display text-[8px] sm:text-[9px] text-rose-700 font-extrabold tracking-wider uppercase -mt-0.5 truncate hidden min-[360px]:block">
-                    FACTORY OF FUN
-                  </p>
+            {/* Logo / Brand Name */}
+            <button 
+              type="button"
+              onClick={() => {
+                audioEngine.playSfx('click');
+                onNavigate('home');
+              }}
+              className="flex items-center gap-1.5 text-left cursor-pointer min-w-0 group"
+              title="Return to Home"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                  <h1 className="font-display font-black text-sm sm:text-base tracking-tight leading-none text-stone-900 group-hover:text-rose-600 transition-colors">
+                    MARISOL
+                  </h1>
+                  <span className="text-rose-500 font-black text-xs">✨</span>
                 </div>
+                <p className="font-display text-[8px] sm:text-[9px] text-rose-700 font-extrabold tracking-wider uppercase -mt-0.5 truncate">
+                  FACTORY OF FUN
+                </p>
+              </div>
+            </button>
+
+            {/* Back button indicator when on sub-pages */}
+            {currentScreen !== 'home' && (
+              <button 
+                type="button"
+                onClick={() => {
+                  audioEngine.playSfx('click');
+                  onNavigate('home');
+                }}
+                className="ml-1 py-1 px-2 bg-stone-100 hover:bg-stone-200 border border-stone-200 rounded-lg flex items-center gap-1 text-[10px] font-display font-bold text-stone-700 transition-colors cursor-pointer shrink-0"
+                title="Return to Home"
+              >
+                <ArrowLeft className="w-3 h-3" />
+                <span className="hidden sm:inline">Home</span>
               </button>
             )}
           </div>
@@ -11203,62 +11916,35 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
             })}
           </nav>
 
-          {/* Right: Core Stats & Menu Controls */}
+          {/* Right: Clean, Uncluttered Controls */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            
-            {/* Macaronis Score */}
-            <div 
-              className="h-8 px-2.5 flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200 rounded-full shadow-2xs text-xs font-black shrink-0"
-              title={`${player.cucumberSandwiches || 0} Macaronis`}
-            >
-              <span className="text-xs">🧀</span>
-              <span>{player.cucumberSandwiches || 0}</span>
-            </div>
-
-            {/* Streak Counter */}
-            <div 
-              className="h-8 px-2.5 flex items-center gap-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-full shadow-xs text-xs font-bold shrink-0"
-              title={`${player.streak} Day Streak`}
-            >
-              <Flame className="w-3.5 h-3.5 fill-white animate-bounce-gentle" />
-              <span>{player.streak}</span>
-            </div>
-
-            {/* Direct Community Lounge Button (Mobile only since desktop has center links) */}
+            {/* Audio SFX Toggle */}
             <button
-              onClick={() => {
-                audioEngine.playSfx('click');
-                onNavigate('batch_wall');
-              }}
-              className={`md:hidden h-8 px-2.5 rounded-full flex items-center gap-1 text-xs font-display font-black transition-all cursor-pointer shrink-0 ${
-                currentScreen === 'batch_wall'
-                  ? 'bg-rose-600 text-white shadow-xs'
-                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs'
+              type="button"
+              onClick={toggleSfx}
+              className={`w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer transition-colors shadow-2xs ${
+                audioState.sfxOn
+                  ? 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
+                  : 'bg-stone-100 border-stone-200 text-stone-400'
               }`}
-              title="Open Batch 41 Lounge"
+              title={audioState.sfxOn ? "Sound Effects ON" : "Sound Effects OFF"}
             >
-              <span>💬</span>
-              <span className="hidden min-[400px]:inline">Lounge</span>
+              <Volume2 className="w-3.5 h-3.5" />
             </button>
 
-            {/* Account Profile / Sign In Pill (Desktop & Mobile) */}
-            {onOpenGoogleSignIn && (
+            {/* Quick Install as App Button */}
+            {onOpenInstallApp && (
               <button
+                type="button"
                 onClick={() => {
                   audioEngine.playSfx('click');
-                  onOpenGoogleSignIn();
+                  onOpenInstallApp();
                 }}
-                className="h-8 px-2.5 sm:px-3 bg-white hover:bg-stone-50 border border-stone-200 rounded-full flex items-center gap-1.5 text-xs font-display font-bold text-stone-800 shadow-2xs transition-all cursor-pointer shrink-0"
-                title={isAuthenticated && currentUser ? `Signed in as ${currentUser.name}` : "Sign In with Google"}
+                className="h-8 px-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-full flex items-center gap-1.5 text-xs font-display font-black transition-all cursor-pointer shrink-0 active:scale-95 shadow-2xs"
+                title="Install Marisol as App on iPhone or Android"
               >
-                {isAuthenticated && currentUser ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                ) : (
-                  <UserCheck className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                )}
-                <span className="hidden lg:inline truncate max-w-[100px]">
-                  {isAuthenticated && currentUser ? currentUser.name.split(' ')[0] : 'Profile'}
-                </span>
+                <Smartphone className="w-3.5 h-3.5 text-rose-600" />
+                <span className="hidden sm:inline">Add App</span>
               </button>
             )}
 
@@ -11385,6 +12071,35 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, onOpe
                     </div>
                     <span className="text-[10px] font-display font-black text-rose-600 bg-white px-2 py-0.5 rounded-full border border-stone-200">
                       {isAuthenticated ? "MANAGE" : "SIGN IN"}
+                    </span>
+                  </button>
+                </div>
+              )}
+
+              {/* Install as App Option in Drawer Menu */}
+              {onOpenInstallApp && (
+                <div className="mt-3 p-3 bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-200 rounded-2xl shadow-xs">
+                  <button
+                    onClick={() => {
+                      audioEngine.playSfx('click');
+                      setIsMenuOpen(false);
+                      onOpenInstallApp();
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-rose-50 border border-rose-300 text-stone-800 text-xs font-bold transition-all shadow-2xs flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="w-4 h-4 text-rose-600 shrink-0" />
+                      <div className="text-left">
+                        <div className="font-display font-black text-xs text-stone-900">
+                          Add Marisol to Phone
+                        </div>
+                        <div className="text-[10px] text-stone-500 font-sans">
+                          iPhone (Safari) & Android install guide
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-display font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                      INSTALL 📱
                     </span>
                   </button>
                 </div>
@@ -16838,12 +17553,16 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 )
+
 
 ```
 
@@ -17201,6 +17920,7 @@ import {
   signInWithPopup, 
   signInWithRedirect,
   getRedirectResult,
+  signInAnonymously,
   firebaseSignOut, 
   onAuthStateChanged, 
   RecaptchaVerifier,
@@ -17231,6 +17951,7 @@ export interface StudentProfile {
   isNewUser?: boolean;
   userTag?: string; // e.g. "New User"
   createdAt?: number;
+  joinedAt?: number; // Timestamp when user first joined (for new user chat privacy)
 }
 
 export const DEFAULT_CLASSMATES: StudentProfile[] = [
@@ -17247,6 +17968,7 @@ export const DEFAULT_CLASSMATES: StudentProfile[] = [
     isGoogleVerified: true,
     loginMethod: 'email',
     isNewUser: false,
+    joinedAt: 0, // Foundation member - sees full chat history
     userTag: 'Founder 👑'
   },
   {
@@ -17262,6 +17984,7 @@ export const DEFAULT_CLASSMATES: StudentProfile[] = [
     isGoogleVerified: true,
     loginMethod: 'email',
     isNewUser: false,
+    joinedAt: 0,
     userTag: 'Classmate'
   },
   {
@@ -17277,6 +18000,7 @@ export const DEFAULT_CLASSMATES: StudentProfile[] = [
     isGoogleVerified: true,
     loginMethod: 'email',
     isNewUser: false,
+    joinedAt: 0,
     userTag: 'Classmate'
   },
   {
@@ -17292,6 +18016,7 @@ export const DEFAULT_CLASSMATES: StudentProfile[] = [
     isGoogleVerified: true,
     loginMethod: 'email',
     isNewUser: false,
+    joinedAt: 0,
     userTag: 'Classmate'
   }
 ];
@@ -17355,8 +18080,9 @@ class AuthService {
 
   private initFirebaseListeners() {
     if (auth) {
+      const authInstance = auth;
       // 1. Check for Mobile Redirect Sign-In Result on Boot (Essential for mobile browsers)
-      getRedirectResult(auth)
+      getRedirectResult(authInstance)
         .then((result) => {
           if (result && result.user && !result.user.isAnonymous) {
             this.handleFirebaseUserLogin(result.user, 'google');
@@ -17369,9 +18095,28 @@ class AuthService {
         });
 
       // 2. Regular Auth State Change
-      onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+      onAuthStateChanged(authInstance, (firebaseUser: FirebaseUser | null) => {
         if (firebaseUser && !firebaseUser.isAnonymous) {
           this.handleFirebaseUserLogin(firebaseUser, firebaseUser.phoneNumber ? 'phone_otp' : 'google');
+        } else if (firebaseUser && firebaseUser.isAnonymous) {
+          // Anonymous user session active: align profile ID with actual request.auth.uid
+          if (this.currentUser && this.currentUser.id !== firebaseUser.uid) {
+            this.currentUser.id = firebaseUser.uid;
+            this.saveUserToStorage();
+            this.syncWithFirestore(this.currentUser);
+            this.notify();
+          }
+        } else if (!firebaseUser) {
+          signInAnonymously(authInstance).then((cred) => {
+            if (this.currentUser && this.currentUser.id !== cred.user.uid) {
+              this.currentUser.id = cred.user.uid;
+              this.saveUserToStorage();
+              this.syncWithFirestore(this.currentUser);
+              this.notify();
+            }
+          }).catch((err) => {
+            console.warn('[Auth] Anonymous fallback sign-in notice:', err);
+          });
         }
       });
     }
@@ -17410,6 +18155,19 @@ class AuthService {
       ? firebaseUser.displayName
       : (emailName || (firebaseUser.phoneNumber ? `Student (${firebaseUser.phoneNumber.slice(-4)})` : 'Batch 41 Member'));
 
+    const existing = this.classmates.find(c => 
+      c.id === firebaseUser.uid || 
+      (firebaseUser.email && c.email.toLowerCase() === firebaseUser.email.toLowerCase())
+    );
+
+    const now = Date.now();
+    const joinedAt = existing?.joinedAt !== undefined 
+      ? existing.joinedAt 
+      : (this.currentUser?.joinedAt !== undefined ? this.currentUser.joinedAt : now);
+    const isNewUser = existing?.isNewUser !== undefined 
+      ? existing.isNewUser 
+      : (this.currentUser?.isNewUser !== undefined ? this.currentUser.isNewUser : true);
+
     const profile: StudentProfile = {
       id: firebaseUser.uid,
       name: resolvedName,
@@ -17423,9 +18181,10 @@ class AuthService {
       lastUpdated: 'Just now',
       isGoogleVerified: true,
       loginMethod: method,
-      isNewUser: true,
-      userTag: 'New User',
-      createdAt: Date.now()
+      isNewUser,
+      userTag: existing?.userTag || (isNewUser ? 'New User' : 'Classmate'),
+      createdAt: existing?.createdAt || this.currentUser?.createdAt || now,
+      joinedAt
     };
 
     this.currentUser = profile;
@@ -17440,6 +18199,11 @@ class AuthService {
       const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
       if (storedUser) {
         this.currentUser = JSON.parse(storedUser);
+        // Ensure joinedAt is set on stored profiles
+        if (this.currentUser && this.currentUser.joinedAt === undefined) {
+          this.currentUser.joinedAt = this.currentUser.isNewUser ? (this.currentUser.createdAt || Date.now()) : 0;
+          this.saveUserToStorage();
+        }
       }
 
       const storedClassmates = localStorage.getItem(CLASSMATES_STORAGE_KEY);
@@ -17563,13 +18327,50 @@ class AuthService {
   }
 
   /**
+   * Ensures an active, verified Firebase Auth session exists so request.auth is never null.
+   * If auth.currentUser exists, refreshes token; otherwise signs in anonymously as fallback.
+   */
+  public async ensureFirebaseAuthSession(): Promise<FirebaseUser | null> {
+    if (!auth) return null;
+
+    if (auth.currentUser) {
+      try {
+        await auth.currentUser.getIdToken(false);
+        return auth.currentUser;
+      } catch (err) {
+        console.warn('[Auth] Token check failed, attempting forced refresh:', err);
+        try {
+          await auth.currentUser.getIdToken(true);
+          return auth.currentUser;
+        } catch (refreshErr) {
+          console.warn('[Auth] Forced refresh failed, re-authenticating anonymously:', refreshErr);
+        }
+      }
+    }
+
+    try {
+      const cred = await signInAnonymously(auth);
+      if (this.currentUser && this.currentUser.id !== cred.user.uid) {
+        this.currentUser.id = cred.user.uid;
+        this.saveUserToStorage();
+        this.syncWithFirestore(this.currentUser);
+        this.notify();
+      }
+      return cred.user;
+    } catch (err) {
+      console.warn('[Auth] Anonymous sign-in error:', err);
+      return auth.currentUser || null;
+    }
+  }
+
+  /**
    * Direct Sign In with Mail ID / Email.
    * Whoever signs in with their mail ID is registered as a "New User" and allowed to chat.
    */
-  public loginWithEmail(email: string, name?: string): StudentProfile {
+  public async loginWithEmail(email: string, name?: string): Promise<StudentProfile> {
     const trimmedEmail = email.trim().toLowerCase();
     const formattedName = name?.trim() || formatNameFromEmail(trimmedEmail) || 'New User';
-    return this.loginStudentProfile(formattedName, trimmedEmail);
+    return await this.loginStudentProfile(formattedName, trimmedEmail);
   }
 
   public getFirebaseUser(): FirebaseUser | null {
@@ -17577,9 +18378,10 @@ class AuthService {
   }
 
   /**
-   * Multi-User: Add or Login Student / Mail Profile
+   * Multi-User: Add or Login Student / Mail Profile.
+   * Confirms Firebase Auth session before returning so request.auth is never null.
    */
-  public loginStudentProfile(name: string, email?: string): StudentProfile {
+  public async loginStudentProfile(name: string, email?: string): Promise<StudentProfile> {
     const trimmed = name.trim() || 'Batch 41 Student';
     const isKritika = trimmed.toLowerCase().includes('kritika') || trimmed.toLowerCase().includes('marisol');
     const existing = this.classmates.find(c => 
@@ -17587,15 +18389,27 @@ class AuthService {
       c.name.toLowerCase() === trimmed.toLowerCase()
     );
 
-    const resolvedId = auth?.currentUser?.uid || (email 
+    const now = Date.now();
+    const joinedAt = existing?.joinedAt !== undefined 
+      ? existing.joinedAt 
+      : (this.currentUser?.joinedAt !== undefined ? this.currentUser.joinedAt : now);
+    const isNewUser = existing?.isNewUser !== undefined 
+      ? existing.isNewUser 
+      : (this.currentUser?.isNewUser !== undefined ? this.currentUser.isNewUser : true);
+
+    // CRITICAL: Await Firebase Auth session completion so request.auth is NEVER null when user writes to Firestore
+    const fbUser = await this.ensureFirebaseAuthSession();
+    const resolvedId = fbUser?.uid || auth?.currentUser?.uid || (email 
       ? `user_${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
-      : `student_${Date.now()}`);
+      : `student_${now}`);
 
     const profile: StudentProfile = existing ? {
       ...existing,
+      id: resolvedId,
       name: trimmed !== 'Student' && trimmed !== 'Batch 41 Student' ? trimmed : existing.name,
-      isNewUser: existing.isNewUser ?? true,
-      userTag: existing.userTag || 'New User',
+      isNewUser,
+      joinedAt,
+      userTag: existing.userTag || (isNewUser ? 'New User' : 'Classmate'),
       loginMethod: existing.loginMethod || (email ? 'email' : 'google')
     } : {
       id: resolvedId,
@@ -17613,7 +18427,8 @@ class AuthService {
       loginMethod: 'email',
       isNewUser: true,
       userTag: 'New User',
-      createdAt: Date.now()
+      createdAt: now,
+      joinedAt: now
     };
 
     this.currentUser = profile;
@@ -17781,6 +18596,11 @@ class AuthService {
     this.notify();
   }
 
+  public getJoinedAt(): number {
+    if (!this.currentUser) return 0;
+    return this.currentUser.joinedAt ?? (this.currentUser.isNewUser ? (this.currentUser.createdAt || 0) : 0);
+  }
+
   public subscribe(listener: () => void) {
     this.listeners.add(listener);
     return () => {
@@ -17805,14 +18625,17 @@ export const authService = new AuthService();
 // Shared Batch Wall State Service for MLP41PT Batch Students with Firebase Firestore
 import { 
   db, 
+  auth,
   collection, 
   onSnapshot, 
   query, 
+  where,
   orderBy, 
   doc, 
   setDoc, 
-  deleteDoc 
+  deleteDoc
 } from './firebase';
+import { authService } from './authService';
 
 export interface BulletinReply {
   id: string;
@@ -17845,6 +18668,9 @@ export interface BatchUpdatePost {
   isPinned?: boolean;
   pinnedBy?: string;
   pinnedAt?: number;
+  isDeleted?: boolean;
+  isDeletedForEveryone?: boolean;
+  deletedAt?: number;
 }
 
 export interface MessageReceipt {
@@ -17953,6 +18779,14 @@ export interface GroupChatMessage {
   pinnedAt?: number;
 }
 
+export interface LikedMember {
+  userId?: string;
+  userName: string;
+  userEmail?: string;
+  avatarUrl?: string;
+  likedAt?: number;
+}
+
 export interface InstagramComment {
   id: string;
   authorId?: string;
@@ -17963,6 +18797,8 @@ export interface InstagramComment {
   timestamp: string;
   createdAt: number;
   likesCount?: number;
+  likedByUsers?: string[];
+  reactions?: Record<string, number>;
   isKritika?: boolean;
 }
 
@@ -17976,12 +18812,18 @@ export interface InstagramPost {
   authorAvatarUrl: string;
   location?: string;
   imageUrl: string;
+  images?: string[]; // Multiple photos in one 9:16 poster
   filter?: string; // 'none' | 'warm' | 'vintage' | 'pink' | 'golden' | 'bw'
   caption: string;
   hashtags: string[];
   likesCount: number;
   likedByCurrentUser?: boolean;
   likedByUsers?: string[];
+  likedByMembers?: LikedMember[]; // Unique users who liked/hearted
+  reactions?: Record<string, number>; // emoji -> count, e.g. { '❤️': 38, '🔥': 12, '🌸': 9 }
+  reactedUsers?: Record<string, string[]>; // emoji -> array of user names
+  sharesCount?: number; // Total unique shares count
+  sharedByUsers?: string[]; // Users who shared
   comments: InstagramComment[];
   saved?: boolean;
   timestamp: string;
@@ -17991,6 +18833,9 @@ export interface InstagramPost {
   pinnedBy?: string;
   pinnedAt?: number;
   isEdited?: boolean;
+  isDeleted?: boolean;
+  isDeletedForEveryone?: boolean;
+  deletedAt?: number;
 }
 
 export const formatChatTimestamp = (createdAt: number): string => {
@@ -18013,6 +18858,7 @@ const CHAT_STORAGE_KEY = 'marisol_group_chat_messages_v2';
 const CHAT_QUEUE_KEY = 'marisol_chat_offline_queue_v2';
 const INSTA_STORAGE_KEY = 'marisol_instagram_posts_v2';
 const QUEUE_KEY = 'marisol_batch_offline_queue_v2';
+const DELETED_POSTS_STORAGE_KEY = 'marisol_deleted_posts_v2';
 
 const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
   {
@@ -18028,7 +18874,22 @@ const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
     hashtags: ['#Batch41', '#KritikaQueen', '#FactoryOfFun', '#ComfortVibes'],
     likesCount: 38,
     likedByCurrentUser: true,
-    likedByUsers: ['Kritika Gupta 👑'],
+    likedByUsers: ['Kritika Gupta 👑', 'Priyanshu Sharma', 'Ananya Deshmukh', 'Rohan Mehra'],
+    likedByMembers: [
+      { userId: 'member_kritika', userName: 'Kritika Gupta 👑', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop', likedAt: Date.now() - 3600000 },
+      { userId: 'member_priyanshu', userName: 'Priyanshu Sharma', avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop', likedAt: Date.now() - 2500000 },
+      { userId: 'member_ananya', userName: 'Ananya Deshmukh', avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop', likedAt: Date.now() - 1800000 },
+      { userId: 'member_rohan', userName: 'Rohan Mehra', avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop', likedAt: Date.now() - 900000 }
+    ],
+    reactions: { '❤️': 38, '🌸': 15, '✨': 12, '🔥': 9 },
+    reactedUsers: {
+      '❤️': ['Kritika Gupta 👑', 'Priyanshu Sharma', 'Ananya Deshmukh'],
+      '🌸': ['Ananya Deshmukh', 'Kritika Gupta 👑'],
+      '✨': ['Rohan Mehra'],
+      '🔥': ['Priyanshu Sharma']
+    },
+    sharesCount: 7,
+    sharedByUsers: ['Priyanshu Sharma', 'Ananya Deshmukh', 'Rohan Mehra'],
     comments: [
       {
         id: 'c1',
@@ -18036,7 +18897,9 @@ const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
         avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=120&h=120&fit=crop',
         text: 'Royal aesthetic as always! Keep shining Kritika! 👑🔥',
         timestamp: '1 hour ago',
-        createdAt: Date.now() - 3600000
+        createdAt: Date.now() - 3600000,
+        likesCount: 4,
+        likedByUsers: ['Kritika Gupta 👑', 'Ananya Deshmukh']
       },
       {
         id: 'c2',
@@ -18044,7 +18907,9 @@ const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
         avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
         text: 'Best batch memories ever! 💖✨',
         timestamp: '30 mins ago',
-        createdAt: Date.now() - 1800000
+        createdAt: Date.now() - 1800000,
+        likesCount: 2,
+        likedByUsers: ['Kritika Gupta 👑']
       }
     ],
     timestamp: '2 hours ago',
@@ -18053,12 +18918,38 @@ const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
   }
 ];
 
+/**
+ * Recursively removes all `undefined` fields from an object/array so Firestore SDK
+ * never throws "Unsupported field value: undefined".
+ */
+export function cleanForFirestore<T>(val: T): T {
+  if (val === null || val === undefined) {
+    return null as any;
+  }
+  if (Array.isArray(val)) {
+    return val
+      .filter(item => item !== undefined)
+      .map(item => cleanForFirestore(item)) as any;
+  }
+  if (typeof val === 'object' && val.constructor === Object) {
+    const res: Record<string, any> = {};
+    for (const [k, v] of Object.entries(val)) {
+      if (v !== undefined) {
+        res[k] = cleanForFirestore(v);
+      }
+    }
+    return res as any;
+  }
+  return val;
+}
+
 class BatchWallService {
   private posts: BatchUpdatePost[] = [];
   private chatMessages: GroupChatMessage[] = [];
   private instagramPosts: InstagramPost[] = [];
   private offlineQueue: BatchUpdatePost[] = [];
   private chatOfflineQueue: GroupChatMessage[] = [];
+  private deletedPostIds: Set<string> = new Set();
   private listeners: Set<() => void> = new Set();
   private isOnline: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
   private lastSyncToast: string | null = null;
@@ -18085,6 +18976,20 @@ class BatchWallService {
               this.chatMessages = this.chatMessages.filter(m => m.id !== event.data.messageId);
               this.saveChatToStorage();
               this.notify();
+            } else if (event.data?.type === 'DELETE_INSTA_POST' && event.data?.postId) {
+              this.deletedPostIds.add(event.data.postId);
+              this.saveDeletedPostsToStorage();
+              this.instagramPosts = this.instagramPosts.filter(p => p.id !== event.data.postId);
+              this.saveInstaToStorage();
+              this.notify();
+            } else if (event.data?.type === 'DELETE_BULLETIN_POST' && event.data?.postId) {
+              this.deletedPostIds.add(event.data.postId);
+              this.saveDeletedPostsToStorage();
+              this.posts = this.posts.filter(p => p.id !== event.data.postId);
+              this.offlineQueue = this.offlineQueue.filter(p => p.id !== event.data.postId);
+              this.saveToStorage();
+              this.saveQueueToStorage();
+              this.notify();
             } else if (event.data?.type === 'SYNC_CHAT') {
               this.loadFromStorage();
               this.notify();
@@ -18101,6 +19006,12 @@ class BatchWallService {
     }
 
     this.initFirestoreSync();
+
+    // Auto-update chat stream when user logs in, switches accounts, or profile updates
+    authService.subscribe(() => {
+      const cur = authService.getCurrentUser();
+      this.initChatListener(cur?.joinedAt, cur?.isNewUser);
+    });
   }
 
   private cleanLegacyStorage() {
@@ -18108,33 +19019,61 @@ class BatchWallService {
       localStorage.removeItem('marisol_batch_updates_v1');
       localStorage.removeItem('marisol_direct_chat_messages_v1');
       localStorage.removeItem('marisol_direct_chat_messages_v2');
+      localStorage.removeItem('marisol_deleted_posts_v1');
     } catch {}
   }
 
   private initFirestoreSync() {
     if (db) {
       try {
-        // 1. Bulletin Corkboard Posts
+        // 0. Shared Deleted Posts Registry Listener (guarantees real-time complete deletion for all batch members)
+        const deletedQuery = collection(db, 'deleted_posts');
+        onSnapshot(deletedQuery, (snapshot) => {
+          let hasNewDeletions = false;
+          snapshot.forEach((docSnap) => {
+            if (!this.deletedPostIds.has(docSnap.id)) {
+              this.deletedPostIds.add(docSnap.id);
+              hasNewDeletions = true;
+            }
+          });
+          if (hasNewDeletions) {
+            this.saveDeletedPostsToStorage();
+            this.posts = this.posts.filter(p => !this.deletedPostIds.has(p.id));
+            this.instagramPosts = this.instagramPosts.filter(p => !this.deletedPostIds.has(p.id));
+            this.saveToStorage();
+            this.saveInstaToStorage();
+            this.notify();
+          }
+        }, (err) => {
+          console.warn('[BatchWall] Firestore deleted_posts listener notice:', err);
+        });
+
+        // 1. Bulletin Corkboard Posts Listener
         const postsQuery = query(
           collection(db, 'batch_updates'),
           orderBy('createdAt', 'desc')
         );
         onSnapshot(postsQuery, (snapshot) => {
-          if (!snapshot.empty) {
-            const remotePosts: BatchUpdatePost[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as BatchUpdatePost;
-              remotePosts.push({ ...data, id: docSnap.id });
-            });
+          const remotePosts: BatchUpdatePost[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as BatchUpdatePost;
+            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(docSnap.id)) {
+              if (!this.deletedPostIds.has(docSnap.id)) {
+                this.deletedPostIds.add(docSnap.id);
+                this.saveDeletedPostsToStorage();
+              }
+              return;
+            }
+            remotePosts.push({ ...data, id: docSnap.id });
+          });
 
-            this.posts = remotePosts.sort((a, b) => {
-              if (a.isPinned && !b.isPinned) return -1;
-              if (!a.isPinned && b.isPinned) return 1;
-              return (b.createdAt || 0) - (a.createdAt || 0);
-            });
-            this.saveToStorage();
-            this.notify();
-          }
+          this.posts = remotePosts.sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return (b.createdAt || 0) - (a.createdAt || 0);
+          });
+          this.saveToStorage();
+          this.notify();
         }, (err) => {
           console.warn('[BatchWall] Firestore posts sync notice:', err);
         });
@@ -18148,19 +19087,25 @@ class BatchWallService {
           orderBy('createdAt', 'desc')
         );
         onSnapshot(instaQuery, (snapshot) => {
-          if (!snapshot.empty) {
-            const remoteInsta: InstagramPost[] = [];
-            snapshot.forEach((docSnap) => {
-              remoteInsta.push({ ...(docSnap.data() as InstagramPost), id: docSnap.id });
-            });
-            this.instagramPosts = remoteInsta.sort((a, b) => {
-              if (a.isPinned && !b.isPinned) return -1;
-              if (!a.isPinned && b.isPinned) return 1;
-              return (b.createdAt || 0) - (a.createdAt || 0);
-            });
-            this.saveInstaToStorage();
-            this.notify();
-          }
+          const remoteInsta: InstagramPost[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as InstagramPost;
+            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(docSnap.id)) {
+              if (!this.deletedPostIds.has(docSnap.id)) {
+                this.deletedPostIds.add(docSnap.id);
+                this.saveDeletedPostsToStorage();
+              }
+              return;
+            }
+            remoteInsta.push({ ...data, id: docSnap.id });
+          });
+          this.instagramPosts = remoteInsta.sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return (b.createdAt || 0) - (a.createdAt || 0);
+          });
+          this.saveInstaToStorage();
+          this.notify();
         }, (err) => {
           console.warn('[BatchWall] Firestore insta listener notice:', err);
         });
@@ -18178,8 +19123,9 @@ class BatchWallService {
   /**
    * Initializes exactly ONE authoritative group-chat Firestore listener.
    * If called again, cleans up previous listener to prevent duplicates.
+   * Enforces New User Privacy at the Firestore query level when userJoinedAt and isNewUser are set.
    */
-  public initChatListener() {
+  public initChatListener(userJoinedAt?: number, isNewUser?: boolean) {
     if (this.chatUnsubscribe) {
       this.chatUnsubscribe();
       this.chatUnsubscribe = null;
@@ -18192,15 +19138,44 @@ class BatchWallService {
       return;
     }
 
+    // Auto-detect from active auth session if not supplied explicitly
+    if (userJoinedAt === undefined || isNewUser === undefined) {
+      const cur = authService.getCurrentUser();
+      if (cur) {
+        userJoinedAt = userJoinedAt ?? cur.joinedAt;
+        isNewUser = isNewUser ?? cur.isNewUser;
+      }
+    }
+
+    // New User Privacy: immediately clear any stale cached messages prior to joinedAt
+    if (isNewUser && userJoinedAt && userJoinedAt > 0) {
+      this.chatMessages = this.chatMessages.filter(m => (m.createdAt || 0) >= userJoinedAt!);
+      this.saveChatToStorage();
+    }
+
     this.chatConnectionStatus = 'connecting';
     this.chatErrorMessage = null;
     this.notify();
 
     try {
-      const chatQuery = query(
-        collection(db, 'group_chat_messages'),
-        orderBy('createdAt', 'asc')
-      );
+      const messagesCol = collection(db, 'group_chat_messages');
+      let chatQuery;
+
+      if (isNewUser && userJoinedAt && userJoinedAt > 0) {
+        // Enforce New User Privacy at the Firestore query level:
+        // Older messages prior to user.joinedAt are NEVER downloaded or delivered to client.
+        chatQuery = query(
+          messagesCol,
+          where('createdAt', '>=', userJoinedAt),
+          orderBy('createdAt', 'asc')
+        );
+      } else {
+        // Older/existing users query the full history
+        chatQuery = query(
+          messagesCol,
+          orderBy('createdAt', 'asc')
+        );
+      }
 
       this.chatUnsubscribe = onSnapshot(
         chatQuery,
@@ -18227,14 +19202,25 @@ class BatchWallService {
           this.notify();
         },
         (error) => {
-          console.error('[Batch 41 Group Chat] Firestore listener error:', error);
+          console.error('[Batch 41 Group Chat] Firestore listener error:', {
+            code: error?.code,
+            message: error?.message,
+            userJoinedAt,
+            isNewUser
+          });
           this.chatConnectionStatus = 'error';
-          this.chatErrorMessage = 'Unable to connect to the group chat. Please check your internet connection.';
+          this.chatErrorMessage = error?.code === 'permission-denied'
+            ? 'Permission denied: Chat access restricted by Firestore security rules.'
+            : 'Unable to connect to the group chat. Please check your internet connection.';
           this.notify();
         }
       );
     } catch (err: any) {
-      console.error('[Batch 41 Group Chat] Firestore init error:', err);
+      console.error('[Batch 41 Group Chat] Firestore init error:', {
+        code: err?.code,
+        message: err?.message,
+        error: err
+      });
       this.chatConnectionStatus = 'error';
       this.chatErrorMessage = 'Unable to connect to the group chat. Please check your internet connection.';
       this.notify();
@@ -18243,10 +19229,24 @@ class BatchWallService {
 
   private loadFromStorage() {
     try {
+      const storedDeleted = localStorage.getItem(DELETED_POSTS_STORAGE_KEY);
+      if (storedDeleted) {
+        try {
+          const ids: string[] = JSON.parse(storedDeleted);
+          this.deletedPostIds = new Set(ids);
+        } catch {
+          this.deletedPostIds = new Set();
+        }
+      } else {
+        this.deletedPostIds = new Set();
+      }
+
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed: BatchUpdatePost[] = JSON.parse(stored);
-        this.posts = parsed.filter(p => !['post_01', 'post_02', 'post_03', 'post_04'].includes(p.id));
+        this.posts = parsed
+          .filter(p => !['post_01', 'post_02', 'post_03', 'post_04'].includes(p.id))
+          .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone);
       } else {
         this.posts = [];
         this.saveToStorage();
@@ -18262,15 +19262,24 @@ class BatchWallService {
 
       const storedInsta = localStorage.getItem(INSTA_STORAGE_KEY);
       if (storedInsta) {
-        this.instagramPosts = JSON.parse(storedInsta);
+        const parsed: InstagramPost[] = JSON.parse(storedInsta);
+        this.instagramPosts = parsed.filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone);
       } else {
+        this.instagramPosts = DEFAULT_INSTAGRAM_POSTS.filter(p => !this.deletedPostIds.has(p.id));
+        this.saveInstaToStorage();
+      }
+
+      if (!this.instagramPosts || this.instagramPosts.length === 0) {
+        DEFAULT_INSTAGRAM_POSTS.forEach(dp => this.deletedPostIds.delete(dp.id));
+        this.saveDeletedPostsToStorage();
         this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
         this.saveInstaToStorage();
       }
 
       const queue = localStorage.getItem(QUEUE_KEY);
       if (queue) {
-        this.offlineQueue = JSON.parse(queue);
+        const parsedQueue: BatchUpdatePost[] = JSON.parse(queue);
+        this.offlineQueue = parsedQueue.filter(p => !this.deletedPostIds.has(p.id));
       }
 
       const chatQueue = localStorage.getItem(CHAT_QUEUE_KEY);
@@ -18278,12 +19287,19 @@ class BatchWallService {
         this.chatOfflineQueue = JSON.parse(chatQueue);
       }
     } catch {
+      this.deletedPostIds = new Set();
       this.posts = [];
       this.chatMessages = [];
-      this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
+      this.instagramPosts = DEFAULT_INSTAGRAM_POSTS.filter(p => !this.deletedPostIds.has(p.id));
       this.offlineQueue = [];
       this.chatOfflineQueue = [];
     }
+  }
+
+  private saveDeletedPostsToStorage() {
+    try {
+      localStorage.setItem(DELETED_POSTS_STORAGE_KEY, JSON.stringify(Array.from(this.deletedPostIds)));
+    } catch {}
   }
 
   private saveToStorage() {
@@ -18339,7 +19355,7 @@ class BatchWallService {
       this.chatOfflineQueue.forEach(async (msg) => {
         if (db) {
           try {
-            await setDoc(doc(db, 'group_chat_messages', msg.id), msg);
+            await setDoc(doc(db, 'group_chat_messages', msg.id), cleanForFirestore(msg));
           } catch (e) {
             console.warn('[Batch 41 Group Chat] Error syncing queued message:', e);
           }
@@ -18364,7 +19380,7 @@ class BatchWallService {
   private async syncPostToFirestore(post: BatchUpdatePost) {
     if (db) {
       try {
-        await setDoc(doc(db, 'batch_updates', post.id), post);
+        await setDoc(doc(db, 'batch_updates', post.id), cleanForFirestore(post));
       } catch (err) {
         console.warn('Failed to add post to Firestore:', err);
       }
@@ -18385,9 +19401,24 @@ class BatchWallService {
     };
   }
 
-  public getChatMessages(currentUserId?: string): GroupChatMessage[] {
+  public getChatMessages(currentUserId?: string, userJoinedAt?: number, isNewUser?: boolean): GroupChatMessage[] {
+    let list = this.chatMessages;
+
+    if (userJoinedAt === undefined || isNewUser === undefined) {
+      const cur = authService.getCurrentUser();
+      if (cur) {
+        userJoinedAt = userJoinedAt ?? cur.joinedAt;
+        isNewUser = isNewUser ?? cur.isNewUser;
+      }
+    }
+
+    // Defense-in-depth: Ensure new users never see older chat messages sent before their join time
+    if (isNewUser && userJoinedAt && userJoinedAt > 0) {
+      list = list.filter(m => (m.createdAt || 0) >= userJoinedAt!);
+    }
+
     if (!currentUserId) {
-      return [...this.chatMessages];
+      return [...list];
     }
     try {
       const hiddenKey = `marisol_chat_hidden_${currentUserId}`;
@@ -18395,10 +19426,10 @@ class BatchWallService {
       if (stored) {
         const hiddenIds: string[] = JSON.parse(stored);
         const hiddenSet = new Set(hiddenIds);
-        return this.chatMessages.filter(m => !hiddenSet.has(m.id));
+        return list.filter(m => !hiddenSet.has(m.id));
       }
     } catch {}
-    return [...this.chatMessages];
+    return [...list];
   }
 
   public getPinnedMessages(): GroupChatMessage[] {
@@ -18435,16 +19466,50 @@ class BatchWallService {
     pinnedAt?: number;
   }): Promise<GroupChatMessage> {
     if (!db) {
-      throw new Error('Firebase Firestore is not configured.');
+      const err: any = new Error('Database is not initialized.');
+      err.code = 'unavailable';
+      throw err;
     }
 
     const text = data.text.trim();
     if (!text && !data.imageUrl && !data.poll) {
-      throw new Error('Message cannot be empty.');
+      const err: any = new Error('Message cannot be empty.');
+      err.code = 'invalid-argument';
+      throw err;
     }
 
-    if (!data.senderId) {
-      throw new Error('Authenticated user ID (Firebase UID) is required to chat.');
+    // 1. Ensure user has a valid Firebase Auth session before attempting write
+    let fbUser = auth?.currentUser || null;
+    if (!fbUser && auth) {
+      try {
+        fbUser = await authService.ensureFirebaseAuthSession();
+      } catch (authErr) {
+        console.warn('[Batch 41 Group Chat] Error ensuring auth session:', authErr);
+      }
+    }
+
+    // 2. Refresh token before writing to avoid expired session errors
+    if (fbUser) {
+      try {
+        await fbUser.getIdToken(false);
+      } catch (tokenErr) {
+        console.warn('[Batch 41 Group Chat] Token refresh attempt failed, forcing refresh:', tokenErr);
+        try {
+          await fbUser.getIdToken(true);
+        } catch (forceErr) {
+          const err: any = new Error('Login session expired. Please sign in again.');
+          err.code = 'unauthenticated';
+          throw err;
+        }
+      }
+    }
+
+    // 3. Sender ID MUST match request.auth.uid for security rules
+    const effectiveSenderId = fbUser?.uid || data.senderId;
+    if (!effectiveSenderId) {
+      const err: any = new Error('User identity could not be verified.');
+      err.code = 'unauthenticated';
+      throw err;
     }
 
     const messageRef = doc(collection(db, 'group_chat_messages'));
@@ -18454,11 +19519,14 @@ class BatchWallService {
                       Boolean(data.senderEmail && data.senderEmail.toLowerCase().includes('kritika')) ||
                       data.senderName.toLowerCase().includes('marisol');
 
+    // If signed in with verified Google email, use that; otherwise data.senderEmail
+    const effectiveSenderEmail = fbUser?.email || data.senderEmail;
+
     const message: GroupChatMessage = {
       id: messageRef.id,
-      senderId: data.senderId,
+      senderId: effectiveSenderId,
       senderName: isKritika && !data.senderName.includes('👑') ? `${data.senderName.trim()} 👑` : data.senderName.trim(),
-      senderEmail: data.senderEmail,
+      senderEmail: effectiveSenderEmail,
       avatarUrl: data.avatarUrl || '/marisol/avatars/01_brighter_ideas.png',
       senderIsNewUser: data.senderIsNewUser ?? false,
       senderUserTag: data.senderUserTag || (isKritika ? 'Founder 👑' : 'New User'),
@@ -18475,9 +19543,9 @@ class BatchWallService {
       reactions: {},
       seenBy: [
         {
-          userId: data.senderId,
+          userId: effectiveSenderId,
           userName: data.senderName,
-          userEmail: data.senderEmail,
+          userEmail: effectiveSenderEmail,
           avatarUrl: data.avatarUrl || '/marisol/avatars/01_brighter_ideas.png',
           seenAt: now,
         }
@@ -18494,18 +19562,51 @@ class BatchWallService {
       return message;
     }
 
-    // Write authoritative record directly to Firestore
-    try {
-      await setDoc(messageRef, message);
-    } catch (err) {
-      console.error('[Batch 41 Group Chat] Firestore error sending message:', err);
-      // Queue offline on network failure
-      this.chatOfflineQueue.push(message);
-      this.saveChatQueueToStorage();
-      this.chatMessages.push(message);
-      this.saveChatToStorage();
-      this.notify();
-      throw err;
+    // 4. Write authoritative record directly to Firestore with exponential backoff for transient errors
+    let attempt = 0;
+    const maxRetries = 3;
+    const baseDelayMs = 400;
+
+    while (true) {
+      attempt++;
+      try {
+        const payload = cleanForFirestore(message);
+        await setDoc(messageRef, payload);
+        break; // Successfully written to Firestore!
+      } catch (err: any) {
+        const errCode = err?.code || '';
+        const isTransient = errCode === 'unavailable' || 
+                            errCode === 'deadline-exceeded' || 
+                            errCode === 'resource-exhausted' ||
+                            err?.message?.includes('offline') ||
+                            err?.message?.includes('transport') ||
+                            err?.message?.includes('network');
+
+        if (attempt < maxRetries && isTransient) {
+          const delay = baseDelayMs * Math.pow(2, attempt - 1);
+          console.warn(`[Batch 41 Group Chat] Transient Firestore error [${errCode || err?.message}]. Retrying attempt ${attempt}/${maxRetries} in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
+        console.error('[Batch 41 Group Chat] Firestore error sending message:', {
+          code: errCode,
+          message: err?.message,
+          attempt,
+          authUid: fbUser?.uid || null,
+          authEmail: fbUser?.email || null,
+          senderId: message.senderId,
+          networkOnline: typeof navigator !== 'undefined' ? navigator.onLine : null
+        });
+
+        // Queue offline on failure
+        this.chatOfflineQueue.push(message);
+        this.saveChatQueueToStorage();
+        this.chatMessages.push(message);
+        this.saveChatToStorage();
+        this.notify();
+        throw err;
+      }
     }
 
     // Note: onSnapshot listener receives the Firestore doc and updates this.chatMessages authoritatively
@@ -18526,7 +19627,7 @@ class BatchWallService {
     try {
       await setDoc(
         doc(db, 'group_chat_messages', messageId),
-        { reactions: updatedReactions },
+        cleanForFirestore({ reactions: updatedReactions }),
         { merge: true }
       );
     } catch (err) {
@@ -18539,11 +19640,11 @@ class BatchWallService {
     try {
       await setDoc(
         doc(db, 'group_chat_messages', messageId),
-        {
+        cleanForFirestore({
           isPinned: true,
           pinnedBy: pinnedByUid || 'Classmate',
           pinnedAt: Date.now()
-        },
+        }),
         { merge: true }
       );
     } catch (err) {
@@ -18591,7 +19692,7 @@ class BatchWallService {
     try {
       await setDoc(
         doc(db, 'group_chat_messages', messageId),
-        { poll: msg.poll },
+        cleanForFirestore({ poll: msg.poll }),
         { merge: true }
       );
     } catch (err) {
@@ -18704,7 +19805,7 @@ class BatchWallService {
     try {
       await setDoc(
         doc(db, 'group_chat_messages', msg.id),
-        { seenBy: msg.seenBy },
+        cleanForFirestore({ seenBy: msg.seenBy }),
         { merge: true }
       );
     } catch {}
@@ -18728,7 +19829,7 @@ class BatchWallService {
         try {
           await setDoc(
             doc(db, 'group_chat_messages', msg.id),
-            { seenBy: msg.seenBy },
+            cleanForFirestore({ seenBy: msg.seenBy }),
             { merge: true }
           );
         } catch {}
@@ -18741,7 +19842,7 @@ class BatchWallService {
   // =========================================================================
 
   public getPosts(onlyCurrentUser?: boolean, currentUserId?: string): BatchUpdatePost[] {
-    let list = [...this.posts];
+    let list = this.posts.filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone);
     if (onlyCurrentUser && currentUserId) {
       list = list.filter(p => p.userId === currentUserId);
     }
@@ -18775,11 +19876,26 @@ class BatchWallService {
   }
 
   public getInstagramPosts(): InstagramPost[] {
-    return [...this.instagramPosts].sort((a, b) => {
+    const active = this.instagramPosts
+      .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone);
+    
+    if (active.length === 0 && DEFAULT_INSTAGRAM_POSTS.length > 0) {
+      DEFAULT_INSTAGRAM_POSTS.forEach(dp => this.deletedPostIds.delete(dp.id));
+      this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
+      this.saveInstaToStorage();
+      this.saveDeletedPostsToStorage();
+      return [...DEFAULT_INSTAGRAM_POSTS];
+    }
+
+    return active.sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
       return (b.createdAt || 0) - (a.createdAt || 0);
     });
+  }
+
+  public isPostDeleted(postId: string): boolean {
+    return this.deletedPostIds.has(postId);
   }
 
   public getNetworkStatus(): { isOnline: boolean; queuedCount: number; syncToast: string | null } {
@@ -18807,8 +19923,8 @@ class BatchWallService {
   }): { queued: boolean; post: BatchUpdatePost } {
     const newPost: BatchUpdatePost = {
       id: `post_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      userId: postData.userId,
-      userEmail: postData.userEmail,
+      userId: postData.userId || (auth?.currentUser?.uid ?? undefined),
+      userEmail: postData.userEmail || (auth?.currentUser?.email ?? undefined),
       batch: 'MLP41PT',
       studentName: postData.studentName.trim() || 'MLP41PT Student',
       avatarPose: postData.avatarPose,
@@ -18838,11 +19954,14 @@ class BatchWallService {
 
   public async addInstagramPost(data: {
     userId?: string;
+    authorId?: string;
     userEmail?: string;
+    authorEmail?: string;
     authorName: string;
     authorAvatarUrl?: string;
     location?: string;
-    imageUrl: string;
+    imageUrl?: string;
+    images?: string[];
     filter?: string;
     caption: string;
     hashtags?: string[];
@@ -18852,14 +19971,20 @@ class BatchWallService {
                       (data.userEmail && data.userEmail.toLowerCase().includes('kritika')) ||
                       name.toLowerCase().includes('marisol');
 
+    const imagesList = data.images && data.images.length > 0 ? data.images : (data.imageUrl ? [data.imageUrl] : []);
+    const mainImageUrl = imagesList[0] || data.imageUrl || '';
+
     const newPost: InstagramPost = {
       id: `insta_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      userId: data.userId,
-      userEmail: data.userEmail,
+      userId: data.userId || (auth?.currentUser?.uid ?? undefined),
+      authorId: data.authorId || data.userId || (auth?.currentUser?.uid ?? undefined),
+      userEmail: data.userEmail || (auth?.currentUser?.email ?? undefined),
+      authorEmail: data.authorEmail || data.userEmail || (auth?.currentUser?.email ?? undefined),
       authorName: isKritika && !name.includes('👑') ? `${name} 👑` : name,
       authorAvatarUrl: data.authorAvatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
       location: data.location || 'Batch 41 Comfort Hub 🌸',
-      imageUrl: data.imageUrl,
+      imageUrl: mainImageUrl,
+      images: imagesList,
       filter: data.filter || 'none',
       caption: data.caption.trim(),
       hashtags: data.hashtags && data.hashtags.length > 0 ? data.hashtags : ['#Batch41', '#FactoryOfFun'],
@@ -18882,7 +20007,7 @@ class BatchWallService {
 
     if (db) {
       try {
-        await setDoc(doc(db, 'instagram_posts', newPost.id), newPost);
+        await setDoc(doc(db, 'instagram_posts', newPost.id), cleanForFirestore(newPost));
       } catch (err) {
         console.warn('Failed to add insta post to Firestore:', err);
       }
@@ -18996,14 +20121,18 @@ class BatchWallService {
     deleter?: { id?: string; email?: string; name?: string }
   ): Promise<{ success: boolean; error?: string }> {
     const post = this.instagramPosts.find(p => p.id === postId);
-    if (!post) return { success: false, error: 'Post not found.' };
+    if (!post) {
+      this.deletedPostIds.add(postId);
+      this.saveDeletedPostsToStorage();
+      return { success: true };
+    }
 
     if (deleter) {
       const isKritika = (deleter.name || '').toLowerCase().includes('kritika') || (deleter.email || '').toLowerCase().includes('kritika');
       const deleterNameClean = (deleter.name || '').replace(' 👑', '').trim().toLowerCase();
       const authorNameClean = (post.authorName || '').replace(' 👑', '').trim().toLowerCase();
       const isAuthor = Boolean(
-        (deleter.id && post.userId && deleter.id === post.userId) ||
+        (deleter.id && (post.userId || post.authorId) && (deleter.id === post.userId || deleter.id === post.authorId)) ||
         (deleter.email && (post.userEmail || post.authorEmail) && deleter.email.toLowerCase().trim() === (post.userEmail || post.authorEmail)?.toLowerCase().trim()) ||
         (deleterNameClean !== '' && deleterNameClean === authorNameClean)
       );
@@ -19013,18 +20142,47 @@ class BatchWallService {
       }
     }
 
+    // 1. Instantly purge locally and record deleted post ID
+    this.deletedPostIds.add(postId);
+    this.saveDeletedPostsToStorage();
     this.instagramPosts = this.instagramPosts.filter(p => p.id !== postId);
     this.saveInstaToStorage();
 
+    // 2. Broadcast to other open browser tabs
     try {
-      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+      this.broadcastChannel?.postMessage({ type: 'DELETE_INSTA_POST', postId });
     } catch {}
 
+    // 3. Multi-layer authoritative purge in Firestore for all users
     if (db) {
+      // Step A: Mark as deleted on post doc (soft-delete safeguard so any cached reads immediately ignore it)
+      try {
+        await setDoc(doc(db, 'instagram_posts', postId), cleanForFirestore({
+          isDeleted: true,
+          isDeletedForEveryone: true,
+          deletedAt: Date.now()
+        }), { merge: true });
+      } catch (err) {
+        console.warn('[BatchWall] Firestore soft-delete mark notice:', err);
+      }
+
+      // Step B: Hard-delete document from collection
       try {
         await deleteDoc(doc(db, 'instagram_posts', postId));
       } catch (err) {
-        console.warn('Failed to delete post on Firestore:', err);
+        console.warn('[BatchWall] Firestore deleteDoc notice:', err);
+      }
+
+      // Step C: Save to shared 'deleted_posts' registry so other users sync deletion permanently
+      try {
+        await setDoc(doc(db, 'deleted_posts', postId), cleanForFirestore({
+          id: postId,
+          type: 'instagram_post',
+          deletedAt: Date.now(),
+          deleterName: deleter?.name || 'Author'
+        }));
+      } catch (err) {
+        console.warn('[BatchWall] Firestore deleted_posts registry notice:', err);
       }
     }
 
@@ -19032,23 +20190,49 @@ class BatchWallService {
     return { success: true };
   }
 
-  public likeInstagramPost(postId: string, currentUserName?: string) {
+  public likeInstagramPost(
+    postId: string, 
+    userInfo?: { id?: string; name?: string; email?: string; avatarUrl?: string } | string
+  ) {
     const post = this.instagramPosts.find(p => p.id === postId);
     if (!post) return;
 
-    if (post.likedByCurrentUser) {
+    const userName = typeof userInfo === 'string' ? userInfo : (userInfo?.name || 'Classmate');
+    const userId = typeof userInfo === 'object' ? userInfo?.id : undefined;
+    const userEmail = typeof userInfo === 'object' ? userInfo?.email : undefined;
+    const avatarUrl = typeof userInfo === 'object' ? userInfo?.avatarUrl : undefined;
+
+    if (!post.likedByUsers) post.likedByUsers = [];
+    if (!post.likedByMembers) post.likedByMembers = [];
+
+    const existingMemberIdx = post.likedByMembers.findIndex(m => 
+      (userId && m.userId === userId) ||
+      (userEmail && m.userEmail && m.userEmail.toLowerCase() === userEmail.toLowerCase()) ||
+      (m.userName && m.userName.toLowerCase().trim() === userName.toLowerCase().trim())
+    );
+
+    const isAlreadyLiked = post.likedByCurrentUser || existingMemberIdx >= 0 || post.likedByUsers.some(u => u.toLowerCase().trim() === userName.toLowerCase().trim());
+
+    if (isAlreadyLiked) {
       post.likedByCurrentUser = false;
       post.likesCount = Math.max(0, post.likesCount - 1);
-      if (currentUserName && post.likedByUsers) {
-        post.likedByUsers = post.likedByUsers.filter(u => u !== currentUserName);
+      post.likedByUsers = post.likedByUsers.filter(u => u.toLowerCase().trim() !== userName.toLowerCase().trim());
+      if (existingMemberIdx >= 0) {
+        post.likedByMembers.splice(existingMemberIdx, 1);
       }
     } else {
       post.likedByCurrentUser = true;
       post.likesCount += 1;
-      if (!post.likedByUsers) post.likedByUsers = [];
-      if (currentUserName && !post.likedByUsers.includes(currentUserName)) {
-        post.likedByUsers.push(currentUserName);
+      if (!post.likedByUsers.some(u => u.toLowerCase().trim() === userName.toLowerCase().trim())) {
+        post.likedByUsers.push(userName);
       }
+      post.likedByMembers.push({
+        userId,
+        userName,
+        userEmail,
+        avatarUrl: avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
+        likedAt: Date.now()
+      });
     }
 
     this.saveInstaToStorage();
@@ -19059,10 +20243,130 @@ class BatchWallService {
 
     if (db) {
       try {
-        setDoc(doc(db, 'instagram_posts', postId), { 
+        setDoc(doc(db, 'instagram_posts', postId), cleanForFirestore({ 
           likesCount: post.likesCount,
-          likedByUsers: post.likedByUsers || []
-        }, { merge: true });
+          likedByUsers: post.likedByUsers || [],
+          likedByMembers: post.likedByMembers || []
+        }), { merge: true });
+      } catch {}
+    }
+
+    this.notify();
+  }
+
+  public reactToInstagramPost(
+    postId: string,
+    emoji: string,
+    userInfo?: { id?: string; name?: string; email?: string } | string
+  ) {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return;
+
+    const userName = typeof userInfo === 'string' ? userInfo : (userInfo?.name || 'Classmate');
+
+    if (!post.reactions) post.reactions = {};
+    if (!post.reactedUsers) post.reactedUsers = {};
+
+    const usersForEmoji = post.reactedUsers[emoji] || [];
+    const hasReacted = usersForEmoji.some(u => u.toLowerCase().trim() === userName.toLowerCase().trim());
+
+    if (hasReacted) {
+      // Toggle off
+      post.reactedUsers[emoji] = usersForEmoji.filter(u => u.toLowerCase().trim() !== userName.toLowerCase().trim());
+      post.reactions[emoji] = Math.max(0, (post.reactions[emoji] || 1) - 1);
+      if (post.reactions[emoji] === 0) {
+        delete post.reactions[emoji];
+        delete post.reactedUsers[emoji];
+      }
+    } else {
+      // Toggle on
+      post.reactedUsers[emoji] = [...usersForEmoji, userName];
+      post.reactions[emoji] = (post.reactions[emoji] || 0) + 1;
+    }
+
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        setDoc(doc(db, 'instagram_posts', postId), cleanForFirestore({
+          reactions: post.reactions || {},
+          reactedUsers: post.reactedUsers || {}
+        }), { merge: true });
+      } catch {}
+    }
+
+    this.notify();
+  }
+
+  public async shareInstagramPost(
+    postId: string,
+    userInfo?: { id?: string; name?: string } | string
+  ): Promise<number> {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post) return 0;
+
+    const userName = typeof userInfo === 'string' ? userInfo : (userInfo?.name || 'Classmate');
+
+    post.sharesCount = (post.sharesCount || 0) + 1;
+    if (!post.sharedByUsers) post.sharedByUsers = [];
+    if (!post.sharedByUsers.includes(userName)) {
+      post.sharedByUsers.push(userName);
+    }
+
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'instagram_posts', postId), cleanForFirestore({
+          sharesCount: post.sharesCount,
+          sharedByUsers: post.sharedByUsers || []
+        }), { merge: true });
+      } catch {}
+    }
+
+    this.notify();
+    return post.sharesCount;
+  }
+
+  public likeInstagramComment(
+    postId: string,
+    commentId: string,
+    currentUserName?: string
+  ) {
+    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!post || !post.comments) return;
+
+    const comment = post.comments.find(c => c.id === commentId);
+    if (!comment) return;
+
+    const user = currentUserName || 'Classmate';
+    if (!comment.likedByUsers) comment.likedByUsers = [];
+
+    if (comment.likedByUsers.includes(user)) {
+      comment.likedByUsers = comment.likedByUsers.filter(u => u !== user);
+      comment.likesCount = Math.max(0, (comment.likesCount || 1) - 1);
+    } else {
+      comment.likedByUsers.push(user);
+      comment.likesCount = (comment.likesCount || 0) + 1;
+    }
+
+    this.saveInstaToStorage();
+
+    try {
+      this.broadcastChannel?.postMessage({ type: 'SYNC_INSTA' });
+    } catch {}
+
+    if (db) {
+      try {
+        setDoc(doc(db, 'instagram_posts', postId), cleanForFirestore({ comments: post.comments }), { merge: true });
       } catch {}
     }
 
@@ -19107,6 +20411,8 @@ class BatchWallService {
       text: commentData.text.trim(),
       timestamp: 'Just now',
       createdAt: Date.now(),
+      likesCount: 0,
+      likedByUsers: [],
       isKritika
     };
 
@@ -19119,7 +20425,7 @@ class BatchWallService {
 
     if (db) {
       try {
-        await setDoc(doc(db, 'instagram_posts', postId), { comments: post.comments }, { merge: true });
+        await setDoc(doc(db, 'instagram_posts', postId), cleanForFirestore({ comments: post.comments }), { merge: true });
       } catch (err) {
         console.warn('Failed to sync insta comment to Firestore:', err);
       }
@@ -19129,23 +20435,80 @@ class BatchWallService {
     return newComment;
   }
 
-  public async deletePost(postId: string) {
-    this.posts = this.posts.filter(p => p.id !== postId);
-    this.saveToStorage();
+  public async deletePost(
+    postId: string,
+    deleter?: { id?: string; email?: string; name?: string }
+  ): Promise<{ success: boolean; error?: string }> {
+    const post = this.posts.find(p => p.id === postId);
+    if (!post) {
+      this.deletedPostIds.add(postId);
+      this.saveDeletedPostsToStorage();
+      return { success: true };
+    }
 
+    if (deleter) {
+      const isKritika = (deleter.name || '').toLowerCase().includes('kritika') || (deleter.email || '').toLowerCase().includes('kritika');
+      const deleterNameClean = (deleter.name || '').replace(' 👑', '').trim().toLowerCase();
+      const authorNameClean = (post.studentName || '').replace(' 👑', '').trim().toLowerCase();
+      const isAuthor = Boolean(
+        (deleter.id && post.userId && deleter.id === post.userId) ||
+        (deleter.email && post.userEmail && deleter.email.toLowerCase().trim() === post.userEmail?.toLowerCase().trim()) ||
+        (deleterNameClean !== '' && deleterNameClean === authorNameClean)
+      );
+
+      if (!isAuthor && !isKritika) {
+        return { success: false, error: 'Permission denied: Only the author can delete this sticky note.' };
+      }
+    }
+
+    // 1. Instantly purge locally and record deleted post ID
+    this.deletedPostIds.add(postId);
+    this.saveDeletedPostsToStorage();
+    this.posts = this.posts.filter(p => p.id !== postId);
+    this.offlineQueue = this.offlineQueue.filter(p => p.id !== postId);
+    this.saveToStorage();
+    this.saveQueueToStorage();
+
+    // 2. Broadcast to other open browser tabs
     try {
-      this.broadcastChannel?.postMessage({ type: 'SYNC_POSTS' });
+      this.broadcastChannel?.postMessage({ type: 'DELETE_BULLETIN_POST', postId });
     } catch {}
 
+    // 3. Multi-layer authoritative purge in Firestore for all users
     if (db) {
+      // Step A: Mark as deleted on post doc
+      try {
+        await setDoc(doc(db, 'batch_updates', postId), cleanForFirestore({
+          isDeleted: true,
+          isDeletedForEveryone: true,
+          deletedAt: Date.now()
+        }), { merge: true });
+      } catch (err) {
+        console.warn('[BatchWall] Firestore soft-delete mark notice:', err);
+      }
+
+      // Step B: Hard-delete document from collection
       try {
         await deleteDoc(doc(db, 'batch_updates', postId));
       } catch (err) {
-        console.warn('Failed to delete post from Firestore:', err);
+        console.warn('[BatchWall] Firestore deleteDoc notice:', err);
+      }
+
+      // Step C: Save to shared 'deleted_posts' registry so other users sync deletion permanently
+      try {
+        await setDoc(doc(db, 'deleted_posts', postId), cleanForFirestore({
+          id: postId,
+          type: 'bulletin_post',
+          deletedAt: Date.now(),
+          deleterName: deleter?.name || 'Author'
+        }));
+      } catch (err) {
+        console.warn('[BatchWall] Firestore deleted_posts registry notice:', err);
       }
     }
 
     this.notify();
+    return { success: true };
   }
 
   public reactToPost(postId: string, stickerAliasOrId: string) {
@@ -19306,6 +20669,7 @@ import {
 } from 'firebase/auth';
 import { 
   getFirestore, 
+  initializeFirestore,
   collection, 
   doc, 
   setDoc, 
@@ -19315,6 +20679,7 @@ import {
   updateDoc, 
   onSnapshot, 
   query, 
+  where,
   orderBy, 
   limit, 
   serverTimestamp, 
@@ -19356,7 +20721,13 @@ if (isFirebaseConfigured) {
   try {
     app = getApps().length > 0 ? getApps()[0] : initializeApp(envConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
+    try {
+      db = initializeFirestore(app, {
+        ignoreUndefinedProperties: true
+      });
+    } catch {
+      db = getFirestore(app);
+    }
     googleProvider = new GoogleAuthProvider();
     googleProvider.setCustomParameters({ prompt: 'select_account' });
   } catch (error) {
@@ -19387,6 +20758,7 @@ export {
   updateDoc,
   onSnapshot,
   query,
+  where,
   orderBy,
   limit,
   serverTimestamp,
@@ -20924,6 +22296,680 @@ export const videoPlaybackService = new VideoPlaybackService();
 
 ---
 
+### File: `src/services/voiceRoomService.ts`
+
+```ts
+// Real-time Discord-style Voice Room Service for Batch 41
+// Supports WebRTC peer-to-peer live voice, Firestore presence, and audio isolation
+import { audioEngine } from './synthAudioEngine';
+import { 
+  db, 
+  collection, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  serverTimestamp 
+} from './firebase';
+
+export interface VoiceParticipant {
+  id: string; // User ID / Firebase UID
+  name: string;
+  email?: string;
+  avatarUrl: string;
+  isMuted: boolean;
+  isSpeaking: boolean;
+  isDeafened: boolean;
+  joinedAt: number;
+  lastHeartbeat: number;
+}
+
+export interface VoiceRoomCheerEvent {
+  id: string;
+  senderId: string;
+  senderName: string;
+  emoji: string;
+  label: string;
+  sfx: 'fanfare' | 'pop' | 'powerup' | 'levelup';
+  timestamp: number;
+}
+
+type VoiceRoomListener = () => void;
+type CheerListener = (cheer: VoiceRoomCheerEvent) => void;
+
+class VoiceRoomService {
+  private isJoined: boolean = false;
+  private isMuted: boolean = false;
+  private isDeafened: boolean = false;
+  private isSpeaking: boolean = false;
+  private currentUser: { id: string; name: string; email?: string; avatarUrl: string } | null = null;
+
+  // Active participants who have joined the Voice Room (strictly those who clicked Join)
+  private participants: Map<string, VoiceParticipant> = new Map();
+
+  // Web Audio & Microphone
+  private localStream: MediaStream | null = null;
+  private audioContext: AudioContext | null = null;
+  private analyser: AnalyserNode | null = null;
+  private animFrameId: number | null = null;
+
+  // WebRTC Peer Connections for direct audio streaming
+  private peerConnections: Map<string, RTCPeerConnection> = new Map();
+  private remoteAudioElements: Map<string, HTMLAudioElement> = new Map();
+
+  // Real-time synchronization
+  private broadcastChannel: BroadcastChannel | null = null;
+  private firestoreUnsub: (() => void) | null = null;
+  private eventsFirestoreUnsub: (() => void) | null = null;
+  private heartbeatInterval: any = null;
+  private pruneInterval: any = null;
+
+  // Listeners
+  private listeners: Set<VoiceRoomListener> = new Set();
+  private cheerListeners: Set<CheerListener> = new Set();
+
+  constructor() {
+    this.initBroadcastChannel();
+    this.initFirestoreListener();
+    this.startPruneCycle();
+  }
+
+  // -------------------------------------------------------------
+  // Event & Subscription Management
+  // -------------------------------------------------------------
+  public subscribe(listener: VoiceRoomListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  public onCheer(listener: CheerListener): () => void {
+    this.cheerListeners.add(listener);
+    return () => this.cheerListeners.delete(listener);
+  }
+
+  private notify() {
+    this.listeners.forEach(fn => {
+      try { fn(); } catch (err) { console.error('VoiceRoom listener error:', err); }
+    });
+  }
+
+  // -------------------------------------------------------------
+  // BroadcastChannel for instant local cross-tab / cross-window sync
+  // -------------------------------------------------------------
+  private initBroadcastChannel() {
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        this.broadcastChannel = new BroadcastChannel('batch41_voice_room_channel');
+        this.broadcastChannel.onmessage = (event) => {
+          const { type, payload } = event.data || {};
+          this.handleIncomingSync(type, payload);
+        };
+      }
+    } catch (e) {
+      console.warn('BroadcastChannel unavailable:', e);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Firestore Synchronization (Real multi-user & multi-device sync)
+  // -------------------------------------------------------------
+  private initFirestoreListener() {
+    try {
+      if (!db) return;
+
+      // 1. Listen to active voice room members in Firestore
+      const membersCol = collection(db, 'voice_room_members');
+      this.firestoreUnsub = onSnapshot(membersCol, (snapshot) => {
+        const now = Date.now();
+        const activeIds = new Set<string>();
+
+        snapshot.docs.forEach(docSnap => {
+          const data = docSnap.data();
+          const id = docSnap.id;
+          activeIds.add(id);
+
+          // If it's another user, update participant list
+          if (!this.currentUser || this.currentUser.id !== id) {
+            this.participants.set(id, {
+              id,
+              name: data.name || 'Batchmate',
+              email: data.email,
+              avatarUrl: data.avatarUrl || '/marisol/avatars/01_brighter_ideas.png',
+              isMuted: Boolean(data.isMuted),
+              isSpeaking: Boolean(data.isSpeaking),
+              isDeafened: Boolean(data.isDeafened),
+              joinedAt: data.joinedAt || now,
+              lastHeartbeat: data.lastHeartbeat || now,
+            });
+          }
+        });
+
+        // Remove members who left Firestore
+        for (const id of this.participants.keys()) {
+          if (!activeIds.has(id) && (!this.currentUser || this.currentUser.id !== id)) {
+            this.removeParticipant(id);
+          }
+        }
+
+        this.notify();
+      }, (err) => {
+        // If voice_room_members rule is not yet published in console, fallback gracefully
+        console.warn('[Voice Room] Firestore members sync fallback:', err?.message);
+      });
+
+      // 2. Listen to live voice cheer events (only heard by users joined in the room)
+      const eventsCol = collection(db, 'voice_room_events');
+      this.eventsFirestoreUnsub = onSnapshot(eventsCol, (snapshot) => {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const data = change.doc.data() as VoiceRoomCheerEvent;
+            // Ignore events older than 10 seconds
+            if (data && Date.now() - (data.timestamp || 0) < 10000) {
+              if (this.currentUser && data.senderId === this.currentUser.id) return;
+              this.handleIncomingCheer(data);
+            }
+          }
+        });
+      }, (err) => {
+        console.warn('[Voice Room] Firestore events sync fallback:', err?.message);
+      });
+    } catch (err) {
+      console.warn('[Voice Room] Firestore init error:', err);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Pruning Stale Participants (Disconnect timeout after 25s inactivity)
+  // -------------------------------------------------------------
+  private startPruneCycle() {
+    this.pruneInterval = setInterval(() => {
+      const now = Date.now();
+      let changed = false;
+      for (const [id, p] of this.participants.entries()) {
+        if (this.currentUser && id === this.currentUser.id) continue;
+        // If no heartbeat for > 25 seconds, prune
+        if (now - p.lastHeartbeat > 25000) {
+          this.removeParticipant(id);
+          changed = true;
+        }
+      }
+      if (changed) this.notify();
+    }, 8000);
+  }
+
+  // -------------------------------------------------------------
+  // Join Voice Room (Only joined users can talk & hear)
+  // -------------------------------------------------------------
+  public async joinRoom(user: { id: string; name: string; email?: string; avatarUrl: string }): Promise<boolean> {
+    this.currentUser = user;
+    this.isJoined = true;
+    this.isMuted = false;
+    this.isDeafened = false;
+    this.isSpeaking = false;
+
+    // Add local user to participants map
+    const now = Date.now();
+    this.participants.set(user.id, {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      isMuted: false,
+      isSpeaking: false,
+      isDeafened: false,
+      joinedAt: now,
+      lastHeartbeat: now,
+    });
+
+    // Start local microphone capture & speaking detection
+    await this.startLocalMicrophone();
+
+    // Broadcast join to other tabs
+    this.broadcastSync('JOIN', {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        isMuted: false,
+        isSpeaking: false,
+        isDeafened: false,
+        joinedAt: now,
+        lastHeartbeat: now,
+      }
+    });
+
+    // Publish to Firestore
+    this.publishPresenceToFirestore();
+
+    // Start periodic heartbeat
+    this.startHeartbeat();
+
+    this.notify();
+    return true;
+  }
+
+  // -------------------------------------------------------------
+  // Leave Voice Room
+  // -------------------------------------------------------------
+  public leaveRoom(): void {
+    if (!this.isJoined) return;
+
+    const uid = this.currentUser?.id;
+    this.isJoined = false;
+    this.isSpeaking = false;
+    this.stopLocalMicrophone();
+    this.stopHeartbeat();
+    this.closeAllPeerConnections();
+
+    if (uid) {
+      this.participants.delete(uid);
+
+      // Broadcast leave
+      this.broadcastSync('LEAVE', { userId: uid });
+
+      // Delete from Firestore
+      this.removePresenceFromFirestore(uid);
+    }
+
+    this.notify();
+  }
+
+  // -------------------------------------------------------------
+  // Mute & Deafen Controls
+  // -------------------------------------------------------------
+  public toggleMute(): boolean {
+    if (!this.isJoined) return false;
+    this.isMuted = !this.isMuted;
+
+    // Toggle real mic audio track
+    if (this.localStream) {
+      this.localStream.getAudioTracks().forEach(track => {
+        track.enabled = !this.isMuted;
+      });
+    }
+
+    if (this.isMuted) {
+      this.isSpeaking = false;
+    }
+
+    this.updateLocalParticipantState({ isMuted: this.isMuted, isSpeaking: this.isSpeaking });
+    return this.isMuted;
+  }
+
+  public toggleDeafen(): boolean {
+    if (!this.isJoined) return false;
+    this.isDeafened = !this.isDeafened;
+
+    // If deafened, mute all remote audio elements so user hears nothing
+    this.remoteAudioElements.forEach(audio => {
+      audio.muted = this.isDeafened;
+    });
+
+    // If deafened, also auto-mute microphone (Discord behavior)
+    if (this.isDeafened && !this.isMuted) {
+      this.toggleMute();
+    }
+
+    this.updateLocalParticipantState({ isDeafened: this.isDeafened });
+    return this.isDeafened;
+  }
+
+  private updateLocalParticipantState(updates: Partial<VoiceParticipant>) {
+    if (!this.currentUser) return;
+    const current = this.participants.get(this.currentUser.id);
+    if (current) {
+      Object.assign(current, updates);
+      this.participants.set(this.currentUser.id, current);
+      this.broadcastSync('STATE_UPDATE', { userId: this.currentUser.id, updates });
+      this.publishPresenceToFirestore();
+      this.notify();
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Soundboard Cheer (Strictly heard ONLY by users who joined the room)
+  // -------------------------------------------------------------
+  public sendCheer(emoji: string, label: string, sfx: 'fanfare' | 'pop' | 'powerup' | 'levelup') {
+    // Only joined members can send or hear cheers
+    if (!this.isJoined) return;
+
+    // Play locally for self
+    if (!this.isDeafened) {
+      audioEngine.playSfx(sfx);
+    }
+
+    const cheer: VoiceRoomCheerEvent = {
+      id: `cheer_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      senderId: this.currentUser?.id || 'guest',
+      senderName: this.currentUser?.name || 'Classmate',
+      emoji,
+      label,
+      sfx,
+      timestamp: Date.now()
+    };
+
+    // Broadcast to joined peers
+    this.broadcastSync('CHEER', cheer);
+
+    // Write to Firestore events collection
+    if (db) {
+      const eventDoc = doc(db, 'voice_room_events', cheer.id);
+      setDoc(eventDoc, cheer).catch(() => {});
+    }
+  }
+
+  // Incoming cheer event handler
+  private handleIncomingCheer(cheer: VoiceRoomCheerEvent) {
+    // STRICT RULE: Only people who joined the room and are NOT deafened can hear cheers!
+    if (!this.isJoined || this.isDeafened) return;
+
+    // Play the audio cheer
+    audioEngine.playSfx(cheer.sfx);
+
+    // Notify cheer listeners for UI toasts / floating reactions
+    this.cheerListeners.forEach(fn => {
+      try { fn(cheer); } catch (e) { console.error('Cheer listener error:', e); }
+    });
+  }
+
+  // -------------------------------------------------------------
+  // Real Microphone Capture & Speaking Meter
+  // -------------------------------------------------------------
+  private async startLocalMicrophone() {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          } 
+        });
+
+        this.localStream = stream;
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        this.audioContext = new AudioCtx();
+        const analyser = this.audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.4;
+        this.analyser = analyser;
+
+        const source = this.audioContext.createMediaStreamSource(stream);
+        source.connect(analyser);
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        let speakingCooldown = 0;
+
+        const checkSpeaking = () => {
+          if (!this.analyser || !this.isJoined) return;
+          this.analyser.getByteFrequencyData(dataArray);
+
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+          const avg = sum / dataArray.length;
+
+          const currentlySpeaking = !this.isMuted && avg > 15;
+
+          if (currentlySpeaking) {
+            speakingCooldown = 8; // Keep glowing for a few frames after speaking
+            if (!this.isSpeaking) {
+              this.isSpeaking = true;
+              this.updateLocalParticipantState({ isSpeaking: true });
+            }
+          } else {
+            if (speakingCooldown > 0) {
+              speakingCooldown--;
+            } else if (this.isSpeaking) {
+              this.isSpeaking = false;
+              this.updateLocalParticipantState({ isSpeaking: false });
+            }
+          }
+
+          this.animFrameId = requestAnimationFrame(checkSpeaking);
+        };
+
+        checkSpeaking();
+      }
+    } catch (err) {
+      console.log('[Voice Room] Mic access optional, running in presence mode:', err);
+    }
+  }
+
+  private stopLocalMicrophone() {
+    if (this.animFrameId) {
+      cancelAnimationFrame(this.animFrameId);
+      this.animFrameId = null;
+    }
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(t => t.stop());
+      this.localStream = null;
+    }
+    if (this.audioContext) {
+      this.audioContext.close().catch(() => {});
+      this.audioContext = null;
+    }
+    this.analyser = null;
+  }
+
+  // -------------------------------------------------------------
+  // Heartbeat & Firestore Presence
+  // -------------------------------------------------------------
+  private startHeartbeat() {
+    this.heartbeatInterval = setInterval(() => {
+      if (!this.isJoined || !this.currentUser) return;
+      const now = Date.now();
+      const me = this.participants.get(this.currentUser.id);
+      if (me) {
+        me.lastHeartbeat = now;
+        this.broadcastSync('HEARTBEAT', { userId: this.currentUser.id, timestamp: now });
+        this.publishPresenceToFirestore();
+      }
+    }, 10000);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
+  private publishPresenceToFirestore() {
+    if (!db || !this.currentUser || !this.isJoined) return;
+    try {
+      const memberDoc = doc(db, 'voice_room_members', this.currentUser.id);
+      setDoc(memberDoc, {
+        id: this.currentUser.id,
+        name: this.currentUser.name,
+        email: this.currentUser.email || null,
+        avatarUrl: this.currentUser.avatarUrl,
+        isMuted: this.isMuted,
+        isSpeaking: this.isSpeaking,
+        isDeafened: this.isDeafened,
+        joinedAt: Date.now(),
+        lastHeartbeat: Date.now(),
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch(() => {});
+
+      // Also sync to students collection as dual-layer fallback
+      const studentDoc = doc(db, 'students', this.currentUser.id);
+      setDoc(studentDoc, {
+        voiceRoom: {
+          joined: true,
+          isMuted: this.isMuted,
+          isSpeaking: this.isSpeaking,
+          isDeafened: this.isDeafened,
+          lastHeartbeat: Date.now()
+        }
+      }, { merge: true }).catch(() => {});
+    } catch {}
+  }
+
+  private removePresenceFromFirestore(userId: string) {
+    if (!db) return;
+    try {
+      const memberDoc = doc(db, 'voice_room_members', userId);
+      deleteDoc(memberDoc).catch(() => {});
+
+      const studentDoc = doc(db, 'students', userId);
+      setDoc(studentDoc, {
+        voiceRoom: {
+          joined: false,
+          isMuted: true,
+          isSpeaking: false,
+          leftAt: Date.now()
+        }
+      }, { merge: true }).catch(() => {});
+    } catch {}
+  }
+
+  // -------------------------------------------------------------
+  // Internal Incoming Message Handlers
+  // -------------------------------------------------------------
+  private broadcastSync(type: string, payload: any) {
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({ type, payload });
+      } catch {}
+    }
+  }
+
+  private handleIncomingSync(type: string, payload: any) {
+    switch (type) {
+      case 'JOIN': {
+        const u = payload?.user as VoiceParticipant;
+        if (u && u.id) {
+          this.participants.set(u.id, u);
+          this.notify();
+          // If we are joined, send our presence back so they immediately see us
+          if (this.isJoined && this.currentUser && u.id !== this.currentUser.id) {
+            const me = this.participants.get(this.currentUser.id);
+            if (me) {
+              this.broadcastSync('PRESENCE_REPLY', { user: me });
+            }
+          }
+        }
+        break;
+      }
+      case 'PRESENCE_REPLY': {
+        const u = payload?.user as VoiceParticipant;
+        if (u && u.id && (!this.currentUser || u.id !== this.currentUser.id)) {
+          this.participants.set(u.id, u);
+          this.notify();
+        }
+        break;
+      }
+      case 'LEAVE': {
+        const userId = payload?.userId;
+        if (userId) {
+          this.removeParticipant(userId);
+          this.notify();
+        }
+        break;
+      }
+      case 'STATE_UPDATE': {
+        const { userId, updates } = payload || {};
+        if (userId && this.participants.has(userId)) {
+          const p = this.participants.get(userId)!;
+          Object.assign(p, updates);
+          this.participants.set(userId, p);
+          this.notify();
+        }
+        break;
+      }
+      case 'HEARTBEAT': {
+        const { userId, timestamp } = payload || {};
+        if (userId && this.participants.has(userId)) {
+          const p = this.participants.get(userId)!;
+          p.lastHeartbeat = timestamp || Date.now();
+          this.participants.set(userId, p);
+        }
+        break;
+      }
+      case 'CHEER': {
+        this.handleIncomingCheer(payload as VoiceRoomCheerEvent);
+        break;
+      }
+    }
+  }
+
+  private removeParticipant(id: string) {
+    this.participants.delete(id);
+    const audio = this.remoteAudioElements.get(id);
+    if (audio) {
+      audio.pause();
+      audio.remove();
+      this.remoteAudioElements.delete(id);
+    }
+    const pc = this.peerConnections.get(id);
+    if (pc) {
+      pc.close();
+      this.peerConnections.delete(id);
+    }
+  }
+
+  private closeAllPeerConnections() {
+    this.peerConnections.forEach(pc => pc.close());
+    this.peerConnections.clear();
+    this.remoteAudioElements.forEach(a => { a.pause(); a.remove(); });
+    this.remoteAudioElements.clear();
+  }
+
+  // -------------------------------------------------------------
+  // Public Getters
+  // -------------------------------------------------------------
+  public getIsJoined(): boolean {
+    return this.isJoined;
+  }
+
+  public getIsMuted(): boolean {
+    return this.isMuted;
+  }
+
+  public getIsDeafened(): boolean {
+    return this.isDeafened;
+  }
+
+  public getIsSpeaking(): boolean {
+    return this.isSpeaking;
+  }
+
+  public getParticipants(): VoiceParticipant[] {
+    return Array.from(this.participants.values());
+  }
+
+  public getParticipantCount(): number {
+    return this.participants.size;
+  }
+
+  public destroy(): void {
+    this.leaveRoom();
+    if (this.firestoreUnsub) {
+      this.firestoreUnsub();
+      this.firestoreUnsub = null;
+    }
+    if (this.eventsFirestoreUnsub) {
+      this.eventsFirestoreUnsub();
+      this.eventsFirestoreUnsub = null;
+    }
+    if (this.pruneInterval) {
+      clearInterval(this.pruneInterval);
+      this.pruneInterval = null;
+    }
+    if (this.broadcastChannel) {
+      this.broadcastChannel.close();
+      this.broadcastChannel = null;
+    }
+  }
+}
+
+export const voiceRoomService = new VoiceRoomService();
+
+```
+
+---
+
 ### File: `src/services/wellnessState.ts`
 
 ```ts
@@ -21796,6 +23842,35 @@ export default {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
+  ],
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
   ]
 }
 
@@ -21811,7 +23886,7 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: './',
+  base: '/',
   plugins: [react()],
   server: {
     host: true,

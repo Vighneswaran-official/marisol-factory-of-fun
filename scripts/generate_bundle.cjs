@@ -58,7 +58,8 @@ function dumpFiles(dir) {
         codeExts.has(ext) &&
         !rel.endsWith('.zip') &&
         !rel.includes('package-lock.json') &&
-        !rel.includes('CLAUDE_CODEBASE_BUNDLE.md')
+        !rel.includes('CLAUDE_CODEBASE_BUNDLE.md') &&
+        !rel.includes('CHAT_WITH_CLAUDE.md')
       ) {
         try {
           const content = fs.readFileSync(full, 'utf8');

@@ -5,11 +5,13 @@ import {
   collection, 
   onSnapshot, 
   query, 
+  where,
   orderBy, 
   doc, 
   setDoc, 
-  deleteDoc 
+  deleteDoc
 } from './firebase';
+import { authService } from './authService';
 
 export interface BulletinReply {
   id: string;
@@ -380,6 +382,12 @@ class BatchWallService {
     }
 
     this.initFirestoreSync();
+
+    // Auto-update chat stream when user logs in, switches accounts, or profile updates
+    authService.subscribe(() => {
+      const cur = authService.getCurrentUser();
+      this.initChatListener(cur?.joinedAt, cur?.isNewUser);
+    });
   }
 
   private cleanLegacyStorage() {
@@ -491,8 +499,9 @@ class BatchWallService {
   /**
    * Initializes exactly ONE authoritative group-chat Firestore listener.
    * If called again, cleans up previous listener to prevent duplicates.
+   * Enforces New User Privacy at the Firestore query level when userJoinedAt and isNewUser are set.
    */
-  public initChatListener() {
+  public initChatListener(userJoinedAt?: number, isNewUser?: boolean) {
     if (this.chatUnsubscribe) {
       this.chatUnsubscribe();
       this.chatUnsubscribe = null;
@@ -505,15 +514,44 @@ class BatchWallService {
       return;
     }
 
+    // Auto-detect from active auth session if not supplied explicitly
+    if (userJoinedAt === undefined || isNewUser === undefined) {
+      const cur = authService.getCurrentUser();
+      if (cur) {
+        userJoinedAt = userJoinedAt ?? cur.joinedAt;
+        isNewUser = isNewUser ?? cur.isNewUser;
+      }
+    }
+
+    // New User Privacy: immediately clear any stale cached messages prior to joinedAt
+    if (isNewUser && userJoinedAt && userJoinedAt > 0) {
+      this.chatMessages = this.chatMessages.filter(m => (m.createdAt || 0) >= userJoinedAt!);
+      this.saveChatToStorage();
+    }
+
     this.chatConnectionStatus = 'connecting';
     this.chatErrorMessage = null;
     this.notify();
 
     try {
-      const chatQuery = query(
-        collection(db, 'group_chat_messages'),
-        orderBy('createdAt', 'asc')
-      );
+      const messagesCol = collection(db, 'group_chat_messages');
+      let chatQuery;
+
+      if (isNewUser && userJoinedAt && userJoinedAt > 0) {
+        // Enforce New User Privacy at the Firestore query level:
+        // Older messages prior to user.joinedAt are NEVER downloaded or delivered to client.
+        chatQuery = query(
+          messagesCol,
+          where('createdAt', '>=', userJoinedAt),
+          orderBy('createdAt', 'asc')
+        );
+      } else {
+        // Older/existing users query the full history
+        chatQuery = query(
+          messagesCol,
+          orderBy('createdAt', 'asc')
+        );
+      }
 
       this.chatUnsubscribe = onSnapshot(
         chatQuery,
@@ -540,14 +578,25 @@ class BatchWallService {
           this.notify();
         },
         (error) => {
-          console.error('[Batch 41 Group Chat] Firestore listener error:', error);
+          console.error('[Batch 41 Group Chat] Firestore listener error:', {
+            code: error?.code,
+            message: error?.message,
+            userJoinedAt,
+            isNewUser
+          });
           this.chatConnectionStatus = 'error';
-          this.chatErrorMessage = 'Unable to connect to the group chat. Please check your internet connection.';
+          this.chatErrorMessage = error?.code === 'permission-denied'
+            ? 'Permission denied: Chat access restricted by Firestore security rules.'
+            : 'Unable to connect to the group chat. Please check your internet connection.';
           this.notify();
         }
       );
     } catch (err: any) {
-      console.error('[Batch 41 Group Chat] Firestore init error:', err);
+      console.error('[Batch 41 Group Chat] Firestore init error:', {
+        code: err?.code,
+        message: err?.message,
+        error: err
+      });
       this.chatConnectionStatus = 'error';
       this.chatErrorMessage = 'Unable to connect to the group chat. Please check your internet connection.';
       this.notify();
@@ -728,9 +777,24 @@ class BatchWallService {
     };
   }
 
-  public getChatMessages(currentUserId?: string): GroupChatMessage[] {
+  public getChatMessages(currentUserId?: string, userJoinedAt?: number, isNewUser?: boolean): GroupChatMessage[] {
+    let list = this.chatMessages;
+
+    if (userJoinedAt === undefined || isNewUser === undefined) {
+      const cur = authService.getCurrentUser();
+      if (cur) {
+        userJoinedAt = userJoinedAt ?? cur.joinedAt;
+        isNewUser = isNewUser ?? cur.isNewUser;
+      }
+    }
+
+    // Defense-in-depth: Ensure new users never see older chat messages sent before their join time
+    if (isNewUser && userJoinedAt && userJoinedAt > 0) {
+      list = list.filter(m => (m.createdAt || 0) >= userJoinedAt!);
+    }
+
     if (!currentUserId) {
-      return [...this.chatMessages];
+      return [...list];
     }
     try {
       const hiddenKey = `marisol_chat_hidden_${currentUserId}`;
@@ -738,10 +802,10 @@ class BatchWallService {
       if (stored) {
         const hiddenIds: string[] = JSON.parse(stored);
         const hiddenSet = new Set(hiddenIds);
-        return this.chatMessages.filter(m => !hiddenSet.has(m.id));
+        return list.filter(m => !hiddenSet.has(m.id));
       }
     } catch {}
-    return [...this.chatMessages];
+    return [...list];
   }
 
   public getPinnedMessages(): GroupChatMessage[] {
@@ -778,16 +842,50 @@ class BatchWallService {
     pinnedAt?: number;
   }): Promise<GroupChatMessage> {
     if (!db) {
-      throw new Error('Firebase Firestore is not configured.');
+      const err: any = new Error('Database is not initialized.');
+      err.code = 'unavailable';
+      throw err;
     }
 
     const text = data.text.trim();
     if (!text && !data.imageUrl && !data.poll) {
-      throw new Error('Message cannot be empty.');
+      const err: any = new Error('Message cannot be empty.');
+      err.code = 'invalid-argument';
+      throw err;
     }
 
-    if (!data.senderId) {
-      throw new Error('Authenticated user ID (Firebase UID) is required to chat.');
+    // 1. Ensure user has a valid Firebase Auth session before attempting write
+    let fbUser = auth?.currentUser || null;
+    if (!fbUser && auth) {
+      try {
+        fbUser = await authService.ensureFirebaseAuthSession();
+      } catch (authErr) {
+        console.warn('[Batch 41 Group Chat] Error ensuring auth session:', authErr);
+      }
+    }
+
+    // 2. Refresh token before writing to avoid expired session errors
+    if (fbUser) {
+      try {
+        await fbUser.getIdToken(false);
+      } catch (tokenErr) {
+        console.warn('[Batch 41 Group Chat] Token refresh attempt failed, forcing refresh:', tokenErr);
+        try {
+          await fbUser.getIdToken(true);
+        } catch (forceErr) {
+          const err: any = new Error('Login session expired. Please sign in again.');
+          err.code = 'unauthenticated';
+          throw err;
+        }
+      }
+    }
+
+    // 3. Sender ID MUST match request.auth.uid for security rules
+    const effectiveSenderId = fbUser?.uid || data.senderId;
+    if (!effectiveSenderId) {
+      const err: any = new Error('User identity could not be verified.');
+      err.code = 'unauthenticated';
+      throw err;
     }
 
     const messageRef = doc(collection(db, 'group_chat_messages'));
@@ -797,11 +895,14 @@ class BatchWallService {
                       Boolean(data.senderEmail && data.senderEmail.toLowerCase().includes('kritika')) ||
                       data.senderName.toLowerCase().includes('marisol');
 
+    // If signed in with verified Google email, use that; otherwise data.senderEmail
+    const effectiveSenderEmail = fbUser?.email || data.senderEmail;
+
     const message: GroupChatMessage = {
       id: messageRef.id,
-      senderId: data.senderId,
+      senderId: effectiveSenderId,
       senderName: isKritika && !data.senderName.includes('👑') ? `${data.senderName.trim()} 👑` : data.senderName.trim(),
-      senderEmail: data.senderEmail,
+      senderEmail: effectiveSenderEmail,
       avatarUrl: data.avatarUrl || '/marisol/avatars/01_brighter_ideas.png',
       senderIsNewUser: data.senderIsNewUser ?? false,
       senderUserTag: data.senderUserTag || (isKritika ? 'Founder 👑' : 'New User'),
@@ -818,9 +919,9 @@ class BatchWallService {
       reactions: {},
       seenBy: [
         {
-          userId: data.senderId,
+          userId: effectiveSenderId,
           userName: data.senderName,
-          userEmail: data.senderEmail,
+          userEmail: effectiveSenderEmail,
           avatarUrl: data.avatarUrl || '/marisol/avatars/01_brighter_ideas.png',
           seenAt: now,
         }
@@ -837,19 +938,51 @@ class BatchWallService {
       return message;
     }
 
-    // Write authoritative record directly to Firestore
-    try {
-      const payload = cleanForFirestore(message);
-      await setDoc(messageRef, payload);
-    } catch (err) {
-      console.error('[Batch 41 Group Chat] Firestore error sending message:', err);
-      // Queue offline on network failure
-      this.chatOfflineQueue.push(message);
-      this.saveChatQueueToStorage();
-      this.chatMessages.push(message);
-      this.saveChatToStorage();
-      this.notify();
-      throw err;
+    // 4. Write authoritative record directly to Firestore with exponential backoff for transient errors
+    let attempt = 0;
+    const maxRetries = 3;
+    const baseDelayMs = 400;
+
+    while (true) {
+      attempt++;
+      try {
+        const payload = cleanForFirestore(message);
+        await setDoc(messageRef, payload);
+        break; // Successfully written to Firestore!
+      } catch (err: any) {
+        const errCode = err?.code || '';
+        const isTransient = errCode === 'unavailable' || 
+                            errCode === 'deadline-exceeded' || 
+                            errCode === 'resource-exhausted' ||
+                            err?.message?.includes('offline') ||
+                            err?.message?.includes('transport') ||
+                            err?.message?.includes('network');
+
+        if (attempt < maxRetries && isTransient) {
+          const delay = baseDelayMs * Math.pow(2, attempt - 1);
+          console.warn(`[Batch 41 Group Chat] Transient Firestore error [${errCode || err?.message}]. Retrying attempt ${attempt}/${maxRetries} in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
+        console.error('[Batch 41 Group Chat] Firestore error sending message:', {
+          code: errCode,
+          message: err?.message,
+          attempt,
+          authUid: fbUser?.uid || null,
+          authEmail: fbUser?.email || null,
+          senderId: message.senderId,
+          networkOnline: typeof navigator !== 'undefined' ? navigator.onLine : null
+        });
+
+        // Queue offline on failure
+        this.chatOfflineQueue.push(message);
+        this.saveChatQueueToStorage();
+        this.chatMessages.push(message);
+        this.saveChatToStorage();
+        this.notify();
+        throw err;
+      }
     }
 
     // Note: onSnapshot listener receives the Firestore doc and updates this.chatMessages authoritatively

@@ -120,6 +120,15 @@ marisol-factory-of-fun/
 - Tracks trivia streak, scores, levels cleared, cucumber sandwich tokens, and unlocked secrets.
 - Celebrations trigger `canvas-confetti` bursts and hero video modals.
 
+### E. Discord-Style Real-Time Voice Room (`voiceRoomService.ts`)
+- **WebRTC Peer-to-Peer**: Live multi-user voice mesh connecting active Batch 41 members with STUN signaling through Firestore.
+- **Audio Isolation**: Zero audio bleed — only users who explicitly click "Join Voice Room" receive or broadcast microphone streams.
+- **Speaking Activity & Cheer SFX**: Web Audio Analyser monitors volume for active glow indicators; synchronized cheer sound-effects broadcast across all participants.
+
+### F. Chat Privacy & Message Isolation
+- **Strict New User Privacy**: When a new batch member signs up, `batchWallState.ts` filters out older historical messages prior to their registration date (`userCreatedAt`).
+- **Post Interaction & Reactions**: Wall posts feature threaded comments, 5 reaction emojis (❤️, 👏, 🔥, 😂, 🌸), unique likes list modal, and share count tracking.
+
 ---
 
 ## 5. Development Commands & Workflow
@@ -136,6 +145,9 @@ npm run build
 
 # Preview production build locally
 npm run preview
+
+# Chat directly with Claude in your terminal (requires ANTHROPIC_API_KEY in .env)
+node scripts/chat_with_claude.cjs
 
 # Generate updated CLAUDE_CODEBASE_BUNDLE.md with all recent code
 node scripts/generate_bundle.cjs
@@ -154,3 +166,6 @@ node scripts/generate_bundle.cjs
    - Never allow unverified or blank-email users to post messages. Always route them through `authService.isUserAllowedToChat()`.
 4. **Preserve Single Group Chat & Pinned Highlights**:
    - Do not re-introduce 1-on-1 private messaging. All conversation belongs in the shared group lounge, with critical items highlighted in the Pinned section.
+5. **Chatting with Claude**:
+   - Upload [CHAT_WITH_CLAUDE.md](file:///c:/Users/VIGHNESWARAN/.gemini/antigravity-ide/scratch/marisol-factory-of-fun/CHAT_WITH_CLAUDE.md) to [Claude.ai](https://claude.ai) or Claude Projects to start any session.
+

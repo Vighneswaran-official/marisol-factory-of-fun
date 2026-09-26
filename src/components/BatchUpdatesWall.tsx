@@ -159,11 +159,50 @@ const renderFormattedMessageText = (text: string, isCurrentUser: boolean) => {
   });
 };
 
+const getInitials = (name?: string): string => {
+  if (!name) return 'U';
+  const clean = name.replace(/👑|🌸|✨|♡|⭐|🎉|🔥/g, '').trim();
+  const words = clean.split(/\s+/).filter(w => w.length > 0 && /^[A-Za-z0-9]/.test(w));
+  if (words.length === 0) {
+    const fallbackLetters = clean.replace(/[^A-Za-z0-9]/g, '');
+    return fallbackLetters.slice(0, 2).toUpperCase() || 'U';
+  }
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+};
+
+const getInitialsBgColor = (name?: string): string => {
+  const colors = [
+    'bg-rose-500 text-white',
+    'bg-purple-600 text-white',
+    'bg-indigo-600 text-white',
+    'bg-emerald-600 text-white',
+    'bg-amber-600 text-white',
+    'bg-teal-600 text-white',
+    'bg-sky-600 text-white',
+    'bg-fuchsia-600 text-white',
+  ];
+  if (!name) return colors[0];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+};
+
 export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: _onNavigate, initialMode }) => {
   const [, setTick] = useState(0);
   const player = gameState.getPlayer();
   const currentUser = authService.getCurrentUser();
   const isAuthenticated = authService.isAuthenticated();
+
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
+
+  const currentUserProfilePic = currentUser?.avatarUrl || authService.getFirebaseUser()?.photoURL || '';
+  const currentProfileName = currentUser?.name || player.nickname || 'Student';
+  const hasValidAvatarPic = Boolean(currentUserProfilePic && failedAvatarUrl !== currentUserProfilePic);
 
   // Mode Switcher: 'chat' | 'posts' | 'bulletin'
   const [activeMode, setActiveMode] = useState<'chat' | 'posts' | 'bulletin'>(initialMode || 'chat');
@@ -194,7 +233,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const profileAvatarFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Group Chat State (WhatsApp Group Style)
-  const [chatFilter, setChatFilter] = useState<'all' | 'mine'>('all');
   const [chatInput, setChatInput] = useState('');
   const [chatImageAttachment, setChatImageAttachment] = useState<string | null>(null);
   const [replyingToMessage, setReplyingToMessage] = useState<GroupChatMessage | null>(null);
@@ -261,11 +299,16 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
   // Data state
   const allBulletinPosts = batchWallService.getPosts();
-  const chatMessages = batchWallService.getChatMessages(currentUser?.id);
+  const chatMessages = batchWallService.getChatMessages(currentUser?.id, currentUser?.joinedAt, currentUser?.isNewUser);
   const chatStatus = batchWallService.getChatConnectionStatus();
   const photoPosts = batchWallService.getInstagramPosts();
   const network = batchWallService.getNetworkStatus();
   const classmates = authService.getClassmates();
+
+  // Sync authoritative Firestore chat listener with active user privacy scope
+  useEffect(() => {
+    batchWallService.initChatListener(currentUser?.joinedAt, currentUser?.isNewUser);
+  }, [currentUser?.id, currentUser?.joinedAt, currentUser?.isNewUser]);
 
   // ==================== DISCORD-STYLE VOICE ROOM STATE ====================
   const [, setVoiceTick] = useState(0);
@@ -482,11 +525,20 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       return;
     }
 
-    const fbUser = authService.getFirebaseUser();
+    // Ensure Firebase Auth session is active before sending
+    let fbUser = authService.getFirebaseUser();
+    if (!fbUser && authService.isFirebaseEnabled) {
+      try {
+        fbUser = await authService.ensureFirebaseAuthSession();
+      } catch (authErr) {
+        console.warn('[Batch 41 Group Chat] Auth session initialization failed:', authErr);
+      }
+    }
+
     const senderId = fbUser?.uid || currentUser?.id;
     if (!senderId) {
       setShowGoogleModal(true);
-      setShareToast('Authentication required. Please sign in to chat! 🔒');
+      setShareToast('🔑 Authentication required. Please sign in to chat!');
       setTimeout(() => setShareToast(null), 3000);
       return;
     }
@@ -534,16 +586,28 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
         chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     } catch (err: any) {
-      console.error('[Batch 41 Group Chat] Error sending message:', err);
-      const errCode = err?.code || '';
-      let errorMsg = 'Unable to send message to Firestore.';
+      const errCode = err?.code || 'unknown';
+      console.error('[Batch 41 Group Chat] Error sending message:', {
+        code: errCode,
+        message: err?.message,
+        error: err
+      });
+
+      let errorMsg = 'Failed to send message.';
       if (errCode === 'permission-denied') {
-        errorMsg = 'Permission denied by Firestore rules. Please check Firebase Console.';
+        errorMsg = '🔒 Permission denied: Chat access restricted by Firestore security rules.';
+      } else if (errCode === 'unauthenticated') {
+        errorMsg = '🔑 Login expired or not established. Please sign in again.';
+      } else if (errCode === 'unavailable' || errCode === 'deadline-exceeded') {
+        errorMsg = '📡 Network unavailable. Message saved offline and will sync once reconnected.';
+      } else if (errCode === 'resource-exhausted') {
+        errorMsg = '⏳ Rate limit or quota exceeded. Please wait a moment.';
       } else if (err?.message) {
-        errorMsg = `Firestore error: ${err.message}`;
+        errorMsg = `Error [${errCode}]: ${err.message}`;
       }
+
       setShareToast(errorMsg);
-      setTimeout(() => setShareToast(null), 4000);
+      setTimeout(() => setShareToast(null), 5000);
     } finally {
       setIsSendingChat(false);
     }
@@ -740,16 +804,26 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
         chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     } catch (err: any) {
-      console.error('[Batch 41 Group Chat] Error creating poll:', err);
-      const errCode = err?.code || '';
-      let errorMsg = 'Failed to create poll in Firestore.';
+      const errCode = err?.code || 'unknown';
+      console.error('[Batch 41 Group Chat] Error creating poll:', {
+        code: errCode,
+        message: err?.message,
+        error: err
+      });
+      let errorMsg = 'Failed to create poll.';
       if (errCode === 'permission-denied') {
-        errorMsg = 'Permission denied by Firestore rules. Check Firebase Console.';
+        errorMsg = '🔒 Permission denied: Creating polls restricted by Firestore rules.';
+      } else if (errCode === 'unauthenticated') {
+        errorMsg = '🔑 Login expired. Please sign in again.';
+      } else if (errCode === 'unavailable' || errCode === 'deadline-exceeded') {
+        errorMsg = '📡 Network unavailable. Please check your connection.';
+      } else if (errCode === 'resource-exhausted') {
+        errorMsg = '⏳ Rate limit or quota exceeded. Please wait a moment.';
       } else if (err?.message) {
-        errorMsg = `Firestore error: ${err.message}`;
+        errorMsg = `Error [${errCode}]: ${err.message}`;
       }
       setShareToast(errorMsg);
-      setTimeout(() => setShareToast(null), 4000);
+      setTimeout(() => setShareToast(null), 5000);
     }
   };
 
@@ -936,27 +1010,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
     setExpandedReplies(prev => ({ ...prev, [postId]: true }));
   };
 
-  const currentUserId = currentUser?.id || authService.getFirebaseUser()?.uid;
-  const currentUserEmail = currentUser?.email?.toLowerCase() || authService.getFirebaseUser()?.email?.toLowerCase();
-  const currentUserNameClean = (currentUser?.name || profileNameInput || '').toLowerCase().replace(' 👑', '').trim();
-
-  const myMessagesCount = chatMessages.filter(msg => {
-    return Boolean(
-      (currentUserId && msg.senderId && msg.senderId === currentUserId) ||
-      (currentUserEmail && msg.senderEmail && msg.senderEmail.trim().toLowerCase() === currentUserEmail) ||
-      (currentUserNameClean && msg.senderName && msg.senderName.toLowerCase().replace(' 👑', '').trim() === currentUserNameClean)
-    );
-  }).length;
-
-  const displayedChatMessages = chatFilter === 'mine'
-    ? chatMessages.filter(msg => {
-        return Boolean(
-          (currentUserId && msg.senderId && msg.senderId === currentUserId) ||
-          (currentUserEmail && msg.senderEmail && msg.senderEmail.trim().toLowerCase() === currentUserEmail) ||
-          (currentUserNameClean && msg.senderName && msg.senderName.toLowerCase().replace(' 👑', '').trim() === currentUserNameClean)
-        );
-      })
-    : chatMessages;
+  const displayedChatMessages = chatMessages;
 
   return (
     <div className={`bg-[#FAF8F5] text-stone-900 w-full ${
@@ -1053,60 +1107,38 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
         {/* ==================== 1. BATCH LOUNGE (Real-Time Group Chat) ==================== */}
         {activeMode === 'chat' && (
           <div className="bg-white border border-stone-200/90 rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm flex flex-col flex-1 min-h-0 animate-fade-in relative">
-            {/* Clean Chat Top Bar matching user design: [ 🌸 avatar ] [ All (X) | My Messages (Y) ]  📹  📞  📊  ⋮ */}
+            {/* Clean Chat Top Bar: [ User Avatar / Initials ] [ All (X) ]  📹  📞  📊  ⋮ */}
             <div className="bg-white border-b border-stone-200/80 text-stone-900 px-3 sm:px-4 py-2 flex items-center justify-between shrink-0 shadow-2xs">
               <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                {/* 🌸 Flower Avatar with Green Online Dot */}
+                {/* User Avatar with Green Online Dot */}
                 <button
                   type="button"
                   onClick={() => setShowProfileModal(true)}
                   className="relative shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
                   title="View Profile / Group Info"
                 >
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-rose-50 border border-rose-200/90 overflow-hidden flex items-center justify-center text-lg shadow-2xs">
-                    🌸
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-stone-200/90 overflow-hidden flex items-center justify-center shadow-2xs bg-stone-100">
+                    {hasValidAvatarPic ? (
+                      <img
+                        src={currentUserProfilePic}
+                        alt={currentProfileName}
+                        className="w-full h-full object-cover"
+                        onError={() => setFailedAvatarUrl(currentUserProfilePic)}
+                      />
+                    ) : (
+                      <div className={`w-full h-full flex items-center justify-center font-display font-bold text-xs sm:text-sm select-none ${getInitialsBgColor(currentProfileName)}`}>
+                        {getInitials(currentProfileName)}
+                      </div>
+                    )}
                   </div>
                   <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
                 </button>
 
-                {/* Pill Switcher: All (X) | My Messages (Y) */}
-                <div className="bg-stone-100/90 border border-stone-200/80 rounded-full p-1 flex items-center gap-1 shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      audioEngine.playSfx('click');
-                      setChatFilter('all');
-                    }}
-                    className={`px-3 py-1 rounded-full text-xs sm:text-[13px] font-display font-bold transition-all cursor-pointer ${
-                      chatFilter === 'all'
-                        ? 'bg-white text-stone-900 shadow-xs'
-                        : 'text-stone-600 hover:text-stone-900'
-                    }`}
-                  >
+                {/* Chat Count Tab: All (X) */}
+                <div className="bg-stone-100/90 border border-stone-200/80 rounded-full p-0.5 sm:p-1 flex items-center shadow-2xs">
+                  <div className="bg-white text-stone-900 px-3 py-1 rounded-full text-xs sm:text-[13px] font-display font-bold shadow-xs">
                     All ({chatMessages.length})
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      audioEngine.playSfx('click');
-                      setChatFilter('mine');
-                    }}
-                    className={`px-3 py-1 rounded-full text-xs sm:text-[13px] font-display font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      chatFilter === 'mine'
-                        ? 'bg-white text-stone-900 shadow-xs'
-                        : 'text-stone-600 hover:text-stone-900'
-                    }`}
-                  >
-                    <span>My Messages</span>
-                    {myMessagesCount > 0 && (
-                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                        chatFilter === 'mine' ? 'bg-rose-100 text-rose-700' : 'bg-stone-200 text-stone-700'
-                      }`}>
-                        {myMessagesCount}
-                      </span>
-                    )}
-                  </button>
+                  </div>
                 </div>
               </div>
 
@@ -1275,16 +1307,6 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                       >
                         Retry Connection
                       </button>
-                    </div>
-                  ) : chatFilter === 'mine' ? (
-                    <div className="space-y-2.5">
-                      <div className="w-14 h-14 rounded-full bg-stone-100 text-stone-600 mx-auto flex items-center justify-center font-bold text-2xl border border-stone-200 shadow-2xs">
-                        ✍️
-                      </div>
-                      <h4 className="font-display font-black text-sm sm:text-base text-stone-800">No messages from you yet</h4>
-                      <p className="text-xs text-stone-500 max-w-xs mx-auto">
-                        Type a message in the input below to share your thoughts with the group!
-                      </p>
                     </div>
                   ) : (
                     <div className="space-y-2.5">

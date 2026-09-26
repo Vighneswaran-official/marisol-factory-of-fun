@@ -8,8 +8,22 @@ service cloud.firestore {
     // Authoritative real-time collection for group messages
     // =========================================================================
     match /group_chat_messages/{messageId} {
-      // Allowed for all batch members so initial app load never throws permission denied
-      allow read, create, update, delete: if true;
+      // 1. Everyone can read chat messages
+      allow read: if true;
+
+      // 2. Only authenticated users can send messages, and senderId/senderEmail must match their logged-in identity
+      allow create: if request.auth != null &&
+                    request.resource.data.senderId == request.auth.uid &&
+                    (
+                      request.auth.token.email == null ||
+                      request.resource.data.senderEmail == request.auth.token.email
+                    );
+
+      // 3. Allow update for message reactions, poll voting, pinning, and seen receipts
+      allow update: if request.auth != null;
+
+      // 4. Only the original sender can delete their own message
+      allow delete: if request.auth != null && resource.data.senderId == request.auth.uid;
     }
 
     // =========================================================================
