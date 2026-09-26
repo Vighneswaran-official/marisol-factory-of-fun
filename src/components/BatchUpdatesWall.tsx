@@ -277,6 +277,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   // New Photo Post Form State (Supports Multiple Photos in one poster)
   const [newPostImage, setNewPostImage] = useState<string | null>(null);
   const [newPostImages, setNewPostImages] = useState<string[]>([]);
+  const [newPostAspectRatio, setNewPostAspectRatio] = useState<'9:16' | '16:9'>('9:16');
   const [activeCreatePreviewIndex, setActiveCreatePreviewIndex] = useState(0);
   const [newPostCaption, setNewPostCaption] = useState('');
   const [newPostLocation, setNewPostLocation] = useState('Comfort Lounge 🌸');
@@ -917,6 +918,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
       location: newPostLocation,
       imageUrl: imagesToPublish[0],
       images: imagesToPublish,
+      aspectRatio: newPostAspectRatio,
       filter: newPostFilter,
       caption: newPostCaption.trim(),
       hashtags: selectedTags
@@ -924,6 +926,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
     setNewPostImages([]);
     setNewPostImage(null);
+    setNewPostAspectRatio('9:16');
     setActiveCreatePreviewIndex(0);
     setNewPostCaption('');
     setNewPostFilter('none');
@@ -2161,15 +2164,18 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                       </div>
                     </div>
 
-                    {/* 9:16 Aspect Ratio Photo Container with Multi-Photo Carousel */}
+                    {/* Aspect Ratio Photo Container with Multi-Photo Carousel */}
                     {(() => {
                       const allImages = (post.images && post.images.length > 0) ? post.images : [post.imageUrl];
                       const currentIdx = activePostImgIndex[post.id] || 0;
                       const activeImg = allImages[currentIdx] || post.imageUrl;
+                      const isLandscape = post.aspectRatio === '16:9';
 
                       return (
                         <div 
-                          className="relative w-full aspect-[9/16] max-h-[580px] bg-stone-950 overflow-hidden cursor-pointer select-none group flex items-center justify-center"
+                          className={`relative w-full ${
+                            isLandscape ? 'aspect-[16/9] max-h-[460px]' : 'aspect-[9/16] max-h-[580px]'
+                          } bg-stone-950 overflow-hidden cursor-pointer select-none group flex items-center justify-center transition-all duration-300`}
                           onDoubleClick={() => handleDoubleTapPost(post)}
                         >
                           <img
@@ -2178,6 +2184,11 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                             style={{ filter: filterDef.style }}
                             className="w-full h-full object-cover group-hover:scale-101 transition-transform duration-300"
                           />
+
+                          {/* Aspect Ratio Badge */}
+                          <div className="absolute top-2.5 left-2.5 bg-black/60 backdrop-blur-xs text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-xs z-10 flex items-center gap-1">
+                            <span>{isLandscape ? '🖥️ 16:9' : '📱 9:16'}</span>
+                          </div>
 
                           {/* Multi-Photo Carousel Navigation */}
                           {allImages.length > 1 && (
@@ -2992,13 +3003,47 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
           >
             <form onSubmit={handleCreatePhotoPost} className="space-y-3.5 text-left">
               <div>
-                <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
                   <label className="font-display font-black text-xs text-stone-700 uppercase">
-                    1. Upload Photos (9:16 Ratio):
+                    1. Upload Photos ({newPostAspectRatio} Ratio):
                   </label>
                   <span className="text-[10px] text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
-                    {newPostImages.length > 0 ? `${newPostImages.length} Photo${newPostImages.length > 1 ? 's' : ''} Selected` : '9:16 Portrait'}
+                    {newPostImages.length > 0 ? `${newPostImages.length} Photo${newPostImages.length > 1 ? 's' : ''} Selected` : (newPostAspectRatio === '16:9' ? '16:9 Landscape' : '9:16 Portrait')}
                   </span>
+                </div>
+
+                {/* Aspect Ratio Switcher (9:16 vs 16:9) */}
+                <div className="grid grid-cols-2 gap-2 mb-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewPostAspectRatio('9:16');
+                      audioEngine.playSfx('click');
+                    }}
+                    className={`py-1.5 px-3 rounded-xl text-xs font-display font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      newPostAspectRatio === '9:16'
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                        : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100 hover:border-stone-300'
+                    }`}
+                  >
+                    <span className="text-sm">📱</span>
+                    <span>9:16 Portrait</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewPostAspectRatio('16:9');
+                      audioEngine.playSfx('click');
+                    }}
+                    className={`py-1.5 px-3 rounded-xl text-xs font-display font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      newPostAspectRatio === '16:9'
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                        : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100 hover:border-stone-300'
+                    }`}
+                  >
+                    <span className="text-sm">🖥️</span>
+                    <span>16:9 Landscape</span>
+                  </button>
                 </div>
 
                 <input
@@ -3012,8 +3057,10 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
                 {newPostImages.length > 0 ? (
                   <div className="space-y-2.5">
-                    {/* 9:16 Portrait Poster Preview Container */}
-                    <div className="relative rounded-2xl overflow-hidden border border-stone-300 aspect-[9/16] max-h-72 sm:max-h-80 mx-auto bg-stone-950 shadow-sm flex items-center justify-center group">
+                    {/* Poster Preview Container (dynamically 9:16 or 16:9) */}
+                    <div className={`relative rounded-2xl overflow-hidden border border-stone-300 ${
+                      newPostAspectRatio === '16:9' ? 'aspect-[16/9] max-h-56 sm:max-h-64' : 'aspect-[9/16] max-h-72 sm:max-h-80'
+                    } mx-auto bg-stone-950 shadow-sm flex items-center justify-center group transition-all duration-300`}>
                       <img
                         src={newPostImages[activeCreatePreviewIndex] || newPostImages[0]}
                         alt="Selected"
@@ -3021,9 +3068,10 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                         className="w-full h-full object-cover"
                       />
 
-                      {/* 9:16 Ratio Badge */}
-                      <span className="absolute top-2 left-2 bg-black/60 backdrop-blur-xs text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
-                        9:16 Ratio
+                      {/* Ratio Badge */}
+                      <span className="absolute top-2 left-2 bg-black/60 backdrop-blur-xs text-white text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <span>{newPostAspectRatio === '16:9' ? '🖥️ 16:9' : '📱 9:16'}</span>
+                        <span>{newPostAspectRatio === '16:9' ? 'Landscape' : 'Portrait'}</span>
                       </span>
 
                       {/* Multi-Photo Slide Counter */}
@@ -3086,7 +3134,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                         <div
                           key={idx}
                           onClick={() => setActiveCreatePreviewIndex(idx)}
-                          className={`relative w-12 h-16 rounded-lg overflow-hidden border-2 shrink-0 cursor-pointer transition-transform ${
+                          className={`relative ${newPostAspectRatio === '16:9' ? 'w-16 h-10' : 'w-12 h-16'} rounded-lg overflow-hidden border-2 shrink-0 cursor-pointer transition-all ${
                             idx === activeCreatePreviewIndex ? 'border-rose-600 scale-105 ring-2 ring-rose-200' : 'border-stone-300 opacity-80 hover:opacity-100'
                           }`}
                         >
@@ -3116,7 +3164,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                       <button
                         type="button"
                         onClick={() => photoFileInputRef.current?.click()}
-                        className="w-12 h-16 rounded-lg border-2 border-dashed border-rose-300 hover:border-rose-500 bg-rose-50/50 hover:bg-rose-50 text-rose-600 flex flex-col items-center justify-center shrink-0 cursor-pointer transition-colors"
+                        className={`${newPostAspectRatio === '16:9' ? 'w-16 h-10' : 'w-12 h-16'} rounded-lg border-2 border-dashed border-rose-300 hover:border-rose-500 bg-rose-50/50 hover:bg-rose-50 text-rose-600 flex flex-col items-center justify-center shrink-0 cursor-pointer transition-colors`}
                         title="Add more photos to this poster"
                       >
                         <Plus className="w-4 h-4" />
@@ -3137,7 +3185,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                         Tap to upload photos from device 📸
                       </p>
                       <p className="text-[10px] text-stone-500">
-                        9:16 portrait ratio • Multiple photos supported in one poster!
+                        {newPostAspectRatio === '16:9' ? '16:9 landscape widescreen ratio' : '9:16 portrait vertical ratio'} • Multiple photos supported in one poster!
                       </p>
                     </div>
 
@@ -3152,7 +3200,9 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                               setNewPostImage(preset.url);
                               audioEngine.playSfx('pop');
                             }}
-                            className="border border-stone-200 hover:border-rose-400 rounded-xl overflow-hidden cursor-pointer group relative aspect-[9/16] max-h-28"
+                            className={`border border-stone-200 hover:border-rose-400 rounded-xl overflow-hidden cursor-pointer group relative ${
+                              newPostAspectRatio === '16:9' ? 'aspect-[16/9] max-h-20' : 'aspect-[9/16] max-h-28'
+                            } transition-all`}
                           >
                             <img src={preset.url} alt={preset.label} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                             <span className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[9px] font-bold p-0.5 truncate text-center">

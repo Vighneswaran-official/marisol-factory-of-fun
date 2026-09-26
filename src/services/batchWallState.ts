@@ -188,7 +188,8 @@ export interface InstagramPost {
   authorAvatarUrl: string;
   location?: string;
   imageUrl: string;
-  images?: string[]; // Multiple photos in one 9:16 poster
+  images?: string[]; // Multiple photos in one poster
+  aspectRatio?: '9:16' | '16:9'; // Aspect ratio: 9:16 portrait or 16:9 landscape
   filter?: string; // 'none' | 'warm' | 'vintage' | 'pink' | 'golden' | 'bw'
   caption: string;
   hashtags: string[];
@@ -245,6 +246,7 @@ const DEFAULT_INSTAGRAM_POSTS: InstagramPost[] = [
     authorAvatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop',
     location: 'Factory of Fun • Comfort Lounge 🌸',
     imageUrl: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=900&auto=format&fit=crop&q=80',
+    aspectRatio: '9:16',
     filter: 'warm',
     caption: 'Celebrating our amazing batch milestones together! Savoring warm chai, hot pizza, and sweet memories with everyone ♡ 👑✨',
     hashtags: ['#Batch41', '#KritikaQueen', '#FactoryOfFun', '#ComfortVibes'],
@@ -1573,6 +1575,7 @@ class BatchWallService {
     location?: string;
     imageUrl?: string;
     images?: string[];
+    aspectRatio?: '9:16' | '16:9';
     filter?: string;
     caption: string;
     hashtags?: string[];
@@ -1596,6 +1599,7 @@ class BatchWallService {
       location: data.location || 'Batch 41 Comfort Hub 🌸',
       imageUrl: mainImageUrl,
       images: imagesList,
+      aspectRatio: data.aspectRatio || '9:16',
       filter: data.filter || 'none',
       caption: data.caption.trim(),
       hashtags: data.hashtags && data.hashtags.length > 0 ? data.hashtags : ['#Batch41', '#FactoryOfFun'],
