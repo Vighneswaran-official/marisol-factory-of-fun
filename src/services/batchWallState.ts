@@ -385,8 +385,12 @@ class BatchWallService {
 
     // Auto-update chat stream when user logs in, switches accounts, or profile updates
     authService.subscribe(() => {
-      const cur = authService.getCurrentUser();
-      this.initChatListener(cur?.joinedAt, cur?.isNewUser);
+      if (authService.isLoggedIn()) {
+        const cur = authService.getCurrentUser();
+        this.initChatListener(cur?.joinedAt, cur?.isNewUser);
+      } else {
+        this.clearChatCache();
+      }
     });
   }
 
@@ -473,10 +477,12 @@ class BatchWallService {
         });
 
         // 2. Authoritative Group Chat Listener
-        // Wait for Firebase Auth session to be confirmed before attaching chat listener to prevent permission race conditions
+        // Wait for Firebase Auth session to be confirmed; only attach listener if user is logged in
         authService.waitForAuthReady().then(() => {
-          const cur = authService.getCurrentUser();
-          this.initChatListener(cur?.joinedAt, cur?.isNewUser);
+          if (authService.isLoggedIn()) {
+            const cur = authService.getCurrentUser();
+            this.initChatListener(cur?.joinedAt, cur?.isNewUser);
+          }
         });
 
         // 3. Instagram / Photo Wall Posts Listener (Merging full collection into postMap to never overwrite other users' posts)
@@ -571,6 +577,16 @@ class BatchWallService {
       this.chatUnsubscribe = null;
     }
 
+    // 0. Gating Firestore Chat Access:
+    // If user is NOT logged in, NEVER attempt to read Firestore or attach a listener!
+    if (!authService.isLoggedIn()) {
+      this.chatConnectionStatus = 'offline';
+      this.chatErrorMessage = null;
+      this.chatMessages = [];
+      this.notify();
+      return;
+    }
+
     if (!db) {
       this.chatConnectionStatus = 'offline';
       this.chatErrorMessage = 'Firebase Firestore is not configured.';
@@ -584,6 +600,15 @@ class BatchWallService {
 
     // 1. Wait for Firebase Auth session confirmation before attaching listener
     await authService.waitForAuthReady();
+
+    // Re-verify login status after auth is confirmed
+    if (!authService.isLoggedIn()) {
+      this.chatConnectionStatus = 'offline';
+      this.chatErrorMessage = null;
+      this.chatMessages = [];
+      this.notify();
+      return;
+    }
 
     // 2. Resolve currentUser profile & validate userJoinedAt
     const cur = authService.getCurrentUser();
@@ -730,12 +755,19 @@ class BatchWallService {
         this.saveToStorage();
       }
 
-      // Startup / Offline Cache for Group Chat (begins empty if no cache, never seeds fake mock chat messages)
-      const storedChat = localStorage.getItem(CHAT_STORAGE_KEY);
-      if (storedChat) {
-        this.chatMessages = JSON.parse(storedChat);
+      // Startup / Offline Cache for Group Chat (only loaded if user is actively logged in)
+      if (authService.isLoggedIn()) {
+        const storedChat = localStorage.getItem(CHAT_STORAGE_KEY);
+        if (storedChat) {
+          this.chatMessages = JSON.parse(storedChat);
+        } else {
+          this.chatMessages = [];
+        }
       } else {
         this.chatMessages = [];
+        try {
+          localStorage.removeItem(CHAT_STORAGE_KEY);
+        } catch {}
       }
 
       const storedInsta = localStorage.getItem(INSTA_STORAGE_KEY);
@@ -880,7 +912,25 @@ class BatchWallService {
     };
   }
 
+  public clearChatCache(): void {
+    if (this.chatUnsubscribe) {
+      this.chatUnsubscribe();
+      this.chatUnsubscribe = null;
+    }
+    this.chatMessages = [];
+    this.chatConnectionStatus = 'offline';
+    this.chatErrorMessage = null;
+    try {
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+    } catch {}
+    this.notify();
+  }
+
   public getChatMessages(currentUserId?: string, userJoinedAt?: number, isNewUser?: boolean): GroupChatMessage[] {
+    if (!authService.isLoggedIn()) {
+      return [];
+    }
+
     let list = this.chatMessages;
 
     if (userJoinedAt === undefined || isNewUser === undefined) {

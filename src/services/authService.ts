@@ -397,8 +397,18 @@ class AuthService {
     return this.currentUser;
   }
 
+  public isLoggedIn(): boolean {
+    if (!this.currentUser) return false;
+    return Boolean(
+      (this.currentUser.email && this.currentUser.email.includes('@')) ||
+      this.currentUser.isGoogleVerified ||
+      this.currentUser.loginMethod === 'google' ||
+      this.currentUser.loginMethod === 'email'
+    );
+  }
+
   public isAuthenticated(): boolean {
-    return Boolean(this.currentUser);
+    return this.isLoggedIn();
   }
 
   public isGoogleAuthenticated(): boolean {
@@ -417,8 +427,7 @@ class AuthService {
   }
 
   public isUserAllowedToChat(): boolean {
-    if (!this.currentUser) return false;
-    return Boolean(this.currentUser.email && this.currentUser.email.includes('@'));
+    return this.isLoggedIn();
   }
 
   public getClassmates(): StudentProfile[] {

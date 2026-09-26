@@ -11,7 +11,7 @@ import {
   Bookmark, Share2, CheckCheck, Eye, Compass, Tag, Edit3, Check,
   Reply, BarChart2, AtSign, MoreVertical, Mic, Volume2, VolumeX, Headphones, MicOff, PhoneOff,
   Trash2, ChevronDown, Ban, Globe, Lock, Clock,
-  AlertCircle, RefreshCw, Video, Phone, ChevronLeft, ChevronRight
+  AlertCircle, RefreshCw, Video, Phone, ChevronLeft, ChevronRight, Mail
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { BaseModal } from './BaseModal';
@@ -197,6 +197,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const player = gameState.getPlayer();
   const currentUser = authService.getCurrentUser();
   const isAuthenticated = authService.isAuthenticated();
+  const isLoggedIn = authService.isLoggedIn();
 
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
 
@@ -305,9 +306,11 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const network = batchWallService.getNetworkStatus();
   const classmates = authService.getClassmates();
 
-  // Sync authoritative Firestore chat listener with active user privacy scope
+  // Sync authoritative Firestore chat listener with active user privacy scope (only when logged in)
   useEffect(() => {
-    batchWallService.initChatListener(currentUser?.joinedAt, currentUser?.isNewUser);
+    if (authService.isLoggedIn()) {
+      batchWallService.initChatListener(currentUser?.joinedAt, currentUser?.isNewUser);
+    }
   }, [currentUser?.id, currentUser?.joinedAt, currentUser?.isNewUser]);
 
   // ==================== DISCORD-STYLE VOICE ROOM STATE ====================
@@ -1102,15 +1105,23 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
             {/* Clean Chat Top Bar: [ User Avatar / Initials ] [ All (X) ]  📹  📞  📊  ⋮ */}
             <div className="bg-white border-b border-stone-200/80 text-stone-900 px-3 sm:px-4 py-2 flex items-center justify-between shrink-0 shadow-2xs">
               <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                {/* User Avatar with Green Online Dot */}
+                {/* User Avatar with Green Online Dot (or Lock/Sign In when logged out) */}
                 <button
                   type="button"
-                  onClick={() => setShowProfileModal(true)}
+                  onClick={() => {
+                    if (!isLoggedIn) {
+                      setShowGoogleModal(true);
+                    } else {
+                      setShowProfileModal(true);
+                    }
+                  }}
                   className="relative shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
-                  title="View Profile / Group Info"
+                  title={isLoggedIn ? "View Profile / Group Info" : "Sign In with Mail ID"}
                 >
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-stone-200/90 overflow-hidden flex items-center justify-center shadow-2xs bg-stone-100">
-                    {hasValidAvatarPic ? (
+                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-stone-200/90 overflow-hidden flex items-center justify-center shadow-2xs ${!isLoggedIn ? 'bg-rose-50 text-rose-500' : 'bg-stone-100'}`}>
+                    {!isLoggedIn ? (
+                      <Lock className="w-4 h-4 text-rose-500" />
+                    ) : hasValidAvatarPic ? (
                       <img
                         src={currentUserProfilePic}
                         alt={currentProfileName}
@@ -1123,13 +1134,20 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                       </div>
                     )}
                   </div>
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
+                  {isLoggedIn && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />}
                 </button>
 
-                {/* Chat Count Tab: All (X) */}
+                {/* Chat Count Tab: All (X) or Locked */}
                 <div className="bg-stone-100/90 border border-stone-200/80 rounded-full p-0.5 sm:p-1 flex items-center shadow-2xs">
-                  <div className="bg-white text-stone-900 px-3 py-1 rounded-full text-xs sm:text-[13px] font-display font-bold shadow-xs">
-                    All ({chatMessages.length})
+                  <div className="bg-white text-stone-900 px-3 py-1 rounded-full text-xs sm:text-[13px] font-display font-bold shadow-xs flex items-center gap-1.5">
+                    {isLoggedIn ? (
+                      <span>All ({chatMessages.length})</span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-rose-600">
+                        <Lock className="w-3 h-3 text-rose-500" />
+                        <span>Sign In to Chat</span>
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1141,6 +1159,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   type="button"
                   onClick={() => {
                     audioEngine.playSfx('pop');
+                    if (!isLoggedIn) {
+                      setShowGoogleModal(true);
+                      setShareToast('Please sign in with your Mail ID to join voice & video rooms! 🔒');
+                      setTimeout(() => setShareToast(null), 3000);
+                      return;
+                    }
                     if (!isVoiceRoomConnected) {
                       handleJoinVoiceRoom();
                     } else {
@@ -1158,6 +1182,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   type="button"
                   onClick={() => {
                     audioEngine.playSfx('pop');
+                    if (!isLoggedIn) {
+                      setShowGoogleModal(true);
+                      setShareToast('Please sign in with your Mail ID to make audio calls! 🔒');
+                      setTimeout(() => setShareToast(null), 3000);
+                      return;
+                    }
                     if (!isVoiceRoomConnected) {
                       handleJoinVoiceRoom();
                     } else {
@@ -1175,6 +1205,12 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   type="button"
                   onClick={() => {
                     audioEngine.playSfx('click');
+                    if (!isLoggedIn) {
+                      setShowGoogleModal(true);
+                      setShareToast('Please sign in with your Mail ID to create group polls! 🔒');
+                      setTimeout(() => setShareToast(null), 3000);
+                      return;
+                    }
                     setShowCreatePollModal(true);
                   }}
                   className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full transition-colors cursor-pointer"
@@ -1188,7 +1224,11 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                   type="button"
                   onClick={() => {
                     audioEngine.playSfx('click');
-                    setShowProfileModal(true);
+                    if (!isLoggedIn) {
+                      setShowGoogleModal(true);
+                    } else {
+                      setShowProfileModal(true);
+                    }
                   }}
                   className="p-1.5 hover:bg-stone-100 hover:text-stone-900 rounded-full transition-colors cursor-pointer"
                   title="Group Info & Profile"
@@ -1251,8 +1291,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               </div>
             )}
 
-            {/* Error Banner with Retry Button */}
-            {chatStatus.status === 'error' && (
+            {/* Error Banner with Retry Button (Only displayed for authenticated users experiencing sync errors) */}
+            {isLoggedIn && chatStatus.status === 'error' && (
               <div className="bg-rose-50 border-b border-rose-200 px-4 py-2 flex items-center justify-between text-xs text-rose-800 shrink-0">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
@@ -1272,8 +1312,66 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
               </div>
             )}
 
-            {/* Clean Stream Area (Pure, Clean Minimal Surface) */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-3 space-y-3.5 scrollbar-thin overscroll-contain bg-[#FAFAFA]">
+            {/* Clean Stream Area (Pure, Clean Minimal Surface) OR Locked Overlay */}
+            {!isLoggedIn ? (
+              <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6 sm:p-8 text-center bg-gradient-to-b from-[#FAF8F5] via-[#FFF5F7] to-[#FAF8F5] relative overflow-hidden select-none">
+                {/* Floating ambient glow */}
+                <div className="absolute w-72 h-72 rounded-full bg-rose-200/30 blur-3xl pointer-events-none -top-10 -right-10" />
+                <div className="absolute w-72 h-72 rounded-full bg-pink-200/30 blur-3xl pointer-events-none -bottom-10 -left-10" />
+
+                <div className="relative z-10 max-w-sm w-full mx-auto space-y-4 sm:space-y-5 flex flex-col items-center animate-fade-in">
+                  <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-rose-200/80">
+                    <Lock className="w-8 h-8" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-display font-black uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs">
+                      <Sparkles className="w-3 h-3 text-rose-500 animate-spin" /> Batch 41 Private Lounge
+                    </span>
+                    <h3 className="font-display font-black text-xl sm:text-2xl text-stone-900 tracking-tight">
+                      Sign In with Mail ID Required
+                    </h3>
+                    <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-medium">
+                      All new users signed in with their mail ID can view messages, send chats, reply & connect with classmates in real time.
+                    </p>
+                  </div>
+
+                  {/* Feature preview pills */}
+                  <div className="w-full bg-white/90 backdrop-blur-sm border border-rose-100 rounded-2xl p-3.5 shadow-xs space-y-2 text-left">
+                    <div className="flex items-center gap-2.5 text-xs text-stone-700 font-semibold">
+                      <span className="w-6 h-6 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 shrink-0 text-sm">💬</span>
+                      <span>Real-time Batch 41 group chat & reactions</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-xs text-stone-700 font-semibold">
+                      <span className="w-6 h-6 rounded-lg bg-pink-50 flex items-center justify-center text-pink-600 shrink-0 text-sm">📸</span>
+                      <span>Share photos, comments & status updates</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-xs text-stone-700 font-semibold">
+                      <span className="w-6 h-6 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600 shrink-0 text-sm">🔊</span>
+                      <span>Interactive voice room & live audio stage</span>
+                    </div>
+                  </div>
+
+                  {/* Action CTA Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      audioEngine.playSfx('click');
+                      setShowGoogleModal(true);
+                    }}
+                    className="w-full py-3.5 px-5 bg-gradient-to-r from-rose-500 via-pink-600 to-rose-600 hover:from-rose-600 hover:to-pink-700 text-white rounded-2xl font-display font-black text-xs sm:text-sm tracking-wide uppercase shadow-md shadow-rose-200/80 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Mail className="w-4 h-4" />
+                    <span>SIGN IN WITH MAIL ID</span>
+                  </button>
+
+                  <p className="text-[11px] text-stone-400 font-medium">
+                    Instant access • No password needed
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-3 space-y-3.5 scrollbar-thin overscroll-contain bg-[#FAFAFA]">
               
 
               
@@ -1662,110 +1760,111 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
             })}
               <div ref={chatBottomRef} />
             </div>
+          )}
 
-            {/* Quoted Message Preview Banner before sending */}
-            {replyingToMessage && (
-              <div className="bg-white p-2 px-3 border-t border-stone-200 flex items-center justify-between shrink-0 animate-fade-in">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Reply className="w-4 h-4 text-[#008069] shrink-0" />
-                  <div className="min-w-0 text-xs">
-                    <span className="font-display font-black text-[#008069] block truncate">
-                      Replying to {replyingToMessage.senderName}
-                    </span>
-                    <span className="text-[10px] text-stone-500 truncate block">
-                      {replyingToMessage.text || 'Photo attachment'}
-                    </span>
-                  </div>
+          {/* Quoted Message Preview Banner before sending (Logged in only) */}
+          {isLoggedIn && replyingToMessage && (
+            <div className="bg-white p-2 px-3 border-t border-stone-200 flex items-center justify-between shrink-0 animate-fade-in">
+              <div className="flex items-center gap-2 min-w-0">
+                <Reply className="w-4 h-4 text-[#008069] shrink-0" />
+                <div className="min-w-0 text-xs">
+                  <span className="font-display font-black text-[#008069] block truncate">
+                    Replying to {replyingToMessage.senderName}
+                  </span>
+                  <span className="text-[10px] text-stone-500 truncate block">
+                    {replyingToMessage.text || 'Photo attachment'}
+                  </span>
                 </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReplyingToMessage(null)}
+                className="p-1 hover:bg-stone-100 rounded-full text-stone-600 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Chat Attachment Preview (Logged in only) */}
+          {isLoggedIn && chatImageAttachment && (
+            <div className="bg-stone-100 p-2 px-3 border-t border-stone-200 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-lg overflow-hidden border border-stone-300 shadow-2xs">
+                  <img src={chatImageAttachment} alt="Preview" className="w-full h-full object-cover" />
+                </div>
+                <div>
+                  <span className="font-display font-bold text-xs text-stone-800 block">Photo attached 📸</span>
+                  <span className="text-[10px] text-stone-500">Send with or without message</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChatImageAttachment(null)}
+                className="p-1 hover:bg-stone-200 rounded-full text-stone-600 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* @Mention Quick Pick List (Logged in only) */}
+          {isLoggedIn && showMentionPicker && (
+            <div className="bg-white border-t border-stone-200 p-2 px-3 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0 shadow-inner animate-fade-in">
+              <span className="text-[10px] font-bold text-stone-400 shrink-0">@Mention:</span>
+              {classmates.map(cm => (
                 <button
+                  key={cm.id}
                   type="button"
-                  onClick={() => setReplyingToMessage(null)}
-                  className="p-1 hover:bg-stone-100 rounded-full text-stone-600 cursor-pointer"
+                  onClick={() => {
+                    setChatInput(prev => `${prev}@${cm.name.split(' ')[0]} `);
+                    setShowMentionPicker(false);
+                  }}
+                  className="px-2 py-1 bg-stone-100 hover:bg-emerald-50 text-stone-800 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0"
                 >
-                  <X className="w-4 h-4" />
+                  @{cm.name.split(' ')[0]}
                 </button>
-              </div>
-            )}
+              ))}
+            </div>
+          )}
 
-            {/* Chat Attachment Preview */}
-            {chatImageAttachment && (
-              <div className="bg-stone-100 p-2 px-3 border-t border-stone-200 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-lg overflow-hidden border border-stone-300 shadow-2xs">
-                    <img src={chatImageAttachment} alt="Preview" className="w-full h-full object-cover" />
-                  </div>
-                  <div>
-                    <span className="font-display font-bold text-xs text-stone-800 block">Photo attached 📸</span>
-                    <span className="text-[10px] text-stone-500">Send with or without message</span>
-                  </div>
-                </div>
+          {/* Chat Emoji Tray (Logged in only) */}
+          {isLoggedIn && showChatEmojiPicker && (
+            <div className="bg-white border-t border-stone-200 p-2 px-3 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0 shadow-inner animate-fade-in">
+              <span className="text-[10px] font-bold text-stone-400 shrink-0">Emojis:</span>
+              {COMMON_EMOJIS.map(emoji => (
                 <button
+                  key={emoji}
                   type="button"
-                  onClick={() => setChatImageAttachment(null)}
-                  className="p-1 hover:bg-stone-200 rounded-full text-stone-600 cursor-pointer"
+                  onClick={() => {
+                    setChatInput(prev => prev + emoji);
+                    audioEngine.playSfx('pop');
+                  }}
+                  className="w-7 h-7 rounded-xl hover:bg-emerald-50 flex items-center justify-center text-sm transition-transform active:scale-90 cursor-pointer shrink-0"
                 >
-                  <X className="w-4 h-4" />
+                  {emoji}
                 </button>
-              </div>
-            )}
+              ))}
+            </div>
+          )}
 
-            {/* @Mention Quick Pick List */}
-            {showMentionPicker && (
-              <div className="bg-white border-t border-stone-200 p-2 px-3 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0 shadow-inner animate-fade-in">
-                <span className="text-[10px] font-bold text-stone-400 shrink-0">@Mention:</span>
-                {classmates.map(cm => (
-                  <button
-                    key={cm.id}
-                    type="button"
-                    onClick={() => {
-                      setChatInput(prev => `${prev}@${cm.name.split(' ')[0]} `);
-                      setShowMentionPicker(false);
-                    }}
-                    className="px-2 py-1 bg-stone-100 hover:bg-emerald-50 text-stone-800 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0"
-                  >
-                    @{cm.name.split(' ')[0]}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Chat Emoji Tray */}
-            {showChatEmojiPicker && (
-              <div className="bg-white border-t border-stone-200 p-2 px-3 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0 shadow-inner animate-fade-in">
-                <span className="text-[10px] font-bold text-stone-400 shrink-0">Emojis:</span>
-                {COMMON_EMOJIS.map(emoji => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => {
-                      setChatInput(prev => prev + emoji);
-                      audioEngine.playSfx('pop');
-                    }}
-                    className="w-7 h-7 rounded-xl hover:bg-emerald-50 flex items-center justify-center text-sm transition-transform active:scale-90 cursor-pointer shrink-0"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Bottom Input Bar: Mail Auth Lock Banner if not signed in */}
-            {!authService.isUserAllowedToChat() ? (
-              <div className="p-3 px-4 bg-gradient-to-r from-stone-900 via-rose-950 to-stone-900 border-t border-rose-500/30 flex items-center justify-between gap-3 text-white shrink-0 shadow-md">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-rose-500/20 border border-rose-400/40 flex items-center justify-center shrink-0 animate-pulse">
-                    <Lock className="w-4.5 h-4.5 text-rose-300" />
-                  </div>
-                  <div className="min-w-0 text-left">
-                    <h4 className="font-display font-black text-xs text-rose-200 truncate flex items-center gap-1.5">
-                      <span>Sign In with Mail ID Required to Chat</span>
-                      <span className="bg-rose-500/30 text-rose-300 text-[9px] px-1.5 py-0.2 rounded-full border border-rose-400/40 font-bold uppercase">Locked</span>
-                    </h4>
-                    <p className="text-[10px] text-stone-300 truncate font-medium">
-                      All new users signed in with their mail ID can send messages, reply & chat with each other user
-                    </p>
-                  </div>
+          {/* Bottom Input Bar: Mail Auth Lock Banner if not signed in */}
+          {!isLoggedIn ? (
+            <div className="p-3 px-4 bg-gradient-to-r from-stone-900 via-rose-950 to-stone-900 border-t border-rose-500/30 flex items-center justify-between gap-3 text-white shrink-0 shadow-md">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-rose-500/20 border border-rose-400/40 flex items-center justify-center shrink-0 animate-pulse">
+                  <Lock className="w-4.5 h-4.5 text-rose-300" />
                 </div>
+                <div className="min-w-0 text-left">
+                  <h4 className="font-display font-black text-xs text-rose-200 truncate flex items-center gap-1.5">
+                    <span>Sign In with Mail ID Required to Chat</span>
+                    <span className="bg-rose-500/30 text-rose-300 text-[9px] px-1.5 py-0.2 rounded-full border border-rose-400/40 font-bold uppercase">Locked</span>
+                  </h4>
+                  <p className="text-[10px] text-stone-300 truncate font-medium">
+                    All new users signed in with their mail ID can send messages, reply & chat with each other user
+                  </p>
+                </div>
+              </div>
                 <button
                   type="button"
                   onClick={() => setShowGoogleModal(true)}
