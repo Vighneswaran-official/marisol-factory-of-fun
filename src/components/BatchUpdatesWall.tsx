@@ -1013,16 +1013,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const displayedChatMessages = chatMessages;
 
   return (
-    <div className={`bg-[#FAF8F5] text-stone-900 w-full ${
-      activeMode === 'chat' 
-        ? 'h-full flex-1 min-h-0 flex flex-col overflow-hidden p-1.5 sm:p-2.5 pb-1' 
-        : 'min-h-screen p-2.5 sm:p-5 pb-20'
-    }`}>
-      <div className={`max-w-4xl lg:max-w-5xl mx-auto w-full ${
-        activeMode === 'chat' 
-          ? 'h-full flex-1 min-h-0 flex flex-col overflow-hidden' 
-          : 'space-y-3 sm:space-y-4'
-      }`}>
+    <div className="bg-[#FAF8F5] text-stone-900 w-full h-full flex-1 min-h-0 flex flex-col overflow-hidden p-1.5 sm:p-2.5 pb-1">
+      <div className="max-w-4xl lg:max-w-5xl mx-auto w-full h-full flex-1 min-h-0 flex flex-col overflow-hidden">
 
         {/* Sync Toast Notification */}
         {network.syncToast && (
@@ -1886,7 +1878,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
         {/* ==================== 2. CONCISE POST FEED ==================== */}
         {activeMode === 'posts' && (
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pb-8 scrollbar-thin animate-fade-in pr-0.5">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pb-24 scrollbar-thin animate-fade-in pr-0.5 overscroll-contain">
             {/* Story Mood Rings Bar */}
             <div className="bg-white border border-stone-200/90 rounded-2xl p-3 shadow-2xs space-y-2">
               <div className="flex items-center justify-between text-xs px-1">
@@ -2460,12 +2452,31 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 );
               })}
             </div>
+
+            {photoPosts.length === 0 && (
+              <div className="p-8 bg-white border border-stone-200/90 rounded-2xl text-center space-y-2 max-w-sm mx-auto shadow-2xs my-4">
+                <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-500 mx-auto flex items-center justify-center text-2xl border border-rose-200 shadow-2xs">
+                  📸
+                </div>
+                <h4 className="font-display font-black text-sm text-stone-900">No photo posts yet</h4>
+                <p className="text-xs text-stone-500">
+                  Be the first to share a food snap, memory, or celebration!
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowNewPhotoPostModal(true)}
+                  className="mt-2 px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Create First Post
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* ==================== 3. BULLETIN CORKBOARD ==================== */}
         {activeMode === 'bulletin' && (
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pb-8 scrollbar-thin animate-fade-in pr-0.5">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pb-24 scrollbar-thin animate-fade-in pr-0.5 overscroll-contain">
             <div className="bg-gradient-to-r from-amber-50 via-rose-50 to-purple-50 border border-amber-200/80 rounded-2xl p-3 shadow-2xs flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-xl border border-amber-300 bg-white shadow-2xs shrink-0 flex items-center justify-center text-base">

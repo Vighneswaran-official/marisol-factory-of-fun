@@ -430,24 +430,42 @@ class BatchWallService {
           orderBy('createdAt', 'desc')
         );
         onSnapshot(postsQuery, (snapshot) => {
-          const remotePosts: BatchUpdatePost[] = [];
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data() as BatchUpdatePost;
-            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(docSnap.id)) {
-              if (!this.deletedPostIds.has(docSnap.id)) {
-                this.deletedPostIds.add(docSnap.id);
-                this.saveDeletedPostsToStorage();
-              }
-              return;
+          const postMap = new Map<string, BatchUpdatePost>();
+
+          // Preserve existing posts in memory
+          this.posts.forEach(p => {
+            if (!this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone) {
+              postMap.set(p.id, p);
             }
-            remotePosts.push({ ...data, id: docSnap.id });
           });
 
-          this.posts = remotePosts.sort((a, b) => {
-            if (a.isPinned && !b.isPinned) return -1;
-            if (!a.isPinned && b.isPinned) return 1;
-            return (b.createdAt || 0) - (a.createdAt || 0);
+          // Authoritatively merge all documents from Firestore snapshot
+          snapshot.docs.forEach((docSnap) => {
+            const data = docSnap.data() as BatchUpdatePost;
+            const postId = docSnap.id;
+            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(postId)) {
+              if (!this.deletedPostIds.has(postId)) {
+                this.deletedPostIds.add(postId);
+                this.saveDeletedPostsToStorage();
+              }
+              postMap.delete(postId);
+              return;
+            }
+            postMap.set(postId, {
+              ...data,
+              id: postId,
+              createdAt: data.createdAt || (typeof data.timestamp === 'number' ? data.timestamp : Date.now()),
+              replies: Array.isArray(data.replies) ? data.replies : []
+            });
           });
+
+          this.posts = Array.from(postMap.values())
+            .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone)
+            .sort((a, b) => {
+              if (a.isPinned && !b.isPinned) return -1;
+              if (!a.isPinned && b.isPinned) return 1;
+              return (b.createdAt || 0) - (a.createdAt || 0);
+            });
           this.saveToStorage();
           this.notify();
         }, (err) => {
@@ -457,29 +475,65 @@ class BatchWallService {
         // 2. Authoritative Group Chat Listener
         this.initChatListener();
 
-        // 3. Instagram / Photo Wall Posts Listener
+        // 3. Instagram / Photo Wall Posts Listener (Merging full collection into postMap to never overwrite other users' posts)
         const instaQuery = query(
           collection(db, 'instagram_posts'),
           orderBy('createdAt', 'desc')
         );
         onSnapshot(instaQuery, (snapshot) => {
-          const remoteInsta: InstagramPost[] = [];
-          snapshot.forEach((docSnap) => {
+          const postMap = new Map<string, InstagramPost>();
+
+          // Step A: Seed foundational default posts (unless explicitly deleted)
+          DEFAULT_INSTAGRAM_POSTS.forEach(dp => {
+            if (!this.deletedPostIds.has(dp.id)) {
+              postMap.set(dp.id, dp);
+            }
+          });
+
+          // Step B: Preserve existing in-memory posts (including optimistic / local posts)
+          this.instagramPosts.forEach(p => {
+            if (!this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone) {
+              postMap.set(p.id, p);
+            }
+          });
+
+          // Step C: Authoritatively merge all documents from Firestore snapshot
+          snapshot.docs.forEach((docSnap) => {
             const data = docSnap.data() as InstagramPost;
-            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(docSnap.id)) {
-              if (!this.deletedPostIds.has(docSnap.id)) {
-                this.deletedPostIds.add(docSnap.id);
+            const postId = docSnap.id;
+
+            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(postId)) {
+              if (!this.deletedPostIds.has(postId)) {
+                this.deletedPostIds.add(postId);
                 this.saveDeletedPostsToStorage();
               }
+              postMap.delete(postId);
               return;
             }
-            remoteInsta.push({ ...data, id: docSnap.id });
+
+            const mergedPost: InstagramPost = {
+              ...data,
+              id: postId,
+              createdAt: data.createdAt || (typeof data.timestamp === 'number' ? data.timestamp : Date.now()),
+              images: data.images && data.images.length > 0 ? data.images : (data.imageUrl ? [data.imageUrl] : []),
+              comments: Array.isArray(data.comments) ? data.comments : [],
+              reactions: data.reactions || {},
+              reactedUsers: data.reactedUsers || {},
+              likedByUsers: Array.isArray(data.likedByUsers) ? data.likedByUsers : [],
+              likedByMembers: Array.isArray(data.likedByMembers) ? data.likedByMembers : []
+            };
+
+            postMap.set(postId, mergedPost);
           });
-          this.instagramPosts = remoteInsta.sort((a, b) => {
-            if (a.isPinned && !b.isPinned) return -1;
-            if (!a.isPinned && b.isPinned) return 1;
-            return (b.createdAt || 0) - (a.createdAt || 0);
-          });
+
+          this.instagramPosts = Array.from(postMap.values())
+            .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone)
+            .sort((a, b) => {
+              if (a.isPinned && !b.isPinned) return -1;
+              if (!a.isPinned && b.isPinned) return 1;
+              return (b.createdAt || 0) - (a.createdAt || 0);
+            });
+
           this.saveInstaToStorage();
           this.notify();
         }, (err) => {
@@ -1252,18 +1306,21 @@ class BatchWallService {
   }
 
   public getInstagramPosts(): InstagramPost[] {
-    const active = this.instagramPosts
-      .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone);
-    
-    if (active.length === 0 && DEFAULT_INSTAGRAM_POSTS.length > 0) {
-      DEFAULT_INSTAGRAM_POSTS.forEach(dp => this.deletedPostIds.delete(dp.id));
-      this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
-      this.saveInstaToStorage();
-      this.saveDeletedPostsToStorage();
-      return [...DEFAULT_INSTAGRAM_POSTS];
-    }
+    const postMap = new Map<string, InstagramPost>();
 
-    return active.sort((a, b) => {
+    DEFAULT_INSTAGRAM_POSTS.forEach(dp => {
+      if (!this.deletedPostIds.has(dp.id)) {
+        postMap.set(dp.id, dp);
+      }
+    });
+
+    this.instagramPosts.forEach(p => {
+      if (!this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone) {
+        postMap.set(p.id, p);
+      }
+    });
+
+    return Array.from(postMap.values()).sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
       return (b.createdAt || 0) - (a.createdAt || 0);
@@ -1496,10 +1553,9 @@ class BatchWallService {
     postId: string,
     deleter?: { id?: string; email?: string; name?: string }
   ): Promise<{ success: boolean; error?: string }> {
-    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!postId) return { success: false, error: 'Invalid post ID' };
+    const post = this.instagramPosts.find(p => p.id === postId) || DEFAULT_INSTAGRAM_POSTS.find(p => p.id === postId);
     if (!post) {
-      this.deletedPostIds.add(postId);
-      this.saveDeletedPostsToStorage();
       return { success: true };
     }
 
@@ -1815,10 +1871,9 @@ class BatchWallService {
     postId: string,
     deleter?: { id?: string; email?: string; name?: string }
   ): Promise<{ success: boolean; error?: string }> {
+    if (!postId) return { success: false, error: 'Invalid post ID' };
     const post = this.posts.find(p => p.id === postId);
     if (!post) {
-      this.deletedPostIds.add(postId);
-      this.saveDeletedPostsToStorage();
       return { success: true };
     }
 

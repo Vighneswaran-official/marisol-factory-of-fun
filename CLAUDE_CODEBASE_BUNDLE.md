@@ -2837,16 +2837,8 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
   const displayedChatMessages = chatMessages;
 
   return (
-    <div className={`bg-[#FAF8F5] text-stone-900 w-full ${
-      activeMode === 'chat' 
-        ? 'h-full flex-1 min-h-0 flex flex-col overflow-hidden p-1.5 sm:p-2.5 pb-1' 
-        : 'min-h-screen p-2.5 sm:p-5 pb-20'
-    }`}>
-      <div className={`max-w-4xl lg:max-w-5xl mx-auto w-full ${
-        activeMode === 'chat' 
-          ? 'h-full flex-1 min-h-0 flex flex-col overflow-hidden' 
-          : 'space-y-3 sm:space-y-4'
-      }`}>
+    <div className="bg-[#FAF8F5] text-stone-900 w-full h-full flex-1 min-h-0 flex flex-col overflow-hidden p-1.5 sm:p-2.5 pb-1">
+      <div className="max-w-4xl lg:max-w-5xl mx-auto w-full h-full flex-1 min-h-0 flex flex-col overflow-hidden">
 
         {/* Sync Toast Notification */}
         {network.syncToast && (
@@ -3710,7 +3702,7 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
 
         {/* ==================== 2. CONCISE POST FEED ==================== */}
         {activeMode === 'posts' && (
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pb-8 scrollbar-thin animate-fade-in pr-0.5">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pb-24 scrollbar-thin animate-fade-in pr-0.5 overscroll-contain">
             {/* Story Mood Rings Bar */}
             <div className="bg-white border border-stone-200/90 rounded-2xl p-3 shadow-2xs space-y-2">
               <div className="flex items-center justify-between text-xs px-1">
@@ -4284,12 +4276,31 @@ export const BatchUpdatesWall: React.FC<BatchUpdatesWallProps> = ({ onNavigate: 
                 );
               })}
             </div>
+
+            {photoPosts.length === 0 && (
+              <div className="p-8 bg-white border border-stone-200/90 rounded-2xl text-center space-y-2 max-w-sm mx-auto shadow-2xs my-4">
+                <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-500 mx-auto flex items-center justify-center text-2xl border border-rose-200 shadow-2xs">
+                  📸
+                </div>
+                <h4 className="font-display font-black text-sm text-stone-900">No photo posts yet</h4>
+                <p className="text-xs text-stone-500">
+                  Be the first to share a food snap, memory, or celebration!
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowNewPhotoPostModal(true)}
+                  className="mt-2 px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Create First Post
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* ==================== 3. BULLETIN CORKBOARD ==================== */}
         {activeMode === 'bulletin' && (
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pb-8 scrollbar-thin animate-fade-in pr-0.5">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pb-24 scrollbar-thin animate-fade-in pr-0.5 overscroll-contain">
             <div className="bg-gradient-to-r from-amber-50 via-rose-50 to-purple-50 border border-amber-200/80 rounded-2xl p-3 shadow-2xs flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-xl border border-amber-300 bg-white shadow-2xs shrink-0 flex items-center justify-center text-base">
@@ -19054,24 +19065,42 @@ class BatchWallService {
           orderBy('createdAt', 'desc')
         );
         onSnapshot(postsQuery, (snapshot) => {
-          const remotePosts: BatchUpdatePost[] = [];
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data() as BatchUpdatePost;
-            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(docSnap.id)) {
-              if (!this.deletedPostIds.has(docSnap.id)) {
-                this.deletedPostIds.add(docSnap.id);
-                this.saveDeletedPostsToStorage();
-              }
-              return;
+          const postMap = new Map<string, BatchUpdatePost>();
+
+          // Preserve existing posts in memory
+          this.posts.forEach(p => {
+            if (!this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone) {
+              postMap.set(p.id, p);
             }
-            remotePosts.push({ ...data, id: docSnap.id });
           });
 
-          this.posts = remotePosts.sort((a, b) => {
-            if (a.isPinned && !b.isPinned) return -1;
-            if (!a.isPinned && b.isPinned) return 1;
-            return (b.createdAt || 0) - (a.createdAt || 0);
+          // Authoritatively merge all documents from Firestore snapshot
+          snapshot.docs.forEach((docSnap) => {
+            const data = docSnap.data() as BatchUpdatePost;
+            const postId = docSnap.id;
+            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(postId)) {
+              if (!this.deletedPostIds.has(postId)) {
+                this.deletedPostIds.add(postId);
+                this.saveDeletedPostsToStorage();
+              }
+              postMap.delete(postId);
+              return;
+            }
+            postMap.set(postId, {
+              ...data,
+              id: postId,
+              createdAt: data.createdAt || (typeof data.timestamp === 'number' ? data.timestamp : Date.now()),
+              replies: Array.isArray(data.replies) ? data.replies : []
+            });
           });
+
+          this.posts = Array.from(postMap.values())
+            .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone)
+            .sort((a, b) => {
+              if (a.isPinned && !b.isPinned) return -1;
+              if (!a.isPinned && b.isPinned) return 1;
+              return (b.createdAt || 0) - (a.createdAt || 0);
+            });
           this.saveToStorage();
           this.notify();
         }, (err) => {
@@ -19081,29 +19110,65 @@ class BatchWallService {
         // 2. Authoritative Group Chat Listener
         this.initChatListener();
 
-        // 3. Instagram / Photo Wall Posts Listener
+        // 3. Instagram / Photo Wall Posts Listener (Merging full collection into postMap to never overwrite other users' posts)
         const instaQuery = query(
           collection(db, 'instagram_posts'),
           orderBy('createdAt', 'desc')
         );
         onSnapshot(instaQuery, (snapshot) => {
-          const remoteInsta: InstagramPost[] = [];
-          snapshot.forEach((docSnap) => {
+          const postMap = new Map<string, InstagramPost>();
+
+          // Step A: Seed foundational default posts (unless explicitly deleted)
+          DEFAULT_INSTAGRAM_POSTS.forEach(dp => {
+            if (!this.deletedPostIds.has(dp.id)) {
+              postMap.set(dp.id, dp);
+            }
+          });
+
+          // Step B: Preserve existing in-memory posts (including optimistic / local posts)
+          this.instagramPosts.forEach(p => {
+            if (!this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone) {
+              postMap.set(p.id, p);
+            }
+          });
+
+          // Step C: Authoritatively merge all documents from Firestore snapshot
+          snapshot.docs.forEach((docSnap) => {
             const data = docSnap.data() as InstagramPost;
-            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(docSnap.id)) {
-              if (!this.deletedPostIds.has(docSnap.id)) {
-                this.deletedPostIds.add(docSnap.id);
+            const postId = docSnap.id;
+
+            if (data.isDeleted || data.isDeletedForEveryone || this.deletedPostIds.has(postId)) {
+              if (!this.deletedPostIds.has(postId)) {
+                this.deletedPostIds.add(postId);
                 this.saveDeletedPostsToStorage();
               }
+              postMap.delete(postId);
               return;
             }
-            remoteInsta.push({ ...data, id: docSnap.id });
+
+            const mergedPost: InstagramPost = {
+              ...data,
+              id: postId,
+              createdAt: data.createdAt || (typeof data.timestamp === 'number' ? data.timestamp : Date.now()),
+              images: data.images && data.images.length > 0 ? data.images : (data.imageUrl ? [data.imageUrl] : []),
+              comments: Array.isArray(data.comments) ? data.comments : [],
+              reactions: data.reactions || {},
+              reactedUsers: data.reactedUsers || {},
+              likedByUsers: Array.isArray(data.likedByUsers) ? data.likedByUsers : [],
+              likedByMembers: Array.isArray(data.likedByMembers) ? data.likedByMembers : []
+            };
+
+            postMap.set(postId, mergedPost);
           });
-          this.instagramPosts = remoteInsta.sort((a, b) => {
-            if (a.isPinned && !b.isPinned) return -1;
-            if (!a.isPinned && b.isPinned) return 1;
-            return (b.createdAt || 0) - (a.createdAt || 0);
-          });
+
+          this.instagramPosts = Array.from(postMap.values())
+            .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone)
+            .sort((a, b) => {
+              if (a.isPinned && !b.isPinned) return -1;
+              if (!a.isPinned && b.isPinned) return 1;
+              return (b.createdAt || 0) - (a.createdAt || 0);
+            });
+
           this.saveInstaToStorage();
           this.notify();
         }, (err) => {
@@ -19876,18 +19941,21 @@ class BatchWallService {
   }
 
   public getInstagramPosts(): InstagramPost[] {
-    const active = this.instagramPosts
-      .filter(p => !this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone);
-    
-    if (active.length === 0 && DEFAULT_INSTAGRAM_POSTS.length > 0) {
-      DEFAULT_INSTAGRAM_POSTS.forEach(dp => this.deletedPostIds.delete(dp.id));
-      this.instagramPosts = [...DEFAULT_INSTAGRAM_POSTS];
-      this.saveInstaToStorage();
-      this.saveDeletedPostsToStorage();
-      return [...DEFAULT_INSTAGRAM_POSTS];
-    }
+    const postMap = new Map<string, InstagramPost>();
 
-    return active.sort((a, b) => {
+    DEFAULT_INSTAGRAM_POSTS.forEach(dp => {
+      if (!this.deletedPostIds.has(dp.id)) {
+        postMap.set(dp.id, dp);
+      }
+    });
+
+    this.instagramPosts.forEach(p => {
+      if (!this.deletedPostIds.has(p.id) && !p.isDeleted && !p.isDeletedForEveryone) {
+        postMap.set(p.id, p);
+      }
+    });
+
+    return Array.from(postMap.values()).sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
       return (b.createdAt || 0) - (a.createdAt || 0);
@@ -20120,10 +20188,9 @@ class BatchWallService {
     postId: string,
     deleter?: { id?: string; email?: string; name?: string }
   ): Promise<{ success: boolean; error?: string }> {
-    const post = this.instagramPosts.find(p => p.id === postId);
+    if (!postId) return { success: false, error: 'Invalid post ID' };
+    const post = this.instagramPosts.find(p => p.id === postId) || DEFAULT_INSTAGRAM_POSTS.find(p => p.id === postId);
     if (!post) {
-      this.deletedPostIds.add(postId);
-      this.saveDeletedPostsToStorage();
       return { success: true };
     }
 
@@ -20439,10 +20506,9 @@ class BatchWallService {
     postId: string,
     deleter?: { id?: string; email?: string; name?: string }
   ): Promise<{ success: boolean; error?: string }> {
+    if (!postId) return { success: false, error: 'Invalid post ID' };
     const post = this.posts.find(p => p.id === postId);
     if (!post) {
-      this.deletedPostIds.add(postId);
-      this.saveDeletedPostsToStorage();
       return { success: true };
     }
 
